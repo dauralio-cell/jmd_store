@@ -1,7 +1,6 @@
 from flask import Flask, request
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from database import init_db, get_all_products, add_product
 
 # 🔹 Настройки
 BOT_TOKEN = "8436596875:AAGvAemmT1ESKk7dflMbTbjzz_n49LRckEc"
