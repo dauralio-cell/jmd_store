@@ -1,98 +1,52 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #f8f9fa;
-  }
-
-  .container {
-    width: 100%;
-    max-width: 420px;
-    margin: 0 auto;
-    padding: 16px;
-  }
-
-  button, input, select {
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 16px;
-    padding: 10px;
-    margin-top: 10px;
-    border-radius: 10px;
-    border: 1px solid #ccc;
-  }
-
-  img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-  }
-
-  .card {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    margin-bottom: 16px;
-    padding: 16px;
-  }
-</style>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>JMD</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <title>Магазин DENE</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 20px; }
+        form { text-align: center; margin-bottom: 30px; }
+        input, button { padding: 8px; margin: 5px; }
+        .product {
+            background: white;
+            padding: 15px;
+            margin: 10px auto;
+            max-width: 400px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .product h3 { margin: 0; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+    </style>
 </head>
 <body>
-  <header class="site-header">
-    <div class="logo">JMD</div>
-  </header>
+    <h1>Добро пожаловать в магазин DENE! 🛍</h1>
 
-  <main class="container">
-    <form method="get" class="filters">
-      <select name="brand">
-        <option value="">Все бренды</option>
-        {% for b in brands %}
-        <option value="{{ b }}" {% if selected_brand==b %}selected{% endif %}>{{ b }}</option>
-        {% endfor %}
-      </select>
-
-      <select name="gender">
-        <option value="">Все</option>
-        {% for g in genders %}
-        <option value="{{ g }}" {% if selected_gender==g %}selected{% endif %}>{{ g }}</option>
-        {% endfor %}
-      </select>
-
-      <select name="size">
-        <option value="">Все размеры</option>
-        {% for s in sizes %}
-        <option value="{{ s }}" {% if selected_size==s %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-
-      <button type="submit">Применить фильтр</button>
+    <form method="get">
+        <input type="text" name="name" placeholder="Название" value="{{ request.args.get('name', '') }}">
+        <input type="text" name="brand" placeholder="Бренд" value="{{ request.args.get('brand', '') }}">
+        <input type="text" name="size" placeholder="Размер" value="{{ request.args.get('size', '') }}">
+        <input type="text" name="gender" placeholder="Пол (men/women)" value="{{ request.args.get('gender', '') }}">
+        <button type="submit">Фильтр</button>
     </form>
 
-    <section class="catalog">
-      {% if products|length == 0 %}
-        <p class="empty">Товары не найдены по фильтру.</p>
-      {% endif %}
-      {% for p in products %}
-        <article class="card">
-          <img src="{{ p['image'] }}" alt="Фото" class="thumb">
-          <div class="card-body">
-            <h3 class="title">{{ p['name'] }}</h3>
-            <div class="meta">{{ p['brand'] }} • {{ p['gender'] }} • {{ p['size'] }}</div>
-            <div class="price">{{ p['display_price'] }} ₸ <span class="orig">{{ p['price'] }} ₸</span></div>
-            <a class="btn" href="https://t.me/dene_store_bot">Заказать</a>
-          </div>
-        </article>
-      {% endfor %}
-    </section>
-  </main>
+    {% for product in products %}
+        <div class="product">
+            <h3>{{ product["Name"] }}</h3>
+            <p><b>Бренд:</b> {{ product["Brand"] }}</p>
+            <p><b>Цена:</b> {{ product["Price"] }} ₸</p>
+            <p><b>Наличие:</b> {{ product["Available"] }}</p>
+            <p><b>Количество:</b> {{ product["Quantity"] }}</p>
+            <button onclick="alert('Товар {{ product['Name'] }} добавлен в корзину!')">Купить 🛒</button>
+        </div>
+    {% endfor %}
 </body>
 </html>
