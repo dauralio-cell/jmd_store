@@ -51,7 +51,10 @@ def load_products():
 
         size = parse_size(name)
         gender = parse_gender(name)
-        display_price = int(math.ceil(price * 0.85)) if price else 0
+        if price is None or (isinstance(price, float) and math.isnan(price)):
+    display_price = 0
+else:
+    display_price = int(math.ceil(float(price) * 0.85))
 
         products.append({
             'name': name or 'Без названия',
