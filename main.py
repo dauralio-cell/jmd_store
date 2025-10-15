@@ -4,7 +4,7 @@ import pandas as pd
 app = Flask(__name__)
 
 # Загружаем Excel-каталог
-df = pd.read_excel("catalog.xlsx")
+df = pd.read_excel("data/catalog.xlsx")
 df = df.fillna("")
 
 @app.route("/", methods=["GET"])
