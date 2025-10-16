@@ -1,118 +1,72 @@
 import streamlit as st
 import pandas as pd
-import re
+import os
+import glob
+
+st.set_page_config(page_title="DENE Store", layout="wide")
 
 # --- Обложка ---
 st.image("data/images/banner.jpg", use_container_width=True)
-
-# --- Заголовок ---
-st.markdown(
-    """
-    <style>
-    .welcome-text {
-        text-align: center;
-        white-space: nowrap;
-        font-weight: 600;
-        margin-top: 10px;
-        font-size: 2rem;
-    }
-
-    @media (max-width: 768px) {
-        .welcome-text {
-            font-size: 1.5rem;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .welcome-text {
-            font-size: 1.2rem;
-        }
-    }
-    </style>
-
-    <h2 class="welcome-text">DENE Store. Добро пожаловать!</h2>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("<h1 style='text-align:center;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
 # --- Загрузка данных ---
 @st.cache_data
 def load_data():
     df = pd.read_excel("data/catalog.xlsx")
     df = df.fillna("")
-
-    # --- Разбор model ---
-    df["brand"] = df["brand"].str.strip()
-
-    # Извлекаем размер (например, 6.5, 42, 43.5)
-    df["size"] = df["model"].apply(lambda x: re.search(r"\b\d{1,2}(\.\d)?\b", str(x)).group(0) if re.search(r"\b\d{1,2}(\.\d)?\b", str(x)) else "")
-
-    # Извлекаем пол (men, women, kids и т.п.)
-    df["gender"] = df["model"].apply(lambda x: "men" if "men" in str(x).lower() else ("women" if "women" in str(x).lower() else ""))
-
-    # Извлекаем цвет (по словам типа white, black, red, blue и т.д.)
-    colors = ["white", "black", "red", "blue", "green", "grey", "pink", "yellow", "brown", "beige", "purple", "orange"]
-    df["color"] = df["model"].apply(lambda x: next((c for c in colors if c in str(x).lower()), ""))
-
-    # Извлекаем название модели без бренда, размера и пола
-    def clean_model(text):
-        t = str(text)
-        t = re.sub(r"(?i)\b(men|women|kids)\b", "", t)
-        t = re.sub(r"\b\d{1,2}(\.\d)?\b", "", t)
-        t = re.sub(r"\b(" + "|".join(colors) + r")\b", "", t, flags=re.IGNORECASE)
-        return t.replace("  ", " ").strip()
-
-    df["model_clean"] = df["model"].apply(clean_model)
+    
+    # Чистим и разбиваем model
+    df["model_clean"] = df["model"].str.replace(r"\d{1,2}(\.\d)?", "", regex=True).str.strip()
+    df["size"] = df["model"].str.extract(r"(\d{1,2}(\.\d)?)")[0]
+    df["gender"] = df["model"].apply(lambda x: "men" if "men" in x.lower() else ("women" if "women" in x.lower() else "unisex"))
+    df["color"] = df["model"].str.extract(r"(white|black|blue|red|green|pink|gray|brown)", expand=False).fillna("other")
     return df
 
 df = load_data()
 
 # --- Фильтры ---
-st.sidebar.header("Фильтр товаров")
+col1, col2, col3, col4, col5 = st.columns(5)
+brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
+filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
 
-brands = ["Все"] + sorted(df["brand"].unique().tolist())
-selected_brand = st.sidebar.selectbox("Бренд", brands)
+# Модели по выбранному бренду
+models = sorted(filtered_df["model_clean"].unique().tolist())
+model_filter = col2.selectbox("Модель", ["Все"] + models)
 
-# Появляется список моделей только после выбора бренда
-if selected_brand != "Все":
-    models = ["Все"] + sorted(df[df["brand"] == selected_brand]["model_clean"].unique().tolist())
-else:
-    models = ["Все"] + sorted(df["model_clean"].unique().tolist())
-selected_model = st.sidebar.selectbox("Модель", models)
+size_filter = col3.selectbox("Размер", ["Все"] + sorted(df["size"].dropna().unique().tolist()))
+gender_filter = col4.selectbox("Пол", ["Все", "men", "women", "unisex"])
+color_filter = col5.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
 
-sizes = ["Все"] + sorted(df["size"].unique().tolist(), key=lambda x: (float(x) if x else 0))
-selected_size = st.sidebar.selectbox("Размер", sizes)
+# --- Применяем фильтры ---
+filtered_df = df.copy()
+if brand_filter != "Все":
+    filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
+if model_filter != "Все":
+    filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
+if size_filter != "Все":
+    filtered_df = filtered_df[filtered_df["size"] == size_filter]
+if gender_filter != "Все":
+    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
+if color_filter != "Все":
+    filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
-genders = ["Все"] + sorted([g for g in df["gender"].unique() if g])
-selected_gender = st.sidebar.selectbox("Пол", genders)
+# --- Показ товаров ---
+for _, row in filtered_df.iterrows():
+    st.markdown(f"### {row['brand']} — {row['model_clean']} ({row['size']})")
+    
+    # ищем все изображения по SKU
+    image_files = glob.glob(f"data/images/{row['SKU']}*.jpg")
 
-colors = ["Все"] + sorted([c for c in df["color"].unique() if c])
-selected_color = st.sidebar.selectbox("Цвет", colors)
+    if not image_files:
+        image_files = ["data/images/no_image.jpg"]
 
-# --- Применение фильтров ---
-filtered = df.copy()
-if selected_brand != "Все":
-    filtered = filtered[filtered["brand"] == selected_brand]
-if selected_model != "Все":
-    filtered = filtered[filtered["model_clean"] == selected_model]
-if selected_size != "Все":
-    filtered = filtered[filtered["size"] == selected_size]
-if selected_gender != "Все":
-    filtered = filtered[filtered["gender"] == selected_gender]
-if selected_color != "Все":
-    filtered = filtered[filtered["color"] == selected_color]
-
-# --- Отображение каталога ---
-st.markdown("### Каталог товаров")
-
-if filtered.empty:
-    st.info("Товары по выбранным параметрам не найдены 😢")
-else:
-    cols = st.columns(3)
-    for i, (_, row) in enumerate(filtered.iterrows()):
-        with cols[i % 3]:
-            image_path = f"data/images/{row['SKU']}.jpg"
-            st.image(image_path, use_container_width=True, caption=row["model_clean"])
-            st.write(f"**{row['brand']}** — {row['model_clean']}")
-            st.write(f"💰 Цена: {int(row['price'])} ₸")
-            st.button("🛒 Добавить в корзину", key=f"btn_{i}")
+    # создаем слайдер для переключения изображений
+    if len(image_files) > 1:
+        idx = st.slider(f"Фото {row['SKU']}", 0, len(image_files)-1, 0, label_visibility="collapsed")
+        st.image(image_files[idx], use_container_width=True)
+    else:
+        st.image(image_files[0], use_container_width=True)
+    
+    st.write(f"💰 Цена: {int(row['price'])} ₸")
+    st.button("🛒 Добавить в корзину", key=row["SKU"])
+    st.divider()
