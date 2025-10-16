@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 
+# --- Обложка сайта ---
+st.image("data/images/banner.jpg", use_container_width=True)
+
 # Загружаем данные
 @st.cache_data
 def load_data():
