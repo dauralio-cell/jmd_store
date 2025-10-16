@@ -1,82 +1,70 @@
 import streamlit as st
 import pandas as pd
-import re
-import os
 
-# --- Путь к файлу ---
-file_path = "data/catalog.xlsx"
+# Загружаем данные
+@st.cache_data
+def load_data():
+    df = pd.read_excel("data/catalog.xlsx")
+    df = df.fillna("")
+    return df
 
-# --- Загрузка данных ---
-if not os.path.exists(file_path):
-    st.error(f"❌ Файл не найден: {file_path}")
+df = load_data()
+
+# Заголовок
+st.title("🛍 DENE Store — Каталог товаров")
+st.markdown("Добро пожаловать! Найдите нужную модель по бренду, размеру или полу 👇")
+
+# --- Фильтры ---
+brands = ["Все"] + sorted(df["brand"].unique().tolist())
+selected_brand = st.selectbox("Выберите бренд", brands)
+
+# Парсим размер и пол из model
+df["size"] = df["model"].str.extract(r'(\d{1,2}(\.\d)?)')  # например 6.5, 42 и т.д.
+df["gender"] = df["model"].str.extract(r'\b(men|women|kids|unisex)\b', expand=False).fillna("")
+
+sizes = ["Все"] + sorted(df["size"].dropna().unique().tolist())
+genders = ["Все"] + sorted(df["gender"].dropna().unique().tolist())
+
+col1, col2 = st.columns(2)
+with col1:
+    selected_size = st.selectbox("Размер", sizes)
+with col2:
+    selected_gender = st.selectbox("Пол", genders)
+
+# --- Фильтрация ---
+filtered = df.copy()
+if selected_brand != "Все":
+    filtered = filtered[filtered["brand"] == selected_brand]
+if selected_size != "Все":
+    filtered = filtered[filtered["size"] == selected_size]
+if selected_gender != "Все":
+    filtered = filtered[filtered["gender"] == selected_gender]
+
+# --- Отображение товаров ---
+st.divider()
+if len(filtered) == 0:
+    st.warning("⚠️ Товары не найдены. Попробуйте изменить фильтры.")
 else:
-    df = pd.read_excel(file_path)
+    cols = st.columns(3)
+    for idx, (_, row) in enumerate(filtered.iterrows()):
+        with cols[idx % 3]:
+            st.image("https://via.placeholder.com/300x200?text=Фото+товара", use_container_width=True)
+            st.markdown(f"**{row['model']}**")
+            st.markdown(f"💸 Цена: **{int(row['price'])} ₸**")
+            if st.button("🛒 Добавить в корзину", key=f"btn_{idx}"):
+                st.success(f"{row['model']} добавлен в корзину!")
 
-    st.title("🛍 Каталог товаров")
-
-    # --- Преобразуем preorder ---
-    df["status"] = df["preorder"].apply(lambda x: "🕓 Предзаказ" if str(x).lower() == "yes" else "✅ В наличии")
-
-    # --- Извлекаем размер и пол из model ---
-    def extract_size(text):
-        if not isinstance(text, str):
-            return None
-        match = re.search(r"\b(\d{2,3})\b", text)  # ищем размер (например, 38, 42)
-        return match.group(1) if match else None
-
-    def extract_gender(text):
-        if not isinstance(text, str):
-            return None
-        text = text.lower()
-        if "men" in text or "man" in text:
-            return "Мужской"
-        elif "women" in text or "woman" in text:
-            return "Женский"
-        elif "kids" in text or "child" in text:
-            return "Детский"
-        elif "unisex" in text:
-            return "Унисекс"
-        return "Не указан"
-
-    df["size"] = df["model"].apply(extract_size)
-    df["gender"] = df["model"].apply(extract_gender)
-
-    # --- Боковая панель фильтров ---
-    st.sidebar.header("🔍 Фильтр")
-    search_model = st.sidebar.text_input("Поиск по названию модели")
-    brand_filter = st.sidebar.multiselect("Бренд", sorted(df["brand"].dropna().unique()))
-    size_filter = st.sidebar.multiselect("Размер", sorted(df["size"].dropna().unique()))
-    gender_filter = st.sidebar.multiselect("Пол", sorted(df["gender"].dropna().unique()))
-    stock_filter = st.sidebar.multiselect("Наличие", ["✅ В наличии", "🕓 Предзаказ"])
-
-    # --- Применяем фильтры ---
-    filtered = df.copy()
-
-    if search_model:
-        filtered = filtered[filtered["model"].str.contains(search_model, case=False, na=False)]
-    if brand_filter:
-        filtered = filtered[filtered["brand"].isin(brand_filter)]
-    if size_filter:
-        filtered = filtered[filtered["size"].isin(size_filter)]
-    if gender_filter:
-        filtered = filtered[filtered["gender"].isin(gender_filter)]
-    if stock_filter:
-        filtered = filtered[filtered["status"].isin(stock_filter)]
-
-    # --- Вывод карточек ---
-    if filtered.empty:
-        st.warning("❌ Товары не найдены по выбранным фильтрам.")
-    else:
-        for _, row in filtered.iterrows():
-            with st.container():
-                st.subheader(row["model"])
-                st.write(f"**Бренд:** {row['brand']}")
-                st.write(f"**Артикул (SKU):** {row['SKU']}")
-                st.write(f"**Пол:** {row['gender']}")
-                st.write(f"**Размер:** {row['size'] if row['size'] else '—'}")
-                st.write(f"**Статус:** {row['status']}")
-                st.write(f"💰 **Цена:** {row['price']}")
-
-                if st.button(f"🛒 Добавить в корзину ({row['SKU']})", key=row["SKU"]):
-                    st.success(f"{row['model']} добавлен в корзину ✅")
-                st.divider()
+# --- Стили ---
+st.markdown("""
+    <style>
+        .stButton>button {
+            background-color: black;
+            color: white;
+            border-radius: 8px;
+            padding: 8px 16px;
+        }
+        .stButton>button:hover {
+            background-color: #444;
+        }
+    </style>
+""", unsafe_allow_html=True)
