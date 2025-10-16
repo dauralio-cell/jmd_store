@@ -4,7 +4,17 @@ import pandas as pd
 # --- Обложка сайта ---
 st.image("data/images/banner.jpg", use_container_width=True)
 
-# Загружаем данные
+# --- Заголовок ---
+st.markdown(
+    """
+    <h1 style='text-align: center; font-size: 48px; margin-top: -30px;'>
+        DENE Store. Добро пожаловать!
+    </h1>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- Загружаем данные ---
 @st.cache_data
 def load_data():
     df = pd.read_excel("data/catalog.xlsx")
@@ -12,10 +22,6 @@ def load_data():
     return df
 
 df = load_data()
-
-# Заголовок
-st.title("🛍 DENE Store — Каталог товаров")
-st.markdown("Добро пожаловать! Найдите нужную модель по бренду, размеру или полу 👇")
 
 # --- Фильтры ---
 brands = ["Все"] + sorted(df["brand"].unique().tolist())
