@@ -19,7 +19,10 @@ brands = ["Все"] + sorted(df["brand"].unique().tolist())
 selected_brand = st.selectbox("Выберите бренд", brands)
 
 # Парсим размер и пол из model
-df["size"] = df["model"].str.extract(r'(\d{1,2}(\.\d)?)')  # например 6.5, 42 и т.д.
+# Извлекаем размер (одно число, иногда с .5)
+df["size"] = df["model"].str.extract(r'(\d{1,2}(?:\.\d)?)')[0]
+
+# Извлекаем пол (men, women, kids, unisex)
 df["gender"] = df["model"].str.extract(r'\b(men|women|kids|unisex)\b', expand=False).fillna("")
 
 sizes = ["Все"] + sorted(df["size"].dropna().unique().tolist())
