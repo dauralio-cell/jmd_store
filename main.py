@@ -1,41 +1,78 @@
 import streamlit as st
 import pandas as pd
-import os
 import glob
+import os
+import re
 
+# --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
 
 # --- Обложка ---
 st.image("data/images/banner.jpg", use_container_width=True)
-st.markdown("<h1 style='text-align:center;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
-# --- Загрузка данных ---
-@st.cache_data
+# --- Таблица конверсии размеров US ↔ EU ---
+size_conversion = {
+    "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
+    "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
+    "10": "44", "10.5": "44.5", "11": "45", "11.5": "46", "12": "46.5"
+}
+reverse_conversion = {v: k for k, v in size_conversion.items()}
+
+# --- Автообновление Excel ---
+@st.cache_data(ttl=60)
 def load_data():
     df = pd.read_excel("data/catalog.xlsx")
     df = df.fillna("")
     
-    # Чистим и разбиваем model
-    df["model_clean"] = df["model"].str.replace(r"\d{1,2}(\.\d)?", "", regex=True).str.strip()
-    df["size"] = df["model"].str.extract(r"(\d{1,2}(\.\d)?)")[0]
-    df["gender"] = df["model"].apply(lambda x: "men" if "men" in x.lower() else ("women" if "women" in x.lower() else "unisex"))
+    # --- Обработка модели ---
+    df["model_clean"] = (
+        df["model"]
+        .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
+        .str.strip()
+    )
+
+    # --- Извлекаем размеры ---
+    df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
+    df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
+    df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
+    df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
+
+    # --- Добавляем автозаполнение при отсутствии одного из размеров ---
+    df["size_eu"] = df.apply(
+        lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1
+    )
+    df["size_us"] = df.apply(
+        lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1
+    )
+
+    # --- Пол и цвет ---
+    df["gender"] = df["model"].apply(
+        lambda x: "men" if "men" in x.lower() else (
+            "women" if "women" in x.lower() else "unisex"
+        )
+    )
     df["color"] = df["model"].str.extract(r"(white|black|blue|red|green|pink|gray|brown)", expand=False).fillna("other")
+    
     return df
 
 df = load_data()
 
 # --- Фильтры ---
-col1, col2, col3, col4, col5 = st.columns(5)
+st.divider()
+st.markdown("### 🔎 Фильтр каталога")
+
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
 filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
 
-# Модели по выбранному бренду
 models = sorted(filtered_df["model_clean"].unique().tolist())
 model_filter = col2.selectbox("Модель", ["Все"] + models)
 
-size_filter = col3.selectbox("Размер", ["Все"] + sorted(df["size"].dropna().unique().tolist()))
-gender_filter = col4.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col5.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+size_us_filter = col3.selectbox("Размер (US)", ["Все"] + sorted(df["size_us"].dropna().unique().tolist()))
+size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()))
+gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
+color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
 
 # --- Применяем фильтры ---
 filtered_df = df.copy()
@@ -43,30 +80,58 @@ if brand_filter != "Все":
     filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
 if model_filter != "Все":
     filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_filter != "Все":
-    filtered_df = filtered_df[filtered_df["size"] == size_filter]
+if size_us_filter != "Все":
+    eu_equiv = size_conversion.get(size_us_filter, "")
+    filtered_df = filtered_df[
+        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
+    ]
+if size_eu_filter != "Все":
+    us_equiv = reverse_conversion.get(size_eu_filter, "")
+    filtered_df = filtered_df[
+        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
+    ]
 if gender_filter != "Все":
     filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
 if color_filter != "Все":
     filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
-# --- Показ товаров ---
-for _, row in filtered_df.iterrows():
-    st.markdown(f"### {row['brand']} — {row['model_clean']} ({row['size']})")
-    
-    # ищем все изображения по SKU
-    image_files = glob.glob(f"data/images/{row['SKU']}*.jpg")
+st.divider()
 
-    if not image_files:
-        image_files = ["data/images/no_image.jpg"]
+# --- Сетка карточек товаров ---
+st.markdown("## 👟 Каталог товаров")
 
-    # создаем слайдер для переключения изображений
-    if len(image_files) > 1:
-        idx = st.slider(f"Фото {row['SKU']}", 0, len(image_files)-1, 0, label_visibility="collapsed")
-        st.image(image_files[idx], use_container_width=True)
-    else:
-        st.image(image_files[0], use_container_width=True)
-    
-    st.write(f"💰 Цена: {int(row['price'])} ₸")
-    st.button("🛒 Добавить в корзину", key=row["SKU"])
-    st.divider()
+num_cols = 4
+rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
+
+for row_df in rows:
+    cols = st.columns(num_cols)
+    for col, (_, row) in zip(cols, row_df.iterrows()):
+        with col:
+            image_files = glob.glob(f"data/images/{row['SKU']}*.jpg")
+            if not image_files:
+                image_files = ["data/images/no_image.jpg"]
+            image_path = image_files[0]
+
+            st.markdown(
+                f"""
+                <div style="
+                    border:1px solid #ddd;
+                    border-radius:12px;
+                    padding:10px;
+                    text-align:center;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                    transition: all 0.2s ease-in-out;
+                ">
+                    <img src='{image_path}' style='width:100%; border-radius:10px;'>
+                    <h4 style="margin:8px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                    <p style="color:gray; font-size:13px;">
+                        US: {row['size_us'] or '-'} | EU: {row['size_eu'] or '-'} | {row['color']}
+                    </p>
+                    <p style="font-weight:bold; font-size:16px;">{int(row['price'])} ₸</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+st.divider()
+st.caption("© DENE Store 2025 | Каталог обновляется автоматически из Excel")
