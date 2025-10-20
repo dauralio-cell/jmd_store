@@ -12,7 +12,7 @@ st.image("data/images/banner.jpg", use_container_width=True)
 st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
 # --- Пути и константы ---
-CATALOG_PATH = r"C:\Users\admin\Desktop\jmd_store_render\jmd_store\data\catalog.xlsx"
+df = pd.read_excel("data/catalog.xlsx")
 
 # --- Таблица конверсии размеров US ↔ EU ---
 size_conversion = {
