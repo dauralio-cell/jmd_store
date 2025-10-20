@@ -1,159 +1,134 @@
 import streamlit as st
 import pandas as pd
-import glob
 import os
-import re
+from PIL import Image
 
-# --- Настройки страницы ---
-st.set_page_config(page_title="DENE Store", layout="wide")
+st.set_page_config(page_title="Sneakers Catalog", layout="wide")
 
-# --- Обложка ---
-st.image("data/images/banner.jpg", width="stretch")
-st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
-
-# --- Пути и константы ---
-CATALOG_PATH = "data/catalog.xlsx"
-df = pd.read_excel(CATALOG_PATH)
-
-# --- Таблица конверсии размеров US ↔ EU ---
-size_conversion = {
-    "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
-    "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
-    "10": "44", "10.5": "44.5", "11": "45", "11.5": "46", "12": "46.5"
-}
-reverse_conversion = {v: k for k, v in size_conversion.items()}
-
-# --- Загрузка данных ---
-@st.cache_data(show_spinner=False)
+# === Загрузка данных ===
+@st.cache_data
 def load_data():
-    df = pd.read_excel(CATALOG_PATH)
-    df = df.fillna("")
-    df["model_clean"] = (
-        df["model"]
-        .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
-        .str.strip()
-    )
-
-    df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
-    df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
-    df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
-    df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
-
-    df["size_eu"] = df.apply(
-        lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1
-    )
-    df["size_us"] = df.apply(
-        lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1
-    )
-
-    df["gender"] = df["model"].apply(
-        lambda x: "men" if "men" in x.lower() else (
-            "women" if "women" in x.lower() else "unisex"
-        )
-    )
-    df["color"] = df["model"].str.extract(
-        r"(white|black|blue|red|green|pink|gray|brown)", expand=False
-    ).fillna("other")
-
-    if "description" not in df.columns:
-        df["description"] = "Описание временно недоступно."
-    return df
+    if os.path.exists("data/catalog.csv"):
+        return pd.read_csv("data/catalog.csv")
+    else:
+        return pd.DataFrame(columns=["Артикул", "Название", "Цвет", "Цена", "Бренд"])
 
 df = load_data()
 
-# --- Фильтры ---
-st.divider()
-st.markdown("### 🔎 Фильтр каталога")
+# === Поиск изображений по SKU в подпапках ===
+def get_images_by_sku(sku):
+    image_folder = "data/images"
+    matches = []
+    for root, _, files in os.walk(image_folder):
+        for file in sorted(files):
+            if file.startswith(str(sku)) and file.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                matches.append(os.path.join(root, file))
+    return matches
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
-brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
-filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
+# === Заголовок и фильтры ===
+st.markdown("<h1 style='text-align: center;'>Sneakers Catalog</h1>", unsafe_allow_html=True)
+col1, col2, col3 = st.columns(3)
 
-models = sorted(filtered_df["model_clean"].unique().tolist())
-model_filter = col2.selectbox("Модель", ["Все"] + models)
+with col1:
+    brand_filter = st.selectbox("Бренд", ["Все"] + sorted(df["Бренд"].unique().tolist()) if not df.empty else ["Все"])
+with col2:
+    color_filter = st.selectbox("Цвет", ["Все"] + sorted(df["Цвет"].unique().tolist()) if not df.empty else ["Все"])
+with col3:
+    price_filter = st.slider("Цена", 0, int(df["Цена"].max() if not df.empty else 100000), (0, int(df["Цена"].max() if not df.empty else 100000)))
 
-size_us_filter = col3.selectbox("Размер (US)", ["Все"] + sorted(df["size_us"].dropna().unique().tolist()))
-size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()))
-gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
-
+# === Фильтрация ===
 filtered_df = df.copy()
 if brand_filter != "Все":
-    filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
-if model_filter != "Все":
-    filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_us_filter != "Все":
-    eu_equiv = size_conversion.get(size_us_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
-    ]
-if size_eu_filter != "Все":
-    us_equiv = reverse_conversion.get(size_eu_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
-    ]
-if gender_filter != "Все":
-    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
+    filtered_df = filtered_df[filtered_df["Бренд"] == brand_filter]
 if color_filter != "Все":
-    filtered_df = filtered_df[filtered_df["color"] == color_filter]
+    filtered_df = filtered_df[filtered_df["Цвет"] == color_filter]
+filtered_df = filtered_df[(filtered_df["Цена"] >= price_filter[0]) & (filtered_df["Цена"] <= price_filter[1])]
 
-st.divider()
-st.markdown("## 👟 Каталог товаров")
+# === Стили стрелок поверх изображения ===
+arrow_style = """
+<style>
+.image-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.image-container img {
+    width: 100%;
+    border-radius: 10px;
+}
+.arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.4);
+    color: black;
+    border: 1px solid black;
+    border-radius: 50%;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    z-index: 10;
+}
+.arrow:hover {
+    background: rgba(0, 0, 0, 0.15);
+}
+.arrow-left {
+    left: 10px;
+}
+.arrow-right {
+    right: 10px;
+}
+</style>
+"""
+st.markdown(arrow_style, unsafe_allow_html=True)
 
-# --- Сетка карточек ---
-num_cols = 4
-rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
+# === Отображение карточек ===
+cols = st.columns(3)
 
-for row_df in rows:
-    cols = st.columns(num_cols)
-    for col, (_, row) in zip(cols, row_df.iterrows()):
-        with col:
-            # --- Поиск изображений по SKU во всех подпапках ---
-            sku = str(row["SKU"]).strip()
-            image_patterns = [
-                f"data/images/**/*{sku}_*.jpg",
-                f"data/images/**/*{sku}_*.jpeg",
-                f"data/images/**/*{sku}_*.png",
-                f"data/images/**/*{sku}_*.webp",
-            ]
-            image_files = []
-            for pattern in image_patterns:
-                image_files.extend(glob.glob(pattern, recursive=True))
-            image_files = sorted(image_files)
+for idx, row in filtered_df.iterrows():
+    with cols[idx % 3]:
+        sku = row["Артикул"]
+        images = get_images_by_sku(sku)
+        if not images:
+            images = ["data/images/no_image.jpg"]
 
-            if not image_files:
-                image_files = ["data/images/no_image.jpg"]
+        key_base = f"photo_{sku}"
+        if key_base not in st.session_state:
+            st.session_state[key_base] = 0
 
-            # --- Слайдер изображений ---
-            if len(image_files) > 1:
-                index = st.slider(f"Фото {sku}", 0, len(image_files) - 1, 0, key=f"slider_{sku}")
-                image_path = image_files[index]
-            else:
-                image_path = image_files[0]
+        photo_index = st.session_state[key_base]
+        image_path = images[photo_index % len(images)]
 
-            st.markdown(
-                f"""
-                <div style="
-                    border:1px solid #eee;
-                    border-radius:16px;
-                    padding:12px;
-                    margin-bottom:16px;
-                    background-color:#fff;
-                    box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                    transition:transform 0.2s ease-in-out;
-                " onmouseover="this.style.transform='scale(1.02)';"
-                  onmouseout="this.style.transform='scale(1)';">
-                    <img src='{image_path}' style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
-                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                    <p style="color:gray; font-size:13px; margin:0;">
-                        US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
-                    </p>
-                    <p style="font-size:14px; color:#555;">{row['description']}</p>
-                    <p style="font-weight:bold; font-size:16px; margin-top:6px;">{row['price']} ₸</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        # HTML блок с картинкой и стрелками поверх
+        img_html = f"""
+        <div class="image-container">
+            <img src="data:image/jpeg;base64,{open(image_path, 'rb').read().encode('base64').decode()}" alt="Фото">
+            <button class="arrow arrow-left" onclick="fetch('/?prev={sku}')">◀</button>
+            <button class="arrow arrow-right" onclick="fetch('/?next={sku}')">▶</button>
+        </div>
+        """
+        try:
+            with open(image_path, "rb") as f:
+                image = Image.open(f)
+                st.image(image, use_container_width=True)
+        except:
+            st.image("data/images/no_image.jpg", use_container_width=True)
 
-st.divider()
-st.caption("© DENE Store 2025")
+        # Управление стрелками
+        c1, c2, c3 = st.columns([1, 6, 1])
+        with c1:
+            if st.button("◀", key=f"prev_{sku}"):
+                st.session_state[key_base] = (photo_index - 1) % len(images)
+                st.rerun()
+        with c3:
+            if st.button("▶", key=f"next_{sku}"):
+                st.session_state[key_base] = (photo_index + 1) % len(images)
+                st.rerun()
+
+        st.markdown(f"**{row['Название']}**")
+        st.markdown(f"Цвет: {row['Цвет']}")
+        st.markdown(f"Бренд: {row['Бренд']}")
+        st.markdown(f"Цена: {row['Цена']} ₸")
