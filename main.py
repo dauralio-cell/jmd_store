@@ -7,12 +7,22 @@ import re
 # --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
 
-# --- Обложка ---
-st.image("data/images/banner.jpg", use_container_width=True)
-st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
-
 # --- Пути и константы ---
-df = pd.read_excel("data/catalog.xlsx")
+CATALOG_PATH = "data/catalog.xlsx"
+IMAGES_DIR = "data/images"
+BANNER_PATH = os.path.join(IMAGES_DIR, "banner.jpg")
+
+# --- Проверка наличия файлов ---
+if not os.path.exists(CATALOG_PATH):
+    st.error("❌ Файл каталога не найден: data/catalog.xlsx")
+    st.stop()
+if not os.path.exists(BANNER_PATH):
+    st.warning("⚠️ Баннер не найден: data/images/banner.jpg")
+
+# --- Обложка ---
+if os.path.exists(BANNER_PATH):
+    st.image(BANNER_PATH, use_container_width=True)
+st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
 # --- Таблица конверсии размеров US ↔ EU ---
 size_conversion = {
@@ -30,7 +40,7 @@ def get_last_modified_time():
 def load_data(last_modified_time):
     df = pd.read_excel(CATALOG_PATH)
     df = df.fillna("")
-    
+
     # --- Обработка модели ---
     df["model_clean"] = (
         df["model"]
@@ -44,13 +54,9 @@ def load_data(last_modified_time):
     df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
     df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
 
-    # --- Добавляем автозаполнение при отсутствии одного из размеров ---
-    df["size_eu"] = df.apply(
-        lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1
-    )
-    df["size_us"] = df.apply(
-        lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1
-    )
+    # --- Автозаполнение при отсутствии одного из размеров ---
+    df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
+    df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
 
     # --- Пол и цвет ---
     df["gender"] = df["model"].apply(
@@ -62,13 +68,13 @@ def load_data(last_modified_time):
         r"(white|black|blue|red|green|pink|gray|brown)", expand=False
     ).fillna("other")
 
-    # --- Описание (если есть в каталоге) ---
+    # --- Описание ---
     if "description" not in df.columns:
         df["description"] = "Описание временно недоступно."
 
     return df
 
-# Загружаем данные с учётом времени изменения файла
+# --- Загрузка данных ---
 last_modified_time = get_last_modified_time()
 df = load_data(last_modified_time)
 
@@ -124,9 +130,9 @@ for row_df in rows:
     cols = st.columns(num_cols)
     for col, (_, row) in zip(cols, row_df.iterrows()):
         with col:
-            image_files = glob.glob(f"data/images/{row['SKU']}*.jpg")
+            image_files = glob.glob(f"{IMAGES_DIR}/{row['SKU']}*.jpg")
             if not image_files:
-                image_files = ["data/images/no_image.jpg"]
+                image_files = [os.path.join(IMAGES_DIR, "no_image.jpg")]
             image_path = image_files[0]
 
             st.markdown(
