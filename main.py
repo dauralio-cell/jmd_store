@@ -11,13 +11,12 @@ st.set_page_config(page_title="DENE Store", layout="wide")
 CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_DIR = "data/images"
 BANNER_PATH = os.path.join(IMAGES_DIR, "banner.jpg")
+NO_IMAGE_PATH = os.path.join(IMAGES_DIR, "no_image.jpg")
 
 # --- Проверка наличия файлов ---
 if not os.path.exists(CATALOG_PATH):
     st.error("❌ Файл каталога не найден: data/catalog.xlsx")
     st.stop()
-if not os.path.exists(BANNER_PATH):
-    st.warning("⚠️ Баннер не найден: data/images/banner.jpg")
 
 # --- Обложка ---
 if os.path.exists(BANNER_PATH):
@@ -78,9 +77,6 @@ def load_data(last_modified_time):
 last_modified_time = get_last_modified_time()
 df = load_data(last_modified_time)
 
-# --- Отображаем дату обновления ---
-st.caption(f"Каталог обновлён: {pd.to_datetime(last_modified_time, unit='s').strftime('%d.%m.%Y %H:%M:%S')}")
-
 # --- Фильтры ---
 st.divider()
 st.markdown("### 🔎 Фильтр каталога")
@@ -131,9 +127,7 @@ for row_df in rows:
     for col, (_, row) in zip(cols, row_df.iterrows()):
         with col:
             image_files = glob.glob(f"{IMAGES_DIR}/{row['SKU']}*.jpg")
-            if not image_files:
-                image_files = [os.path.join(IMAGES_DIR, "no_image.jpg")]
-            image_path = image_files[0]
+            image_path = image_files[0] if image_files else NO_IMAGE_PATH
 
             st.markdown(
                 f"""
@@ -160,4 +154,4 @@ for row_df in rows:
             )
 
 st.divider()
-st.caption("© DENE Store 2025 | Каталог обновляется автоматически из Excel")
+st.caption("© DENE Store 2025")
