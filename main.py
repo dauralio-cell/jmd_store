@@ -1,143 +1,64 @@
-import streamlit as st
-import pandas as pd
-import glob
 import os
-import re
+import pandas as pd
+import streamlit as st
 
-# --- Настройки страницы ---
-st.set_page_config(page_title="DENE Store", layout="wide")
+# 📁 Пути к файлам
+CATALOG_PATH = os.path.join("data", "catalog.xlsx")
+NO_IMAGE_PATH = os.path.join("data", "no_image.jpg")
 
-# --- Пути ---
-CATALOG_PATH = "data/catalog.xlsx"
-IMAGES_DIR = "data/images"
-NO_IMAGE_PATH = os.path.join(IMAGES_DIR, "no_image.jpg")
-
-# --- Проверка наличия каталогов и файлов ---
-if not os.path.exists(CATALOG_PATH):
-    st.error("❌ Файл каталога не найден: data/catalog.xlsx")
-    st.stop()
-
+# Проверка, что файл-заглушка существует
 if not os.path.exists(NO_IMAGE_PATH):
-    st.warning("⚠️ Отсутствует файл data/images/no_image.jpg — добавь его в проект.")
+    st.error(f"Файл-заглушка 'no_image.jpg' не найден по пути: {NO_IMAGE_PATH}")
+    st.stop() # Останавливаем приложение, так как нет файла-заглушки
 
-# --- Обложка ---
-if os.path.exists(os.path.join(IMAGES_DIR, "banner.jpg")):
-    st.image(os.path.join(IMAGES_DIR, "banner.jpg"), use_container_width=True)
+# 🔄 Загрузка каталога
+@st.cache_data # Добавим кэширование для скорости
+def load_catalog():
+    if not os.path.exists(CATALOG_PATH):
+        st.error(f"Файл каталога не найден: {CATALOG_PATH}")
+        return pd.DataFrame()
+    df = pd.read_excel(CATALOG_PATH)
+    df.fillna('', inplace=True)
+    return df
 
-st.markdown("<h1 style='text-align:center;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
+catalog = load_catalog()
 
-# --- Таблица конверсии размеров US ↔ EU ---
-size_conversion = {
-    "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
-    "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
-    "10": "44", "10.5": "44.5", "11": "45", "11.5": "46", "12": "46.5"
-}
-reverse_conversion = {v: k for k, v in size_conversion.items()}
+st.title("🛍 Каталог товаров")
 
-# --- Загрузка данных ---
-df = pd.read_excel(CATALOG_PATH)
-df = df.fillna("")
+# 🧩 Вывод карточек
+for _, row in catalog.iterrows():
+    # --- Логика определения пути к изображению ---
+    # 1. Получаем путь из Excel
+    image_from_excel = str(row.get('image', '')).strip()
+    
+    # 2. Определяем путь для отображения
+    # Проверяем, есть ли путь в Excel И существует ли файл по этому пути
+    if image_from_excel and os.path.exists(image_from_excel):
+        display_image_path = image_from_excel
+    else:
+        # Если пути нет или файл не найден, используем заглушку
+        display_image_path = NO_IMAGE_PATH
 
-df["model_clean"] = (
-    df["model"]
-    .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
-    .str.strip()
-)
+    # --- Цена ---
+    price = str(row.get('price', '')).strip()
+    price_html = f"<p style='font-size:16px; color:gray; margin:2px 0;'>{int(price)} ₸</p>" if price.isdigit() else ""
 
-df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
-df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
-df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
-df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
+    # --- Модель ---
+    model = str(row.get('model', '')).strip()
+    model_html = f"<p style='font-size:15px; color:#555; margin:2px 0;'>Модель: {model}</p>" if model else ""
 
-df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
-df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
+    # --- Отображение карточки ---
+    st.markdown(f"""
+    <div style="border:1px solid #ddd; border-radius:12px; padding:12px; margin:10px 0;">
+    """, unsafe_allow_html=True)
+    
+    # Используем st.image() вместо HTML-тега img
+    st.image(display_image_path, use_column_width=True)
+    
+    st.markdown(f"""
+        <p style="font-weight:bold; font-size:18px;">{row.get('name', '')}</p>
+        {model_html}
+        {price_html}
+    </div>
+    """, unsafe_allow_html=True)
 
-df["gender"] = df["model"].apply(
-    lambda x: "men" if "men" in x.lower() else (
-        "women" if "women" in x.lower() else "unisex"
-    )
-)
-df["color"] = df["model"].str.extract(
-    r"(white|black|blue|red|green|pink|gray|brown)", expand=False
-).fillna("other")
-
-if "description" not in df.columns:
-    df["description"] = "Описание временно недоступно."
-
-# --- Фильтры ---
-st.divider()
-st.markdown("### 🔎 Фильтр каталога")
-
-col1, col2, col3, col4, col5, col6 = st.columns(6)
-brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
-filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
-
-models = sorted(filtered_df["model_clean"].unique().tolist())
-model_filter = col2.selectbox("Модель", ["Все"] + models)
-
-size_us_filter = col3.selectbox("Размер (US)", ["Все"] + sorted(df["size_us"].dropna().unique().tolist()))
-size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()))
-gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
-
-# --- Применяем фильтры ---
-filtered_df = df.copy()
-if brand_filter != "Все":
-    filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
-if model_filter != "Все":
-    filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_us_filter != "Все":
-    eu_equiv = size_conversion.get(size_us_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
-    ]
-if size_eu_filter != "Все":
-    us_equiv = reverse_conversion.get(size_eu_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
-    ]
-if gender_filter != "Все":
-    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
-if color_filter != "Все":
-    filtered_df = filtered_df[filtered_df["color"] == color_filter]
-
-st.divider()
-st.markdown("## 👟 Каталог товаров")
-
-# --- Сетка карточек ---
-num_cols = 4
-rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
-
-for row_df in rows:
-    cols = st.columns(num_cols)
-    for col, (_, row) in zip(cols, row_df.iterrows()):
-        with col:
-            image_files = glob.glob(f"{IMAGES_DIR}/{row['SKU']}*.jpg")
-            image_path = image_files[0] if image_files else NO_IMAGE_PATH
-
-            st.markdown(
-                f"""
-                <div style="
-                    border:1px solid #eee;
-                    border-radius:16px;
-                    padding:12px;
-                    margin-bottom:16px;
-                    background-color:#fff;
-                    box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                    transition:transform 0.2s ease-in-out;
-                " onmouseover="this.style.transform='scale(1.02)';"
-                  onmouseout="this.style.transform='scale(1)';">
-                    <img src='{image_path}' style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
-                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                    <p style="color:gray; font-size:13px; margin:0;">
-                        US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
-                    </p>
-                    <p style="font-size:14px; color:#555;">{row['description']}</p>
-                    <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-st.divider()
-st.caption("© DENE Store 2025")
