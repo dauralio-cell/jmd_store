@@ -2,17 +2,18 @@ import os
 import pandas as pd
 import streamlit as st
 
-# 📁 Пути к файлам
+# 📁 ПРАВИЛЬНЫЙ Путь к файлам
 CATALOG_PATH = os.path.join("data", "catalog.xlsx")
-NO_IMAGE_PATH = os.path.join("data", "no_image.jpg")
+# 👇 ИЗМЕНЕНО: Используется папка 'images'
+NO_IMAGE_PATH = os.path.join("data", "images", "no_image.jpg")
 
 # Проверка, что файл-заглушка существует
 if not os.path.exists(NO_IMAGE_PATH):
-    st.error(f"Файл-заглушка 'no_image.jpg' не найден по пути: {NO_IMAGE_PATH}")
+    st.error(f"Файл-заглушка не найден по пути: {NO_IMAGE_PATH}")
     st.stop() # Останавливаем приложение, так как нет файла-заглушки
 
-# 🔄 Загрузка каталога
-@st.cache_data # Добавим кэширование для скорости
+# 🔄 Загрузка каталога с кэшированием
+@st.cache_data
 def load_catalog():
     if not os.path.exists(CATALOG_PATH):
         st.error(f"Файл каталога не найден: {CATALOG_PATH}")
@@ -28,22 +29,17 @@ st.title("🛍 Каталог товаров")
 # 🧩 Вывод карточек
 for _, row in catalog.iterrows():
     # --- Логика определения пути к изображению ---
-    # 1. Получаем путь из Excel
     image_from_excel = str(row.get('image', '')).strip()
     
-    # 2. Определяем путь для отображения
-    # Проверяем, есть ли путь в Excel И существует ли файл по этому пути
     if image_from_excel and os.path.exists(image_from_excel):
         display_image_path = image_from_excel
     else:
-        # Если пути нет или файл не найден, используем заглушку
         display_image_path = NO_IMAGE_PATH
 
-    # --- Цена ---
+    # --- Цена, Модель (HTML-форматирование) ---
     price = str(row.get('price', '')).strip()
     price_html = f"<p style='font-size:16px; color:gray; margin:2px 0;'>{int(price)} ₸</p>" if price.isdigit() else ""
 
-    # --- Модель ---
     model = str(row.get('model', '')).strip()
     model_html = f"<p style='font-size:15px; color:#555; margin:2px 0;'>Модель: {model}</p>" if model else ""
 
@@ -52,7 +48,7 @@ for _, row in catalog.iterrows():
     <div style="border:1px solid #ddd; border-radius:12px; padding:12px; margin:10px 0;">
     """, unsafe_allow_html=True)
     
-    # Используем st.image() вместо HTML-тега img
+    # Используем st.image() для лучшей обработки локальных файлов
     st.image(display_image_path, use_column_width=True)
     
     st.markdown(f"""
@@ -61,4 +57,3 @@ for _, row in catalog.iterrows():
         {price_html}
     </div>
     """, unsafe_allow_html=True)
-
