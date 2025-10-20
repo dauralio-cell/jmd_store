@@ -2,146 +2,104 @@ import streamlit as st
 import pandas as pd
 import glob
 import os
-import re
-import base64
 
-# --- Настройки страницы ---
-st.set_page_config(page_title="DENE Store", layout="wide")
+# ==============================
+# Настройки страницы
+# ==============================
+st.set_page_config(page_title="Sneaker Catalog", layout="wide")
 
-# --- Обложка ---
-st.image("data/images/banner.jpg", width="stretch")
-st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
+# ==============================
+# Обложка
+# ==============================
+st.markdown(
+    """
+    <div style='text-align:center; padding:40px 0;'>
+        <h1 style='font-size:48px; margin-bottom:10px;'>🏁 Sneaker Catalog</h1>
+        <p style='font-size:18px; color:gray;'>Поиск по бренду, цвету, размеру и цене</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-# --- Пути и константы ---
-CATALOG_PATH = "data/catalog.xlsx"
-IMAGES_PATH = "data/images"
-
-# --- Таблица конверсии размеров US ↔ EU ---
-size_conversion = {
-    "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
-    "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
-    "10": "44", "10.5": "44.5", "11": "45", "11.5": "46", "12": "46.5"
-}
-reverse_conversion = {v: k for k, v in size_conversion.items()}
-
-# --- Функция для безопасной загрузки фото ---
-def get_image_path(sku):
-    """Ищет изображение по SKU во всех подпапках, возвращает путь или no_image.jpg"""
-    pattern_jpg = os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg")
-    pattern_webp = os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp")
-    image_files = glob.glob(pattern_jpg, recursive=True) + glob.glob(pattern_webp, recursive=True)
-    if image_files:
-        return image_files[0]
-    else:
-        return os.path.join(IMAGES_PATH, "no_image.jpg")
-
-def get_image_base64(image_path):
-    """Возвращает изображение в base64 для вставки в HTML"""
-    try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode("utf-8")
-    except Exception:
-        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
-        with open(fallback, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode("utf-8")
-
-# --- Загрузка данных ---
-@st.cache_data(show_spinner=False)
+# ==============================
+# Загрузка данных
+# ==============================
+@st.cache_data
 def load_data():
-    df = pd.read_excel(CATALOG_PATH)
-    df = df.fillna("")
+    df = pd.read_csv("data/sneakers.csv")
 
-    # Обработка модели
-    df["model_clean"] = (
-        df["model"]
-        .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
-        .str.strip()
-    )
-
-    # Извлекаем размеры
-    df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
-    df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
-    df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
-    df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
-
-    # Автозаполнение при отсутствии одного из размеров
-    df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
-    df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
-
-    # Пол и цвет
-    df["gender"] = df["model"].apply(
-        lambda x: "men" if "men" in x.lower() else (
-            "women" if "women" in x.lower() else "unisex"
-        )
-    )
-    df["color"] = df["model"].str.extract(
-        r"(white|black|blue|red|green|pink|gray|brown)", expand=False
-    ).fillna("other")
-
-    # Описание
-    if "description" not in df.columns:
-        df["description"] = "Описание временно недоступно."
-
-    # Исключаем товары без цены или модели
-    df = df[df["price"].astype(str).str.strip() != ""]
-    df = df[df["model_clean"].astype(str).str.strip() != ""]
-
+    df["brand"] = df["brand"].fillna("").astype(str).str.strip()
+    df["model_clean"] = df["model_clean"].fillna("").astype(str).str.strip()
+    df["color"] = df["color"].fillna("").astype(str).str.strip()
+    df["size_us"] = df["size_us"].fillna("")
+    df["size_eu"] = df["size_eu"].fillna("")
+    df["description"] = df["description"].fillna("")
+    df["price"] = df["price"].fillna(0)
+    df["SKU"] = df["SKU"].fillna("").astype(str).str.strip()
     return df
 
 df = load_data()
 
-# --- Фильтры ---
-st.divider()
-st.markdown("### 🔎 Фильтр каталога")
+# ==============================
+# Панель фильтров
+# ==============================
+with st.sidebar:
+    st.header("🔍 Фильтры")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
-brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
-filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
+    brands = sorted(df["brand"].dropna().unique())
+    brand_filter = st.multiselect("Бренд", options=brands)
 
-models = sorted(filtered_df["model_clean"].unique().tolist())
-model_filter = col2.selectbox("Модель", ["Все"] + models)
+    colors = sorted(df["color"].dropna().unique())
+    color_filter = st.multiselect("Цвет", options=colors)
 
-size_us_filter = col3.selectbox("Размер (US)", ["Все"] + sorted(df["size_us"].dropna().unique().tolist()))
-size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()))
-gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+    sizes_us = sorted(df["size_us"].dropna().unique())
+    size_us_filter = st.multiselect("Размер US", options=sizes_us)
 
-# --- Применяем фильтры ---
+    price_min, price_max = st.slider(
+        "Цена (₸)", 
+        int(df["price"].min()), 
+        int(df["price"].max()), 
+        (int(df["price"].min()), int(df["price"].max()))
+    )
+
+# ==============================
+# Применяем фильтры
+# ==============================
 filtered_df = df.copy()
-if brand_filter != "Все":
-    filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
-if model_filter != "Все":
-    filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_us_filter != "Все":
-    eu_equiv = size_conversion.get(size_us_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
-    ]
-if size_eu_filter != "Все":
-    us_equiv = reverse_conversion.get(size_eu_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
-    ]
-if gender_filter != "Все":
-    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
-if color_filter != "Все":
-    filtered_df = filtered_df[filtered_df["color"] == color_filter]
+if brand_filter:
+    filtered_df = filtered_df[filtered_df["brand"].isin(brand_filter)]
+if color_filter:
+    filtered_df = filtered_df[filtered_df["color"].isin(color_filter)]
+if size_us_filter:
+    filtered_df = filtered_df[filtered_df["size_us"].isin(size_us_filter)]
 
-st.divider()
+filtered_df = filtered_df[
+    (filtered_df["price"] >= price_min) & (filtered_df["price"] <= price_max)
+]
 
-# --- Сетка карточек товаров ---
+# ==============================
+# Сетка карточек товаров
+# ==============================
 st.markdown("## 👟 Каталог товаров")
 
 num_cols = 4
-rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
+rows = [filtered_df.iloc[i:i + num_cols] for i in range(0, len(filtered_df), num_cols)]
 
 for row_df in rows:
     cols = st.columns(num_cols)
     for col, (_, row) in zip(cols, row_df.iterrows()):
         with col:
-            image_path = get_image_path(row["SKU"])
-            image_base64 = get_image_base64(image_path)
+            # Ищем все изображения SKU (в любых подпапках и форматах)
+            image_files = glob.glob(f"data/images/**/*{row['SKU']}*.*", recursive=True)
+            image_files = [img for img in image_files if img.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
 
+            # Если нет — подставляем no_image.jpg
+            if not image_files:
+                image_files = ["data/images/no_image.jpg"]
+
+            main_image = image_files[0]
+
+            # --- Карточка товара ---
             st.markdown(
                 f"""
                 <div style="
@@ -154,8 +112,7 @@ for row_df in rows:
                     transition:transform 0.2s ease-in-out;
                 " onmouseover="this.style.transform='scale(1.02)';"
                   onmouseout="this.style.transform='scale(1)';">
-                    <img src="data:image/jpeg;base64,{image_base64}" 
-                         style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                    <img src='{main_image}' style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
                     <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
                     <p style="color:gray; font-size:13px; margin:0;">
                         US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
@@ -167,5 +124,13 @@ for row_df in rows:
                 unsafe_allow_html=True
             )
 
-st.divider()
-st.caption("© DENE Store 2025")
+            # --- Галерея (если есть доп. фото) ---
+            if len(image_files) > 1:
+                with st.expander("📸 Другие фото"):
+                    st.image(image_files, use_container_width=True)
+
+# ==============================
+# Если ничего не найдено
+# ==============================
+if filtered_df.empty:
+    st.warning("⚠️ Товары по выбранным фильтрам не найдены.")
