@@ -7,21 +7,24 @@ import re
 # --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
 
-# --- Пути и константы ---
+# --- Пути ---
 CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_DIR = "data/images"
-BANNER_PATH = os.path.join(IMAGES_DIR, "banner.jpg")
 NO_IMAGE_PATH = os.path.join(IMAGES_DIR, "no_image.jpg")
 
-# --- Проверка наличия файлов ---
+# --- Проверка наличия каталогов и файлов ---
 if not os.path.exists(CATALOG_PATH):
     st.error("❌ Файл каталога не найден: data/catalog.xlsx")
     st.stop()
 
+if not os.path.exists(NO_IMAGE_PATH):
+    st.warning("⚠️ Отсутствует файл data/images/no_image.jpg — добавь его в проект.")
+
 # --- Обложка ---
-if os.path.exists(BANNER_PATH):
-    st.image(BANNER_PATH, use_container_width=True)
-st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
+if os.path.exists(os.path.join(IMAGES_DIR, "banner.jpg")):
+    st.image(os.path.join(IMAGES_DIR, "banner.jpg"), use_container_width=True)
+
+st.markdown("<h1 style='text-align:center;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
 # --- Таблица конверсии размеров US ↔ EU ---
 size_conversion = {
@@ -31,51 +34,35 @@ size_conversion = {
 }
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
-# --- Автообновление Excel ---
-def get_last_modified_time():
-    return os.path.getmtime(CATALOG_PATH)
-
-@st.cache_data(show_spinner=False)
-def load_data(last_modified_time):
-    df = pd.read_excel(CATALOG_PATH)
-    df = df.fillna("")
-
-    # --- Обработка модели ---
-    df["model_clean"] = (
-        df["model"]
-        .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
-        .str.strip()
-    )
-
-    # --- Извлекаем размеры ---
-    df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
-    df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
-    df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
-    df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
-
-    # --- Автозаполнение при отсутствии одного из размеров ---
-    df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
-    df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
-
-    # --- Пол и цвет ---
-    df["gender"] = df["model"].apply(
-        lambda x: "men" if "men" in x.lower() else (
-            "women" if "women" in x.lower() else "unisex"
-        )
-    )
-    df["color"] = df["model"].str.extract(
-        r"(white|black|blue|red|green|pink|gray|brown)", expand=False
-    ).fillna("other")
-
-    # --- Описание ---
-    if "description" not in df.columns:
-        df["description"] = "Описание временно недоступно."
-
-    return df
-
 # --- Загрузка данных ---
-last_modified_time = get_last_modified_time()
-df = load_data(last_modified_time)
+df = pd.read_excel(CATALOG_PATH)
+df = df.fillna("")
+
+df["model_clean"] = (
+    df["model"]
+    .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
+    .str.strip()
+)
+
+df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
+df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
+df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
+df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
+
+df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
+df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
+
+df["gender"] = df["model"].apply(
+    lambda x: "men" if "men" in x.lower() else (
+        "women" if "women" in x.lower() else "unisex"
+    )
+)
+df["color"] = df["model"].str.extract(
+    r"(white|black|blue|red|green|pink|gray|brown)", expand=False
+).fillna("other")
+
+if "description" not in df.columns:
+    df["description"] = "Описание временно недоступно."
 
 # --- Фильтры ---
 st.divider()
@@ -115,10 +102,9 @@ if color_filter != "Все":
     filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
 st.divider()
-
-# --- Сетка карточек товаров ---
 st.markdown("## 👟 Каталог товаров")
 
+# --- Сетка карточек ---
 num_cols = 4
 rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
 
