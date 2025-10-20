@@ -3,7 +3,6 @@ import pandas as pd
 import glob
 import os
 import re
-import base64
 
 # --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
@@ -28,25 +27,20 @@ reverse_conversion = {v: k for k, v in size_conversion.items()}
 @st.cache_data(show_spinner=False)
 def load_data():
     df = pd.read_excel(CATALOG_PATH).fillna("")
-    
-    # Убираем строки без цены и модели
     df = df[df["price"].astype(str).str.strip() != ""]
     df = df[df["model"].astype(str).str.strip() != ""]
     
-    # Обработка модели
     df["model_clean"] = (
         df["model"]
         .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
         .str.strip()
     )
 
-    # Извлекаем размеры
     df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
     df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
     df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
     df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
 
-    # Автозаполнение при отсутствии одного из размеров
     df["size_eu"] = df.apply(
         lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1
     )
@@ -54,7 +48,6 @@ def load_data():
         lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1
     )
 
-    # Пол и цвет
     df["gender"] = df["model"].apply(
         lambda x: "men" if "men" in x.lower() else (
             "women" if "women" in x.lower() else "unisex"
@@ -64,7 +57,6 @@ def load_data():
         r"(white|black|blue|red|green|pink|gray|brown)", expand=False
     ).fillna("other")
 
-    # Описание
     if "description" not in df.columns:
         df["description"] = "Описание временно недоступно."
     return df
@@ -118,12 +110,15 @@ for row_df in rows:
     cols = st.columns(num_cols)
     for col, (_, row) in zip(cols, row_df.iterrows()):
         with col:
-            # Поиск изображений по SKU в подпапках
+            # --- Поиск изображений по SKU ---
             image_pattern = os.path.join("data", "images", "**", f"{row['SKU']}*.jpg")
             image_files = glob.glob(image_pattern, recursive=True)
             image_path = image_files[0] if image_files else NO_IMAGE_PATH
 
-            # Отображение карточки
+            # --- Проверка: существует ли файл ---
+            if not os.path.exists(image_path):
+                image_path = NO_IMAGE_PATH
+
             st.markdown(
                 f"""
                 <div style="
