@@ -24,28 +24,26 @@ size_conversion = {
 }
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
-# --- Получение всех фото по SKU ---
-def get_all_images(sku):
-    """Ищет все изображения по SKU во всех подпапках (jpg, webp, png)"""
-    patterns = [
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg"),
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpeg"),
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.png"),
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp"),
-    ]
-    files = []
-    for pattern in patterns:
-        files += glob.glob(pattern, recursive=True)
-    return sorted(files, key=lambda x: int(re.search(r"_(\d+)", x).group(1)) if re.search(r"_(\d+)", x) else 0)
+# --- Функция для безопасной загрузки фото ---
+def get_image_path(sku):
+    """Ищет изображение по SKU во всех подпапках, возвращает путь или no_image.jpg"""
+    pattern_jpg = os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg")
+    pattern_webp = os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp")
+    image_files = glob.glob(pattern_jpg, recursive=True) + glob.glob(pattern_webp, recursive=True)
+    if image_files:
+        return image_files[0]
+    else:
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
 
-def get_image_base64(path):
-    """Возвращает base64 изображение или no_image"""
+def get_image_base64(image_path):
+    """Возвращает изображение в base64 для вставки в HTML"""
     try:
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
-    except:
-        with open(os.path.join(IMAGES_PATH, "no_image.jpg"), "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
+    except Exception:
+        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+        with open(fallback, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
 
 # --- Загрузка данных ---
 @st.cache_data(show_spinner=False)
@@ -66,7 +64,7 @@ def load_data():
     df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
     df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
 
-    # Автозаполнение
+    # Автозаполнение при отсутствии одного из размеров
     df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
     df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
 
@@ -84,7 +82,7 @@ def load_data():
     if "description" not in df.columns:
         df["description"] = "Описание временно недоступно."
 
-    # Исключаем пустые
+    # Исключаем товары без цены или модели
     df = df[df["price"].astype(str).str.strip() != ""]
     df = df[df["model_clean"].astype(str).str.strip() != ""]
 
@@ -135,48 +133,39 @@ st.divider()
 st.markdown("## 👟 Каталог товаров")
 
 num_cols = 4
-rows = [filtered_df.iloc[i:i + num_cols] for i in range(0, len(filtered_df), num_cols)]
+rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
 
 for row_df in rows:
     cols = st.columns(num_cols)
     for col, (_, row) in zip(cols, row_df.iterrows()):
         with col:
-            all_images = get_all_images(row["SKU"])
-            if not all_images:
-                all_images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
+            image_path = get_image_path(row["SKU"])
+            image_base64 = get_image_base64(image_path)
 
-            imgs64 = [get_image_base64(p) for p in all_images]
-
-            img_id = f"img_{row['SKU']}"
-            st.markdown(f"""
-            <div style="
-                position: relative;
-                border:1px solid #eee;
-                border-radius:16px;
-                padding:12px;
-                margin-bottom:16px;
-                background-color:#fff;
-                box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                text-align:center;
-                ">
-                <img id="{img_id}" src="data:image/jpeg;base64,{imgs64[0]}" 
-                     style="width:100%; border-radius:12px; object-fit:cover; height:220px;">
-                <div style="position:absolute; top:45%; left:5%; cursor:pointer; font-size:28px; color:black;" 
-                     onclick="let imgs = {imgs64}; let el=document.getElementById('{img_id}'); 
-                     let idx=(parseInt(el.dataset.idx||0)-1+imgs.length)%imgs.length; 
-                     el.src='data:image/jpeg;base64,'+imgs[idx]; el.dataset.idx=idx;">❮</div>
-                <div style="position:absolute; top:45%; right:5%; cursor:pointer; font-size:28px; color:black;" 
-                     onclick="let imgs = {imgs64}; let el=document.getElementById('{img_id}'); 
-                     let idx=(parseInt(el.dataset.idx||0)+1)%imgs.length; 
-                     el.src='data:image/jpeg;base64,'+imgs[idx]; el.dataset.idx=idx;">❯</div>
-                <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                <p style="color:gray; font-size:13px; margin:0;">
-                    US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
-                </p>
-                <p style="font-size:14px; color:#555;">{row['description']}</p>
-                <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div style="
+                    border:1px solid #eee;
+                    border-radius:16px;
+                    padding:12px;
+                    margin-bottom:16px;
+                    background-color:#fff;
+                    box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                    transition:transform 0.2s ease-in-out;
+                " onmouseover="this.style.transform='scale(1.02)';"
+                  onmouseout="this.style.transform='scale(1)';">
+                    <img src="data:image/jpeg;base64,{image_base64}" 
+                         style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                    <p style="color:gray; font-size:13px; margin:0;">
+                        US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
+                    </p>
+                    <p style="font-size:14px; color:#555;">{row['description']}</p>
+                    <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 st.divider()
 st.caption("© DENE Store 2025")
