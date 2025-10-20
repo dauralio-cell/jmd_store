@@ -13,7 +13,7 @@ st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Д�
 
 # --- Пути и константы ---
 CATALOG_PATH = "data/catalog.xlsx"
-NO_IMAGE_PATH = "data/images/no_image.jpg"
+df = pd.read_excel(CATALOG_PATH)
 
 # --- Таблица конверсии размеров US ↔ EU ---
 size_conversion = {
@@ -23,13 +23,15 @@ size_conversion = {
 }
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
-# --- Загрузка Excel ---
+# --- Автообновление Excel ---
+def get_last_modified_time():
+    return os.path.getmtime(CATALOG_PATH)
+
 @st.cache_data(show_spinner=False)
-def load_data():
-    df = pd.read_excel(CATALOG_PATH).fillna("")
-    df = df[df["price"].astype(str).str.strip() != ""]
-    df = df[df["model"].astype(str).str.strip() != ""]
-    
+def load_data(last_modified_time):
+    df = pd.read_excel(CATALOG_PATH)
+    df = df.fillna("")
+
     df["model_clean"] = (
         df["model"]
         .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
@@ -59,9 +61,13 @@ def load_data():
 
     if "description" not in df.columns:
         df["description"] = "Описание временно недоступно."
+
     return df
 
-df = load_data()
+
+# --- Загружаем данные ---
+last_modified_time = get_last_modified_time()
+df = load_data(last_modified_time)
 
 # --- Фильтры ---
 st.divider()
@@ -79,6 +85,7 @@ size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["siz
 gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
 color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
 
+# --- Применяем фильтры ---
 filtered_df = df.copy()
 if brand_filter != "Все":
     filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
@@ -99,25 +106,54 @@ if gender_filter != "Все":
 if color_filter != "Все":
     filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
-# --- Сетка карточек ---
 st.divider()
+
+# --- 🔍 Новый блок: поиск фото во всех подпапках ---
+def get_images_for_sku(sku):
+    """Ищет изображения по SKU во всех подпапках (jpg, jpeg, png, webp)."""
+    sku = str(sku).strip()
+    base_dir = os.path.join("data", "images")
+
+    if not sku:
+        return [os.path.join(base_dir, "no_image.jpg")]
+
+    patterns = [
+        os.path.join(base_dir, "**", f"{sku}*.jpg"),
+        os.path.join(base_dir, "**", f"{sku}*.jpeg"),
+        os.path.join(base_dir, "**", f"{sku}*.png"),
+        os.path.join(base_dir, "**", f"{sku}*.webp"),
+    ]
+
+    found_images = []
+    for pattern in patterns:
+        found_images.extend(glob.glob(pattern, recursive=True))
+
+    def extract_number(filename):
+        match = re.search(r"_(\d+)", filename)
+        return int(match.group(1)) if match else 0
+
+    found_images.sort(key=extract_number)
+
+    if not found_images:
+        return [os.path.join(base_dir, "no_image.jpg")]
+
+    return found_images
+
+
+# --- Каталог товаров ---
 st.markdown("## 👟 Каталог товаров")
 
 num_cols = 4
-rows = [filtered_df.iloc[i:i + num_cols] for i in range(0, len(filtered_df), num_cols)]
+rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
 
 for row_df in rows:
     cols = st.columns(num_cols)
     for col, (_, row) in zip(cols, row_df.iterrows()):
+        if str(row["price"]).strip() == "" or str(row["model_clean"]).strip() == "":
+            continue  # пропускаем пустые
         with col:
-            # --- Поиск изображений по SKU ---
-            image_pattern = os.path.join("data", "images", "**", f"{row['SKU']}*.jpg")
-            image_files = glob.glob(image_pattern, recursive=True)
-            image_path = image_files[0] if image_files else NO_IMAGE_PATH
-
-            # --- Проверка: существует ли файл ---
-            if not os.path.exists(image_path):
-                image_path = NO_IMAGE_PATH
+            images = get_images_for_sku(row["SKU"])
+            image_path = images[0] if images else "data/images/no_image.jpg"
 
             st.markdown(
                 f"""
@@ -144,4 +180,4 @@ for row_df in rows:
             )
 
 st.divider()
-st.caption("© DENE Store 2025")
+st.caption("© DENE Store 2025
