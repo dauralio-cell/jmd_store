@@ -47,6 +47,8 @@ search_query = st.sidebar.text_input("Поиск по названию или SK
 if search_query:
     df = df[df.apply(lambda row: search_query in str(row["SKU"]).lower() or search_query in str(row["model"]).lower(), axis=1)]
 
+import base64
+
 # === Сетка карточек ===
 cols = st.columns(4)
 
@@ -59,11 +61,15 @@ for idx, (_, row) in enumerate(df.iterrows()):
     images = find_images_by_sku(IMAGES_PATH, sku)
     image_path = images[0] if images else os.path.join(IMAGES_PATH, "no_image.jpg")
 
+    # Читаем фото и кодируем в base64
+    with open(image_path, "rb") as img_file:
+        img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
+
     with cols[idx % 4]:
         st.markdown(
             f"""
             <div style='text-align:center; border:1px solid #ddd; border-radius:12px; padding:10px; margin:6px;'>
-                <img src="data:image/jpeg;base64,{open(image_path, 'rb').read().encode('base64').decode()}" 
+                <img src="data:image/jpeg;base64,{img_base64}"
                      style='width:100%; border-radius:10px;' alt="Фото">
                 <p style='font-weight:bold; font-size:16px; margin-top:6px;'>{row['brand']} {row['model']}</p>
                 <p style='color:#444;'>SKU: {row['SKU']}</p>
