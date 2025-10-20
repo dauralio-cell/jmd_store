@@ -180,4 +180,4 @@ for row_df in rows:
             )
 
 st.divider()
-st.caption("© DENE Store 2025
+st.caption("© DENE Store 2025")
