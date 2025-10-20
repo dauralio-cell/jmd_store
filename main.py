@@ -11,6 +11,9 @@ st.set_page_config(page_title="DENE Store", layout="wide")
 st.image("data/images/banner.jpg", use_container_width=True)
 st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
+# --- Пути и константы ---
+CATALOG_PATH = r"C:\Users\admin\Desktop\jmd_store_render\jmd_store\data\catalog.xlsx"
+
 # --- Таблица конверсии размеров US ↔ EU ---
 size_conversion = {
     "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
@@ -20,9 +23,12 @@ size_conversion = {
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
 # --- Автообновление Excel ---
-@st.cache_data(ttl=60)
-def load_data():
-    df = pd.read_excel("data/catalog.xlsx")
+def get_last_modified_time():
+    return os.path.getmtime(CATALOG_PATH)
+
+@st.cache_data(show_spinner=False)
+def load_data(last_modified_time):
+    df = pd.read_excel(CATALOG_PATH)
     df = df.fillna("")
     
     # --- Обработка модели ---
@@ -52,11 +58,22 @@ def load_data():
             "women" if "women" in x.lower() else "unisex"
         )
     )
-    df["color"] = df["model"].str.extract(r"(white|black|blue|red|green|pink|gray|brown)", expand=False).fillna("other")
-    
+    df["color"] = df["model"].str.extract(
+        r"(white|black|blue|red|green|pink|gray|brown)", expand=False
+    ).fillna("other")
+
+    # --- Описание (если есть в каталоге) ---
+    if "description" not in df.columns:
+        df["description"] = "Описание временно недоступно."
+
     return df
 
-df = load_data()
+# Загружаем данные с учётом времени изменения файла
+last_modified_time = get_last_modified_time()
+df = load_data(last_modified_time)
+
+# --- Отображаем дату обновления ---
+st.caption(f"Каталог обновлён: {pd.to_datetime(last_modified_time, unit='s').strftime('%d.%m.%Y %H:%M:%S')}")
 
 # --- Фильтры ---
 st.divider()
@@ -115,19 +132,22 @@ for row_df in rows:
             st.markdown(
                 f"""
                 <div style="
-                    border:1px solid #ddd;
-                    border-radius:12px;
-                    padding:10px;
-                    text-align:center;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-                    transition: all 0.2s ease-in-out;
-                ">
-                    <img src='{image_path}' style='width:100%; border-radius:10px;'>
-                    <h4 style="margin:8px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                    <p style="color:gray; font-size:13px;">
-                        US: {row['size_us'] or '-'} | EU: {row['size_eu'] or '-'} | {row['color']}
+                    border:1px solid #eee;
+                    border-radius:16px;
+                    padding:12px;
+                    margin-bottom:16px;
+                    background-color:#fff;
+                    box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                    transition:transform 0.2s ease-in-out;
+                " onmouseover="this.style.transform='scale(1.02)';"
+                  onmouseout="this.style.transform='scale(1)';">
+                    <img src='{image_path}' style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                    <p style="color:gray; font-size:13px; margin:0;">
+                        US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
                     </p>
-                    <p style="font-weight:bold; font-size:16px;">{int(row['price'])} ₸</p>
+                    <p style="font-size:14px; color:#555;">{row['description']}</p>
+                    <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
                 </div>
                 """,
                 unsafe_allow_html=True
