@@ -50,18 +50,29 @@ def load_data():
     all_data = []
     for sheet_name, df in sheets.items():
         df = df.fillna("")
-        if "brand" not in df.columns or df["brand"].eq("").all():
-            df["brand"] = sheet_name  # если бренд не указан, берем имя листа
+
+        # Добавляем недостающие колонки
+        required_cols = ["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"]
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = ""
+
+        # Если нет brand — берём имя листа
+        if df["brand"].eq("").all():
+            df["brand"] = sheet_name
+
         all_data.append(df)
+
     df = pd.concat(all_data, ignore_index=True)
 
-    # Очистка модели — удаляем скобки и артикулы
-    df["model_clean"] = df["model"].astype(str).str.replace(r"\s*\(.*?\)", "", regex=True).str.strip()
+    # Очистка модели
+    df["model_clean"] = (
+        df["model"].astype(str).str.replace(r"\s*\(.*?\)", "", regex=True).str.strip()
+    )
     df["sizes"] = df["sizes"].astype(str)
     df["prices"] = df["prices"].astype(str)
-    return df
 
-df = load_data()
+    return df
 
 # --- Фильтры ---
 st.divider()
