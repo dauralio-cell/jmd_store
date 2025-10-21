@@ -43,36 +43,57 @@ def encode_image(image_path):
         with open(fallback, "rb") as f:
             return base64.b64encode(f.read()).decode()
 
+CATALOG_PATH = "data/catalog.xlsx"
+
 @st.cache_data(show_spinner=False)
 def load_data():
-    """Загружает все листы из Excel и объединяет"""
-    sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
-    all_data = []
-    for sheet_name, df in sheets.items():
-        df = df.fillna("")
+    import os
 
-        # Добавляем недостающие колонки
-        required_cols = ["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"]
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = ""
+    if not os.path.exists(CATALOG_PATH):
+        st.error(f"❌ Файл каталога не найден: {CATALOG_PATH}")
+        return pd.DataFrame(columns=["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"])
 
-        # Если нет brand — берём имя листа
-        if df["brand"].eq("").all():
-            df["brand"] = sheet_name
+    try:
+        sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
+        all_data = []
+        for sheet_name, df in sheets.items():
+            df = df.fillna("")
 
-        all_data.append(df)
+            required_cols = ["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"]
+            for col in required_cols:
+                if col not in df.columns:
+                    df[col] = ""
 
-    df = pd.concat(all_data, ignore_index=True)
+            if df["brand"].eq("").all():
+                df["brand"] = sheet_name
 
-    # Очистка модели
-    df["model_clean"] = (
-        df["model"].astype(str).str.replace(r"\s*\(.*?\)", "", regex=True).str.strip()
-    )
-    df["sizes"] = df["sizes"].astype(str)
-    df["prices"] = df["prices"].astype(str)
+            all_data.append(df)
 
-    return df
+        if all_data:
+            df = pd.concat(all_data, ignore_index=True)
+        else:
+            df = pd.DataFrame(columns=["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"])
+
+        df["model_clean"] = (
+            df["model"].astype(str).str.replace(r"\s*\(.*?\)", "", regex=True).str.strip()
+        )
+        df["sizes"] = df["sizes"].astype(str)
+        df["prices"] = df["prices"].astype(str)
+
+        return df
+
+    except Exception as e:
+        st.error(f"Ошибка при загрузке Excel: {e}")
+        return pd.DataFrame(columns=["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"])
+
+
+# Загружаем данные
+df = load_data()
+
+if df.empty:
+    st.warning("⚠️ Каталог пуст или не удалось загрузить данные.")
+else:
+    st.success(f"✅ Загружено {len(df)} товаров.")
 
 # --- Фильтры ---
 st.divider()
