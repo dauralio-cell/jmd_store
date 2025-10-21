@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import glob
 import os
+import glob
 import re
 import base64
 
@@ -9,85 +9,56 @@ import base64
 st.set_page_config(page_title="DENE Store", layout="wide")
 
 # --- Обложка ---
-st.image("data/images/banner.jpg", width="stretch")
+st.image("data/images/banner.jpg", use_container_width=True)
 st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
-# --- Пути и константы ---
+# --- Пути ---
 CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_PATH = "data/images"
 
-# --- Таблица конверсии размеров US ↔ EU ---
-size_conversion = {
-    "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
-    "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
-    "10": "44", "10.5": "44.5", "11": "45", "11.5": "46", "12": "46.5"
-}
-reverse_conversion = {v: k for k, v in size_conversion.items()}
-
-# --- Получение всех фото по SKU ---
-def get_all_images(sku):
-    """Ищет все изображения по SKU во всех подпапках (jpg, webp, png)"""
+# --- Вспомогательные функции ---
+def get_image_variants(image_name):
+    """Находит все фото по имени image (например 1100_1, 1100_2, ...) в любых форматах"""
+    if not image_name:
+        return []
+    base_name = os.path.splitext(str(image_name))[0]
     patterns = [
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg"),
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpeg"),
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.png"),
-        os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp"),
+        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.jpg"),
+        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.jpeg"),
+        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.png"),
+        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.webp"),
     ]
-    files = []
-    for pattern in patterns:
-        files += glob.glob(pattern, recursive=True)
-    return sorted(files, key=lambda x: int(re.search(r"_(\d+)", x).group(1)) if re.search(r"_(\d+)", x) else 0)
+    image_files = []
+    for p in patterns:
+        image_files += glob.glob(p, recursive=True)
+    return sorted(image_files, key=lambda x: int(re.findall(r"_(\d+)", x)[0]) if re.findall(r"_(\d+)", x) else 0)
 
-def get_image_base64(path):
-    """Возвращает base64 изображение или no_image"""
+def encode_image(image_path):
+    """Конвертирует изображение в base64"""
     try:
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
-    except:
-        with open(os.path.join(IMAGES_PATH, "no_image.jpg"), "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except Exception:
+        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+        with open(fallback, "rb") as f:
+            return base64.b64encode(f.read()).decode()
 
-# --- Загрузка данных ---
 @st.cache_data(show_spinner=False)
 def load_data():
-    df = pd.read_excel(CATALOG_PATH)
-    df = df.fillna("")
+    """Загружает все листы из Excel и объединяет"""
+    sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
+    all_data = []
+    for sheet_name, df in sheets.items():
+        df = df.fillna("")
+        if "brand" not in df.columns or df["brand"].eq("").all():
+            df["brand"] = sheet_name  # если бренд не указан, берем имя листа
+        all_data.append(df)
+    df = pd.concat(all_data, ignore_index=True)
 
-    # Обработка модели
-    df["model_clean"] = (
-        df["model"]
-        .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
-        .str.strip()
-    )
-
-    # Извлекаем размеры
-    df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
-    df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
-    df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
-    df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
-
-    # Автозаполнение
-    df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
-    df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
-
-    # Пол и цвет
-    df["gender"] = df["model"].apply(
-        lambda x: "men" if "men" in x.lower() else (
-            "women" if "women" in x.lower() else "unisex"
-        )
-    )
-    df["color"] = df["model"].str.extract(
-        r"(white|black|blue|red|green|pink|gray|brown)", expand=False
-    ).fillna("other")
-
-    # Описание
-    if "description" not in df.columns:
-        df["description"] = "Описание временно недоступно."
-
-    # Исключаем пустые
-    df = df[df["price"].astype(str).str.strip() != ""]
-    df = df[df["model_clean"].astype(str).str.strip() != ""]
-
+    # Очистка модели — удаляем скобки и артикулы
+    df["model_clean"] = df["model"].astype(str).str.replace(r"\s*\(.*?\)", "", regex=True).str.strip()
+    df["sizes"] = df["sizes"].astype(str)
+    df["prices"] = df["prices"].astype(str)
     return df
 
 df = load_data()
@@ -96,17 +67,13 @@ df = load_data()
 st.divider()
 st.markdown("### 🔎 Фильтр каталога")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3 = st.columns(3)
 brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
 filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
 
-models = sorted(filtered_df["model_clean"].unique().tolist())
+models = sorted(df["model_clean"].unique().tolist())
 model_filter = col2.selectbox("Модель", ["Все"] + models)
-
-size_us_filter = col3.selectbox("Размер (US)", ["Все"] + sorted(df["size_us"].dropna().unique().tolist()))
-size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()))
-gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+gender_filter = col3.selectbox("Пол", ["Все"] + sorted(df["gender"].dropna().unique().tolist()))
 
 # --- Применяем фильтры ---
 filtered_df = df.copy()
@@ -114,69 +81,74 @@ if brand_filter != "Все":
     filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
 if model_filter != "Все":
     filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_us_filter != "Все":
-    eu_equiv = size_conversion.get(size_us_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
-    ]
-if size_eu_filter != "Все":
-    us_equiv = reverse_conversion.get(size_eu_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
-    ]
 if gender_filter != "Все":
     filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
-if color_filter != "Все":
-    filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
 st.divider()
-
-# --- Сетка карточек товаров ---
 st.markdown("## 👟 Каталог товаров")
 
-num_cols = 4
-rows = [filtered_df.iloc[i:i + num_cols] for i in range(0, len(filtered_df), num_cols)]
+# --- Группировка по цвету ---
+if model_filter != "Все":
+    grouped = filtered_df.groupby("color")
+else:
+    grouped = [(None, filtered_df)]
 
+num_cols = 4
+rows = []
+for _, group in grouped:
+    rows.extend([group.iloc[i:i+num_cols] for i in range(0, len(group), num_cols)])
+
+# --- Отображение карточек ---
 for row_df in rows:
     cols = st.columns(num_cols)
     for col, (_, row) in zip(cols, row_df.iterrows()):
         with col:
-            all_images = get_all_images(row["SKU"])
-            if not all_images:
-                all_images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
+            images = get_image_variants(row["image"])
+            if not images:
+                images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
+            image_base64_list = [encode_image(p) for p in images]
 
-            imgs64 = [get_image_base64(p) for p in all_images]
+            # HTML блок с изображениями и стрелками
+            img_tags = "".join(
+                [f"<img class='slide' src='data:image/jpeg;base64,{img}' style='width:100%;border-radius:12px;display:none;object-fit:cover;height:220px;'/>" for img in image_base64_list]
+            )
 
-            img_id = f"img_{row['SKU']}"
-            st.markdown(f"""
-            <div style="
-                position: relative;
-                border:1px solid #eee;
-                border-radius:16px;
-                padding:12px;
-                margin-bottom:16px;
-                background-color:#fff;
-                box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                text-align:center;
-                ">
-                <img id="{img_id}" src="data:image/jpeg;base64,{imgs64[0]}" 
-                     style="width:100%; border-radius:12px; object-fit:cover; height:220px;">
-                <div style="position:absolute; top:45%; left:5%; cursor:pointer; font-size:28px; color:black;" 
-                     onclick="let imgs = {imgs64}; let el=document.getElementById('{img_id}'); 
-                     let idx=(parseInt(el.dataset.idx||0)-1+imgs.length)%imgs.length; 
-                     el.src='data:image/jpeg;base64,'+imgs[idx]; el.dataset.idx=idx;">❮</div>
-                <div style="position:absolute; top:45%; right:5%; cursor:pointer; font-size:28px; color:black;" 
-                     onclick="let imgs = {imgs64}; let el=document.getElementById('{img_id}'); 
-                     let idx=(parseInt(el.dataset.idx||0)+1)%imgs.length; 
-                     el.src='data:image/jpeg;base64,'+imgs[idx]; el.dataset.idx=idx;">❯</div>
-                <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                <p style="color:gray; font-size:13px; margin:0;">
-                    US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
-                </p>
-                <p style="font-size:14px; color:#555;">{row['description']}</p>
-                <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div style="position:relative;border:1px solid #eee;border-radius:16px;padding:12px;margin-bottom:16px;
+                            background-color:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.05);overflow:hidden;">
+                    {img_tags}
+                    <button onclick="prevSlide(this)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
+                            background:none;border:none;font-size:26px;color:black;cursor:pointer;">&#10094;</button>
+                    <button onclick="nextSlide(this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                            background:none;border:none;font-size:26px;color:black;cursor:pointer;">&#10095;</button>
+
+                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                    <p style="color:gray;font-size:13px;margin:0;">{row['color'].capitalize()}</p>
+                    <p style="font-size:14px;color:#555;">Размеры (EU): {row['sizes']}</p>
+                    <p style="font-weight:bold;font-size:16px;margin-top:6px;">{row['prices']} ₸</p>
+                </div>
+
+                <script>
+                const doc = window.parent.document;
+                let indexMap = new WeakMap();
+                function showSlide(btn, n) {{
+                    const card = btn.parentElement;
+                    const slides = card.querySelectorAll('.slide');
+                    if (!indexMap.has(card)) indexMap.set(card, 0);
+                    let i = indexMap.get(card) + n;
+                    if (i >= slides.length) i = 0;
+                    if (i < 0) i = slides.length - 1;
+                    slides.forEach((s, k) => s.style.display = k === i ? 'block' : 'none');
+                    indexMap.set(card, i);
+                }}
+                function nextSlide(btn) {{ showSlide(btn, 1); }}
+                function prevSlide(btn) {{ showSlide(btn, -1); }}
+                doc.querySelectorAll('.slide').forEach((s, i) => s.style.display = i % 1 === 0 ? 'block' : 'none');
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
 
 st.divider()
 st.caption("© DENE Store 2025")
