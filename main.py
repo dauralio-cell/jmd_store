@@ -10,7 +10,7 @@ st.set_page_config(page_title="Каталог", layout="wide")
 # === Функция для загрузки данных ===
 @st.cache_data
 def load_data():
-    excel_path = "catalog.xlsx"
+    excel_path = "data/catalog.xlsx"
     xls = pd.ExcelFile(excel_path)
     df_list = []
     for sheet in xls.sheet_names:
