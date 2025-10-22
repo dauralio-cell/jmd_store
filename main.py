@@ -1,186 +1,179 @@
 import streamlit as st
 import pandas as pd
 import os
-import glob
-import re
 import base64
+from io import BytesIO
+from PIL import Image
 
-# --- Настройки страницы ---
-st.set_page_config(page_title="DENE Store", layout="wide")
+st.set_page_config(page_title="Каталог", layout="wide")
 
-# --- Обложка ---
-st.image("data/images/banner.jpg", use_container_width=True)
-st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
-
-# --- Пути ---
-CATALOG_PATH = "data/catalog.xlsx"
-IMAGES_PATH = "data/images"
-
-# --- Вспомогательные функции ---
-def get_image_variants(image_name):
-    """Находит все фото по имени image (например 1100_1, 1100_2, ...) в любых форматах"""
-    if not image_name:
-        return []
-    base_name = os.path.splitext(str(image_name))[0]
-    patterns = [
-        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.jpg"),
-        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.jpeg"),
-        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.png"),
-        os.path.join(IMAGES_PATH, "**", f"{base_name}_*.webp"),
-    ]
-    image_files = []
-    for p in patterns:
-        image_files += glob.glob(p, recursive=True)
-    return sorted(image_files, key=lambda x: int(re.findall(r"_(\d+)", x)[0]) if re.findall(r"_(\d+)", x) else 0)
-
-def encode_image(image_path):
-    """Конвертирует изображение в base64"""
-    try:
-        with open(image_path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    except Exception:
-        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
-        with open(fallback, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-
-CATALOG_PATH = "data/catalog.xlsx"
-
-@st.cache_data(show_spinner=False)
+# === Функция для загрузки данных ===
+@st.cache_data
 def load_data():
-    import os
+    excel_path = "catalog.xlsx"
+    xls = pd.ExcelFile(excel_path)
+    df_list = []
+    for sheet in xls.sheet_names:
+        sheet_df = pd.read_excel(xls, sheet_name=sheet)
+        df_list.append(sheet_df)
+    df = pd.concat(df_list, ignore_index=True)
+    df = df.fillna(method="ffill")  # тянем значения модели, цвета, бренда и т.д. вниз
+    df["model_clean"] = df["model"].astype(str).apply(lambda x: x.split("(")[0].strip())
+    df["size EU"] = df["size EU"].astype(str)
+    return df
 
-    if not os.path.exists(CATALOG_PATH):
-        st.error(f"❌ Файл каталога не найден: {CATALOG_PATH}")
-        return pd.DataFrame(columns=["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"])
-
-    try:
-        sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
-        all_data = []
-        for sheet_name, df in sheets.items():
-            df = df.fillna("")
-
-            required_cols = ["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"]
-            for col in required_cols:
-                if col not in df.columns:
-                    df[col] = ""
-
-            if df["brand"].eq("").all():
-                df["brand"] = sheet_name
-
-            all_data.append(df)
-
-        if all_data:
-            df = pd.concat(all_data, ignore_index=True)
-        else:
-            df = pd.DataFrame(columns=["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"])
-
-        df["model_clean"] = (
-            df["model"].astype(str).str.replace(r"\s*\(.*?\)", "", regex=True).str.strip()
-        )
-        df["sizes"] = df["sizes"].astype(str)
-        df["prices"] = df["prices"].astype(str)
-
-        return df
-
-    except Exception as e:
-        st.error(f"Ошибка при загрузке Excel: {e}")
-        return pd.DataFrame(columns=["SKU", "brand", "model", "gender", "color", "image", "sizes", "prices"])
-
-
-# Загружаем данные
 df = load_data()
 
-if df.empty:
-    st.warning("⚠️ Каталог пуст или не удалось загрузить данные.")
-else:
-    st.success(f"✅ Загружено {len(df)} товаров.")
+# === Фильтры ===
+col1, col2, col3, col4 = st.columns(4)
 
-# --- Фильтры ---
-st.divider()
-st.markdown("### 🔎 Фильтр каталога")
-
-col1, col2, col3 = st.columns(3)
 brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
-filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
+model_filter = col2.selectbox("Модель", ["Все"] + sorted(df["model_clean"].unique().tolist()))
+gender_filter = col3.selectbox("Пол", ["Все"] + sorted(df["gender"].unique().tolist()))
+size_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size EU"].unique().tolist()))
 
-models = sorted(df["model_clean"].unique().tolist())
-model_filter = col2.selectbox("Модель", ["Все"] + models)
-gender_filter = col3.selectbox("Пол", ["Все"] + sorted(df["gender"].dropna().unique().tolist()))
-
-# --- Применяем фильтры ---
 filtered_df = df.copy()
+
 if brand_filter != "Все":
     filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
 if model_filter != "Все":
     filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
 if gender_filter != "Все":
     filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
+if size_filter != "Все":
+    filtered_df = filtered_df[filtered_df["size EU"] == size_filter]
 
-st.divider()
-st.markdown("## 👟 Каталог товаров")
+# === Поиск файлов изображений ===
+def find_images(sku_prefix):
+    found = []
+    for root, dirs, files in os.walk("data/images"):
+        for f in files:
+            name, ext = os.path.splitext(f)
+            if ext.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
+                if name.startswith(str(sku_prefix)):
+                    found.append(os.path.join(root, f))
+    found.sort()
+    return found
 
-# --- Группировка по цвету ---
-if model_filter != "Все":
-    grouped = filtered_df.groupby("color")
-else:
-    grouped = [(None, filtered_df)]
+# === Кодирование картинки в base64 ===
+def get_image_base64(image_path):
+    try:
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except:
+        return None
 
-num_cols = 4
-rows = []
-for _, group in grouped:
-    rows.extend([group.iloc[i:i+num_cols] for i in range(0, len(group), num_cols)])
+# === Группировка карточек ===
+grouped = filtered_df.groupby(["brand", "model_clean", "gender", "color"])
 
-# --- Отображение карточек ---
-for row_df in rows:
-    cols = st.columns(num_cols)
-    for col, (_, row) in zip(cols, row_df.iterrows()):
-        with col:
-            images = get_image_variants(row["image"])
-            if not images:
-                images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
-            image_base64_list = [encode_image(p) for p in images]
+# === Отображение карточек ===
+for (brand, model, gender, color), group in grouped:
+    sizes = ", ".join(sorted(set(group["size EU"].astype(str))))
+    price = group["price"].replace("", float("nan")).dropna().unique()
+    price_text = f"{price[0]} ₸" if len(price) > 0 else "Уточнить"
 
-            # HTML блок с изображениями и стрелками
-            img_tags = "".join(
-                [f"<img class='slide' src='data:image/jpeg;base64,{img}' style='width:100%;border-radius:12px;display:none;object-fit:cover;height:220px;'/>" for img in image_base64_list]
-            )
+    # Фото по SKU
+    sku_first = group["sku"].iloc[0]
+    image_files = find_images(sku_first)
+    image_b64_list = [get_image_base64(p) for p in image_files if get_image_base64(p)]
 
-            st.markdown(
-                f"""
-                <div style="position:relative;border:1px solid #eee;border-radius:16px;padding:12px;margin-bottom:16px;
-                            background-color:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.05);overflow:hidden;">
-                    {img_tags}
-                    <button onclick="prevSlide(this)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
-                            background:none;border:none;font-size:26px;color:black;cursor:pointer;">&#10094;</button>
-                    <button onclick="nextSlide(this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                            background:none;border:none;font-size:26px;color:black;cursor:pointer;">&#10095;</button>
+    # HTML блок карточки
+    if image_b64_list:
+        image_slides = "".join(
+            f'<div class="slide"><img src="data:image/jpeg;base64,{b}" style="width:100%;border-radius:10px;"/></div>'
+            for b in image_b64_list
+        )
+    else:
+        image_slides = '<div class="slide"><div style="width:100%;height:250px;background:#f0f0f0;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#888;">No Image</div></div>'
 
-                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                    <p style="color:gray;font-size:13px;margin:0;">{row['color'].capitalize()}</p>
-                    <p style="font-size:14px;color:#555;">Размеры (EU): {row['sizes']}</p>
-                    <p style="font-weight:bold;font-size:16px;margin-top:6px;">{row['prices']} ₸</p>
-                </div>
+    st.markdown(
+        f"""
+        <div class="card">
+            <div class="slider">
+                {image_slides}
+                <a class="prev">&#10094;</a>
+                <a class="next">&#10095;</a>
+            </div>
+            <h4 style="margin:10px 0 4px 0;">{brand} {model}</h4>
+            <p style="color:gray;font-size:13px;margin:0;">{color}</p>
+            <p style="font-size:14px;color:#555;">Размеры (EU): {sizes}</p>
+            <p style="font-weight:bold;font-size:16px;margin-top:6px;">{price_text}</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-                <script>
-                const doc = window.parent.document;
-                let indexMap = new WeakMap();
-                function showSlide(btn, n) {{
-                    const card = btn.parentElement;
-                    const slides = card.querySelectorAll('.slide');
-                    if (!indexMap.has(card)) indexMap.set(card, 0);
-                    let i = indexMap.get(card) + n;
-                    if (i >= slides.length) i = 0;
-                    if (i < 0) i = slides.length - 1;
-                    slides.forEach((s, k) => s.style.display = k === i ? 'block' : 'none');
-                    indexMap.set(card, i);
-                }}
-                function nextSlide(btn) {{ showSlide(btn, 1); }}
-                function prevSlide(btn) {{ showSlide(btn, -1); }}
-                doc.querySelectorAll('.slide').forEach((s, i) => s.style.display = i % 1 === 0 ? 'block' : 'none');
-                </script>
-                """,
-                unsafe_allow_html=True
-            )
+# === CSS + JS для стрелочного слайдера и свайпа ===
+st.markdown(
+    """
+    <style>
+    .card {
+        border:1px solid #eee;
+        border-radius:12px;
+        padding:12px;
+        margin-bottom:25px;
+        box-shadow:0 2px 8px rgba(0,0,0,0.06);
+        max-width:350px;
+    }
+    .slider {
+        position: relative;
+        overflow: hidden;
+        border-radius:10px;
+    }
+    .slide {
+        display: none;
+        transition: transform 0.3s ease-in-out;
+    }
+    .slide.active {
+        display: block;
+    }
+    .prev, .next {
+        cursor: pointer;
+        position: absolute;
+        top: 50%;
+        width: auto;
+        padding: 6px;
+        color: black;
+        font-weight: bold;
+        font-size: 18px;
+        border-radius: 0 3px 3px 0;
+        user-select: none;
+        background: rgba(255,255,255,0.6);
+        transform: translateY(-50%);
+    }
+    .next { right: 0; border-radius: 3px 0 0 3px; }
+    .prev:hover, .next:hover { background: rgba(255,255,255,0.9); }
+    </style>
 
-st.divider()
-st.caption("© DENE Store 2025")
+    <script>
+    const sliders = window.parent.document.querySelectorAll('.slider');
+    sliders.forEach(slider => {
+        let slideIndex = 0;
+        const slides = slider.querySelectorAll('.slide');
+        const prev = slider.querySelector('.prev');
+        const next = slider.querySelector('.next');
+        const showSlide = (n) => {
+            slides.forEach((s, i) => s.classList.toggle('active', i === n));
+        };
+        showSlide(slideIndex);
+        prev.addEventListener('click', () => {
+            slideIndex = (slideIndex - 1 + slides.length) % slides.length;
+            showSlide(slideIndex);
+        });
+        next.addEventListener('click', () => {
+            slideIndex = (slideIndex + 1) % slides.length;
+            showSlide(slideIndex);
+        });
+        // свайп
+        let startX = 0;
+        slider.addEventListener('touchstart', e => startX = e.touches[0].clientX);
+        slider.addEventListener('touchend', e => {
+            let endX = e.changedTouches[0].clientX;
+            if (startX - endX > 50) next.click();
+            else if (endX - startX > 50) prev.click();
+        });
+    });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
