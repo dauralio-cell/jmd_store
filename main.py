@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Миниатюрные превью-фото с переключением"""
+    """Миниатюрные превью-фото с переключением - ПРОСТАЯ ВЕРСИЯ"""
     if not image_paths:
         st.markdown(
             """
@@ -141,29 +141,27 @@ def display_modern_cards(image_paths, key_suffix):
             )
     
     with preview_col:
-        # Миниатюрные превью-фото - используем сами изображения как кнопки
+        # ПРОСТО миниатюры - каждая миниатюра это кнопка
         for i, img_path in enumerate(image_paths[:4]):
             try:
-                # Создаем контейнер для миниатюры
-                with st.container():
-                    # Используем саму миниатюру как кнопку
-                    if st.button(
-                        "",  # Пустой текст
-                        key=f"btn_{key_suffix}_{i}",
-                        help=f"Показать фото {i+1}"
-                    ):
-                        st.session_state[f"selected_{key_suffix}"] = i
-                        st.rerun()
-                    
-                    # Показываем миниатюрное фото под кнопкой
-                    st.image(img_path, width=60)
-                    
-            except:
-                # Если не удалось загрузить миниатюру
+                # Создаем кнопку с изображением
                 if st.button(
-                    "❓",
-                    key=f"btn_err_{key_suffix}_{i}",
-                    help=f"Показать фото {i+1}"
+                    "",  # Пустой текст
+                    key=f"thumb_{key_suffix}_{i}",
+                    use_container_width=True
+                ):
+                    st.session_state[f"selected_{key_suffix}"] = i
+                    st.rerun()
+                
+                # Изображение миниатюры
+                st.image(img_path, width=60)
+                
+            except:
+                # Если ошибка загрузки
+                if st.button(
+                    "❌",
+                    key=f"thumb_err_{key_suffix}_{i}",
+                    use_container_width=True
                 ):
                     st.session_state[f"selected_{key_suffix}"] = i
                     st.rerun()
