@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Миниатюрные превью-фото с переключением - БЕЗ ПУСТЫХ ЯЧЕЕК"""
+    """ПРАВИЛЬНАЯ РЕАЛИЗАЦИЯ КАК В ИНТЕРНЕТ-МАГАЗИНАХ"""
     if not image_paths:
         st.markdown(
             """
@@ -116,56 +116,60 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Инициализируем выбранное фото в session_state
+    # Инициализируем выбранное фото
     if f"selected_{key_suffix}" not in st.session_state:
         st.session_state[f"selected_{key_suffix}"] = 0
     
     selected_index = st.session_state[f"selected_{key_suffix}"]
     
-    # Основное большое фото
+    # 1. ОСНОВНОЕ БОЛЬШОЕ ФОТО
     try:
-        st.image(image_paths[selected_index], use_container_width=True)
+        main_image = image_paths[selected_index]
+        st.image(main_image, use_container_width=True)
     except:
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 60px; background: #f5f5f5; 
-                        border-radius: 12px; color: #999; margin: 10px 0;">
-                <div style="font-size: 36px;">❌</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.error("❌ Не удалось загрузить основное фото")
     
-    # Горизонтальные миниатюры - используем радиокнопки
+    # 2. МИНИАТЮРЫ ДЛЯ ПЕРЕКЛЮЧЕНИЯ (если есть больше 1 фото)
     if len(image_paths) > 1:
-        # Создаем колонки для миниатюр
-        cols = st.columns(len(image_paths[:4]))
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         
-        for i, img_path in enumerate(image_paths[:4]):
-            with cols[i]:
+        # Создаем контейнер для миниатюр
+        num_thumbs = min(len(image_paths), 6)  # не больше 6 миниатюр
+        thumb_cols = st.columns(num_thumbs)
+        
+        for i in range(num_thumbs):
+            with thumb_cols[i]:
+                # Определяем стиль рамки для выбранной миниатюры
+                border_style = "4px solid #ff4b4b" if i == selected_index else "2px solid #ddd"
+                
                 try:
-                    # Используем радиокнопку с изображением в качестве label
-                    if st.radio(
-                        "Выберите фото:",
-                        options=range(len(image_paths[:4])),
-                        index=selected_index,
-                        key=f"radio_{key_suffix}",
-                        label_visibility="collapsed",
-                        horizontal=True
-                    ) != selected_index:
-                        st.session_state[f"selected_{key_suffix}"] = i
-                        st.rerun()
+                    # Обертка для миниатюры с рамкой
+                    st.markdown(
+                        f"<div style='border: {border_style}; border-radius: 8px; padding: 2px; margin: 2px;'>", 
+                        unsafe_allow_html=True
+                    )
                     
                     # Показываем миниатюру
-                    st.image(img_path, width=70)
+                    st.image(image_paths[i], width=70)
                     
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # Кнопка выбора под миниатюрой
+                    if st.button("▸", key=f"thumb_btn_{key_suffix}_{i}", 
+                               help=f"Показать фото {i+1}",
+                               use_container_width=True):
+                        st.session_state[f"selected_{key_suffix}"] = i
+                        st.rerun()
+                        
                 except:
-                    # Если ошибка загрузки
-                    if st.button(
-                        f"❌ {i+1}",
-                        key=f"thumb_err_{key_suffix}_{i}",
-                        use_container_width=True
-                    ):
+                    # Если ошибка загрузки миниатюры
+                    st.markdown(
+                        f"<div style='border: {border_style}; border-radius: 8px; padding: 15px; text-align: center; margin: 2px;'>❌</div>", 
+                        unsafe_allow_html=True
+                    )
+                    
+                    if st.button("▸", key=f"thumb_err_{key_suffix}_{i}",
+                               use_container_width=True):
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
 
