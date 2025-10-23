@@ -114,7 +114,7 @@ def display_image_grid(image_paths, key_suffix):
     """Отображает сетку изображений используя st.columns"""
     if not image_paths:
         # Если нет изображений, показываем заглушку
-        st.image(create_no_image_placeholder(), use_column_width=True, caption="Нет изображения")
+        st.image(create_no_image_placeholder(), use_container_width=True, caption="Нет изображения")
         return
     
     # Ограничиваем количество изображений
@@ -123,9 +123,9 @@ def display_image_grid(image_paths, key_suffix):
     if len(image_paths) == 1:
         # Одно изображение - полноразмерное
         try:
-            st.image(image_paths[0], use_column_width=True)
+            st.image(image_paths[0], use_container_width=True)
         except:
-            st.image(create_no_image_placeholder(), use_column_width=True, caption="Ошибка загрузки")
+            st.image(create_no_image_placeholder(), use_container_width=True, caption="Ошибка загрузки")
     
     elif len(image_paths) == 2:
         # Два изображения - бок о бок
@@ -133,9 +133,9 @@ def display_image_grid(image_paths, key_suffix):
         for i, img_path in enumerate(image_paths):
             with cols[i]:
                 try:
-                    st.image(img_path, use_column_width=True)
+                    st.image(img_path, use_container_width=True)
                 except:
-                    st.image(create_no_image_placeholder(), use_column_width=True)
+                    st.image(create_no_image_placeholder(), use_container_width=True)
     
     else:
         # Три и более изображений - сетка 2x2
@@ -147,9 +147,9 @@ def display_image_grid(image_paths, key_suffix):
             with cols[col_idx]:
                 if img_idx is not None:
                     try:
-                        st.image(image_paths[img_idx], use_column_width=True)
+                        st.image(image_paths[img_idx], use_container_width=True)
                     except:
-                        st.image(create_no_image_placeholder(), use_column_width=True)
+                        st.image(create_no_image_placeholder(), use_container_width=True)
                 else:
                     # Пустое место в сетке
                     st.empty()
