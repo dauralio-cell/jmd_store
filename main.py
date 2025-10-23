@@ -26,18 +26,42 @@ size_conversion = {
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
 # --- Функции для работы с изображениями ---
-def get_image_path(sku):
-    """Ищет изображение по SKU во всех подпапках, возвращает путь или no_image.jpg"""
-    if pd.isna(sku) or sku == "":
-        return os.path.join(IMAGES_PATH, "no_image.jpg")
+def get_image_path(image_names, sku):
+    """Ищет изображение по названиям из колонки image или по SKU"""
+    # Если есть названия в колонке image, берем первое изображение
+    if pd.notna(image_names) and image_names != "":
+        # Берем первое название из списка (разделитель - пробел)
+        image_list = str(image_names).split()
+        if image_list:
+            first_image = image_list[0]
+            # Пробуем разные расширения и пути
+            patterns = [
+                os.path.join(IMAGES_PATH, "**", f"{first_image}.*"),
+                os.path.join(IMAGES_PATH, "**", f"{first_image}.jpg"),
+                os.path.join(IMAGES_PATH, "**", f"{first_image}.webp"),
+                os.path.join(IMAGES_PATH, "**", f"{first_image}.png"),
+            ]
+            
+            for pattern in patterns:
+                image_files = glob.glob(pattern, recursive=True)
+                if image_files:
+                    return image_files[0]
     
-    pattern_jpg = os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg")
-    pattern_webp = os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp")
-    image_files = glob.glob(pattern_jpg, recursive=True) + glob.glob(pattern_webp, recursive=True)
-    if image_files:
-        return image_files[0]
-    else:
-        return os.path.join(IMAGES_PATH, "no_image.jpg")
+    # Если по названию не нашли, пробуем по SKU
+    if pd.notna(sku) and sku != "":
+        patterns = [
+            os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg"),
+            os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp"),
+            os.path.join(IMAGES_PATH, "**", f"{sku}_*.png"),
+        ]
+        
+        for pattern in patterns:
+            image_files = glob.glob(pattern, recursive=True)
+            if image_files:
+                return image_files[0]
+    
+    # Если ничего не нашли, возвращаем no_image
+    return os.path.join(IMAGES_PATH, "no_image.jpg")
 
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
@@ -46,8 +70,11 @@ def get_image_base64(image_path):
             return base64.b64encode(img_file.read()).decode("utf-8")
     except Exception:
         fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
-        with open(fallback, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode("utf-8")
+        try:
+            with open(fallback, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode("utf-8")
+        except:
+            return ""
 
 # --- Функции для группировки моделей ---
 def get_unique_models(df):
@@ -58,6 +85,7 @@ def get_unique_models(df):
     # Группируем по основным характеристикам модели
     grouped = df.groupby(['brand', 'model_clean', 'gender', 'color']).agg({
         'sku': 'first',  # берем первый SKU для изображения
+        'image': 'first', # берем первое изображение
         'price': lambda x: list(x.unique()),  # все уникальные цены
         'size_us': list,  # все доступные размеры US
         'size_eu': list   # все доступные размеры EU
@@ -82,6 +110,7 @@ def load_data():
         df['model'] = df['model'].fillna(method='ffill')
         df['gender'] = df['gender'].fillna(method='ffill')
         df['color'] = df['color'].fillna(method='ffill')
+        df['image'] = df['image'].fillna(method='ffill')
 
         # Обработка модели
         df["model_clean"] = (
@@ -130,6 +159,13 @@ def load_data():
 
 # --- Загружаем данные ---
 df = load_data()
+
+# --- Отладочная информация ---
+if len(df) > 0 and 'image' in df.columns:
+    st.sidebar.write("📸 Примеры названий изображений:")
+    sample_images = df['image'].head(3).tolist()
+    for img in sample_images:
+        st.sidebar.write(f" - {img}")
 
 # --- Фильтры ---
 st.divider()
@@ -240,9 +276,10 @@ else:
             cols = st.columns(num_cols)
             for col, (_, model_row) in zip(cols, row_df.iterrows()):
                 with col:
-                    # Берем первый SKU для изображения
+                    # Берем первый SKU и image для изображения
                     first_sku = model_row['sku']
-                    image_path = get_image_path(first_sku)
+                    first_image = model_row['image']
+                    image_path = get_image_path(first_image, first_sku)
                     image_base64 = get_image_base64(image_path)
                     
                     # Формируем строку с размерами
