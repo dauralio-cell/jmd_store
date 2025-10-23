@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Миниатюрные превью-фото - ГОРИЗОНТАЛЬНЫЙ ВАРИАНТ"""
+    """Миниатюрные превью-фото с переключением - БЕЗ ПУСТЫХ ЯЧЕЕК"""
     if not image_paths:
         st.markdown(
             """
@@ -136,25 +136,33 @@ def display_modern_cards(image_paths, key_suffix):
             unsafe_allow_html=True
         )
     
-    # Горизонтальные миниатюры под основным фото
+    # Горизонтальные миниатюры - используем радиокнопки
     if len(image_paths) > 1:
+        # Создаем колонки для миниатюр
         cols = st.columns(len(image_paths[:4]))
+        
         for i, img_path in enumerate(image_paths[:4]):
             with cols[i]:
                 try:
-                    if st.button(
-                        "",  # Пустой текст
-                        key=f"thumb_{key_suffix}_{i}",
-                        use_container_width=True
-                    ):
+                    # Используем радиокнопку с изображением в качестве label
+                    if st.radio(
+                        "Выберите фото:",
+                        options=range(len(image_paths[:4])),
+                        index=selected_index,
+                        key=f"radio_{key_suffix}",
+                        label_visibility="collapsed",
+                        horizontal=True
+                    ) != selected_index:
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
                     
-                    st.image(img_path, width=60)
+                    # Показываем миниатюру
+                    st.image(img_path, width=70)
                     
                 except:
+                    # Если ошибка загрузки
                     if st.button(
-                        "❌",
+                        f"❌ {i+1}",
                         key=f"thumb_err_{key_suffix}_{i}",
                         use_container_width=True
                     ):
