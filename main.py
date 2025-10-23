@@ -101,15 +101,6 @@ def get_all_image_paths(image_names, sku):
     unique_paths = list(dict.fromkeys(image_paths))
     return unique_paths if unique_paths else []
 
-def create_no_image_placeholder():
-    """Создает placeholder для отсутствующего изображения"""
-    try:
-        # Создаем простое изображение-заглушку
-        img = Image.new('RGB', (300, 300), color='#f0f0f0')
-        return img
-    except:
-        return None
-
 def display_modern_cards(image_paths, key_suffix):
     """Современные карточки с превью фото"""
     if not image_paths:
@@ -172,6 +163,7 @@ def display_modern_cards(image_paths, key_suffix):
             ):
                 st.session_state[f"selected_{key_suffix}"] = i
                 st.rerun()
+
 # --- Функции для группировки моделей ---
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
@@ -487,8 +479,8 @@ else:
                         first_image = model_row['image']
                         all_image_paths = get_image_paths_cached(first_image, first_sku)
                         
-                        # Отображаем сетку изображений
-                        display_image_grid(all_image_paths, f"{first_sku}_{i}_{col_idx}")
+                        # Отображаем современные карточки с превью
+                        display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
                         
                         # Информация о товаре
                         st.markdown(f"**{model_row['brand']} {model_row['model_clean']}**")
