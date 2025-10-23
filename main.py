@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Современные карточки с миниатюрными превью-фото (надежная версия)"""
+    """Современные карточки с миниатюрными превью-фото"""
     if not image_paths:
         st.markdown(
             """
@@ -159,11 +159,13 @@ def display_modern_cards(image_paths, key_suffix):
                     border-radius: 8px; 
                     padding: 4px;
                     margin-bottom: 8px;
+                    background: #fff;
                 """ if i == selected_index else """
                     border: 1px solid #e0e0e0; 
                     border-radius: 6px; 
                     padding: 5px;
                     margin-bottom: 8px;
+                    background: #fafafa;
                 """
                 
                 st.markdown(f'<div style="{container_style}">', unsafe_allow_html=True)
@@ -173,7 +175,6 @@ def display_modern_cards(image_paths, key_suffix):
                     st.image(
                         img_path,
                         width=70,  # Фиксированный размер миниатюр
-                        use_column_width=True
                     )
                     
                     # Кнопка выбора (невидимая, но покрывает всю миниатюру)
@@ -205,8 +206,8 @@ def display_modern_cards(image_paths, key_suffix):
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
                 
-                st.markdown('</div>', unsafe_allow_html=True)
-# --- Функции для группировки моделей ---
+                st.markdown('</div>', unsafe_allow_html=True)# --- Функции для группировки моделей ---
+
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
     if len(df) == 0:
