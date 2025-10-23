@@ -141,27 +141,29 @@ def display_modern_cards(image_paths, key_suffix):
             )
     
     with preview_col:
-        # Миниатюрные превью-фото
+        # Миниатюрные превью-фото - используем сами изображения как кнопки
         for i, img_path in enumerate(image_paths[:4]):
             try:
-                # Показываем миниатюрное фото как кнопку
-                if st.button(
-                    "",  # Пустой текст
-                    key=f"btn_{key_suffix}_{i}",
-                    use_container_width=True
-                ):
-                    st.session_state[f"selected_{key_suffix}"] = i
-                    st.rerun()
-                
-                # Показываем миниатюрное фото
-                st.image(img_path, width=60)
-                
+                # Создаем контейнер для миниатюры
+                with st.container():
+                    # Используем саму миниатюру как кнопку
+                    if st.button(
+                        "",  # Пустой текст
+                        key=f"btn_{key_suffix}_{i}",
+                        help=f"Показать фото {i+1}"
+                    ):
+                        st.session_state[f"selected_{key_suffix}"] = i
+                        st.rerun()
+                    
+                    # Показываем миниатюрное фото под кнопкой
+                    st.image(img_path, width=60)
+                    
             except:
                 # Если не удалось загрузить миниатюру
                 if st.button(
                     "❓",
                     key=f"btn_err_{key_suffix}_{i}",
-                    use_container_width=True
+                    help=f"Показать фото {i+1}"
                 ):
                     st.session_state[f"selected_{key_suffix}"] = i
                     st.rerun()
