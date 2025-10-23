@@ -86,15 +86,16 @@ def create_image_slider(image_paths, unique_key):
         return "<div>No images</div>"
     
     images_base64 = [get_image_base64(img_path) for img_path in image_paths]
+    total_slides = len(images_base64)
     
     slider_html = f"""
     <div id="slider-{unique_key}" style="position: relative; width: 100%; margin: 0 auto; overflow: hidden; border-radius: 12px;">
-        <div class="slides-{unique_key}" style="display: flex; transition: transform 0.5s ease; width: {len(images_base64) * 100}%;">
+        <div class="slides-{unique_key}" style="display: flex; transition: transform 0.5s ease; width: {total_slides * 100}%;">
     """
     
     for i, img_base64 in enumerate(images_base64):
         slider_html += f"""
-            <div class="slide-{unique_key}" style="width: {100/len(images_base64)}%; flex-shrink: 0;">
+            <div class="slide-{unique_key}" style="width: {100/total_slides}%; flex-shrink: 0;">
                 <img src="data:image/jpeg;base64,{img_base64}" 
                      style="width: 100%; height: 220px; object-fit: cover; border-radius: 12px;">
             </div>
@@ -103,9 +104,10 @@ def create_image_slider(image_paths, unique_key):
     slider_html += f"""
         </div>
         
-        <!-- Стрелки -->
+        <!-- Стрелки (только если больше 1 фото) -->
+        {f'''
         <button class="prev-{unique_key}" 
-                onclick="changeSlide('{unique_key}', -1)"
+                onclick="changeSlide{unique_key}(-1)"
                 style="position: absolute; top: 50%; left: 10px; transform: translateY(-50%); 
                        background: rgba(255,255,255,0.7); border: none; border-radius: 50%; 
                        width: 35px; height: 35px; font-size: 18px; cursor: pointer; 
@@ -113,23 +115,25 @@ def create_image_slider(image_paths, unique_key):
             ‹
         </button>
         <button class="next-{unique_key}" 
-                onclick="changeSlide('{unique_key}', 1)"
+                onclick="changeSlide{unique_key}(1)"
                 style="position: absolute; top: 50%; right: 10px; transform: translateY(-50%); 
                        background: rgba(255,255,255,0.7); border: none; border-radius: 50%; 
                        width: 35px; height: 35px; font-size: 18px; cursor: pointer;
                        display: flex; align-items: center; justify-content: center;">
             ›
         </button>
+        ''' if total_slides > 1 else ''}
         
-        <!-- Точки-индикаторы -->
+        <!-- Точки-индикаторы (только если больше 1 фото) -->
+        {f'''
         <div style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); 
                     display: flex; gap: 5px;">
     """
     
-    for i in range(len(images_base64)):
+    for i in range(total_slides):
         slider_html += f"""
             <span class="dot-{unique_key}" 
-                  onclick="currentSlide('{unique_key}', {i})"
+                  onclick="currentSlide{unique_key}({i})"
                   style="width: 8px; height: 8px; background: {'#fff' if i == 0 else 'rgba(255,255,255,0.5)'}; 
                          border-radius: 50%; cursor: pointer; transition: background 0.3s;">
             </span>
@@ -137,39 +141,39 @@ def create_image_slider(image_paths, unique_key):
     
     slider_html += """
         </div>
+        ''' if total_slides > 1 else ''}
     </div>
     
     <script>
-    let currentSlideIndex = {};
+    let currentSlideIndex{unique_key} = 0;
+    const totalSlides{unique_key} = {total_slides};
     
-    function changeSlide(sliderId, direction) {{
-        const slides = document.querySelector('.slides-' + sliderId);
-        const dots = document.querySelectorAll('.dot-' + sliderId);
-        const totalSlides = dots.length;
+    function changeSlide{unique_key}(direction) {{
+        currentSlideIndex{unique_key} += direction;
         
-        currentSlideIndex[sliderId] = (currentSlideIndex[sliderId] || 0) + direction;
-        
-        if (currentSlideIndex[sliderId] >= totalSlides) {{
-            currentSlideIndex[sliderId] = 0;
+        if (currentSlideIndex{unique_key} >= totalSlides{unique_key}) {{
+            currentSlideIndex{unique_key} = 0;
         }}
-        if (currentSlideIndex[sliderId] < 0) {{
-            currentSlideIndex[sliderId] = totalSlides - 1;
+        if (currentSlideIndex{unique_key} < 0) {{
+            currentSlideIndex{unique_key} = totalSlides{unique_key} - 1;
         }}
         
-        slides.style.transform = 'translateX(-' + (currentSlideIndex[sliderId] * (100 / totalSlides)) + '%)';
+        const slides = document.querySelector('.slides-{unique_key}');
+        slides.style.transform = 'translateX(-' + (currentSlideIndex{unique_key} * (100 / totalSlides{unique_key})) + '%)';
         
         // Обновляем точки
+        const dots = document.querySelectorAll('.dot-{unique_key}');
         dots.forEach((dot, index) => {{
-            dot.style.background = index === currentSlideIndex[sliderId] ? '#fff' : 'rgba(255,255,255,0.5)';
+            dot.style.background = index === currentSlideIndex{unique_key} ? '#fff' : 'rgba(255,255,255,0.5)';
         }});
     }}
     
-    function currentSlide(sliderId, index) {{
-        currentSlideIndex[sliderId] = index;
-        const slides = document.querySelector('.slides-' + sliderId);
-        const dots = document.querySelectorAll('.dot-' + sliderId);
+    function currentSlide{unique_key}(index) {{
+        currentSlideIndex{unique_key} = index;
+        const slides = document.querySelector('.slides-{unique_key}');
+        const dots = document.querySelectorAll('.dot-{unique_key}');
         
-        slides.style.transform = 'translateX(-' + (index * (100 / dots.length)) + '%)';
+        slides.style.transform = 'translateX(-' + (index * (100 / totalSlides{unique_key})) + '%)';
         
         dots.forEach((dot, i) => {{
             dot.style.background = i === index ? '#fff' : 'rgba(255,255,255,0.5)';
@@ -178,8 +182,8 @@ def create_image_slider(image_paths, unique_key):
     
     // Добавляем обработчики свайпа
     document.addEventListener('DOMContentLoaded', function() {{
-        const sliders = document.querySelectorAll('[id^="slider-"]');
-        sliders.forEach(slider => {{
+        const slider = document.getElementById('slider-{unique_key}');
+        if (slider) {{
             let startX = 0;
             let endX = 0;
             
@@ -189,22 +193,16 @@ def create_image_slider(image_paths, unique_key):
             
             slider.addEventListener('touchend', (e) => {{
                 endX = e.changedTouches[0].clientX;
-                const sliderId = slider.id.replace('slider-', '');
                 
                 if (startX - endX > 50) {{
                     // Свайп влево - следующий слайд
-                    changeSlide(sliderId, 1);
+                    changeSlide{unique_key}(1);
                 }} else if (endX - startX > 50) {{
                     // Свайп вправо - предыдущий слайд
-                    changeSlide(sliderId, -1);
+                    changeSlide{unique_key}(-1);
                 }}
             }});
-        }});
-    }});
-    
-    // Инициализация
-    document.addEventListener('DOMContentLoaded', function() {{
-        currentSlideIndex = {{}};
+        }}
     }});
     </script>
     
@@ -216,7 +214,7 @@ def create_image_slider(image_paths, unique_key):
         background: rgba(255,255,255,0.8) !important;
     }}
     </style>
-    """.format(len(images_base64))
+    """
     
     return slider_html
 
@@ -411,15 +409,15 @@ else:
 
         for i, row_df in enumerate(rows):
             cols = st.columns(num_cols)
-            for col, (_, model_row) in zip(cols, row_df.iterrows()):
-                with col:
+            for col_idx, (_, model_row) in zip(cols, row_df.iterrows()):
+                with col_idx:
                     # Получаем все изображения для товара
                     first_sku = model_row['sku']
                     first_image = model_row['image']
                     all_image_paths = get_all_image_paths(first_image, first_sku)
                     
                     # Создаем уникальный ключ для слайдера
-                    unique_key = f"{first_sku}_{i}"
+                    unique_key = f"{first_sku}_{i}_{col_idx}"
                     
                     # Создаем слайдер
                     slider_html = create_image_slider(all_image_paths, unique_key)
