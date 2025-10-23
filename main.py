@@ -26,28 +26,28 @@ size_conversion = {
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
 # --- Функции для работы с изображениями ---
-def get_image_path(image_names, sku):
-    """Ищет изображение по названиям из колонки image или по SKU"""
-    # Если есть названия в колонке image, берем первое изображение
+def get_all_image_paths(image_names, sku):
+    """Ищет все изображения по названиям из колонки image или по SKU"""
+    image_paths = []
+    
+    # Если есть названия в колонке image, ищем все изображения
     if pd.notna(image_names) and image_names != "":
-        # Берем первое название из списка (разделитель - пробел)
         image_list = str(image_names).split()
-        if image_list:
-            first_image = image_list[0]
-            # Пробуем разные расширения и пути
+        for image_name in image_list:
             patterns = [
-                os.path.join(IMAGES_PATH, "**", f"{first_image}.*"),
-                os.path.join(IMAGES_PATH, "**", f"{first_image}.jpg"),
-                os.path.join(IMAGES_PATH, "**", f"{first_image}.webp"),
-                os.path.join(IMAGES_PATH, "**", f"{first_image}.png"),
+                os.path.join(IMAGES_PATH, "**", f"{image_name}.*"),
+                os.path.join(IMAGES_PATH, "**", f"{image_name}.jpg"),
+                os.path.join(IMAGES_PATH, "**", f"{image_name}.webp"),
+                os.path.join(IMAGES_PATH, "**", f"{image_name}.png"),
             ]
             
             for pattern in patterns:
                 image_files = glob.glob(pattern, recursive=True)
                 if image_files:
-                    return image_files[0]
+                    image_paths.extend(image_files)
+                    break
     
-    # Если по названию не нашли, пробуем по SKU
+    # Если по названию не нашли или нужно дополнить по SKU
     if pd.notna(sku) and sku != "":
         patterns = [
             os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg"),
@@ -58,10 +58,14 @@ def get_image_path(image_names, sku):
         for pattern in patterns:
             image_files = glob.glob(pattern, recursive=True)
             if image_files:
-                return image_files[0]
+                # Добавляем только те, которых еще нет в списке
+                for img_path in image_files:
+                    if img_path not in image_paths:
+                        image_paths.append(img_path)
     
-    # Если ничего не нашли, возвращаем no_image
-    return os.path.join(IMAGES_PATH, "no_image.jpg")
+    # Убираем дубликаты и возвращаем
+    unique_paths = list(dict.fromkeys(image_paths))
+    return unique_paths if unique_paths else [os.path.join(IMAGES_PATH, "no_image.jpg")]
 
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
@@ -75,6 +79,146 @@ def get_image_base64(image_path):
                 return base64.b64encode(img_file.read()).decode("utf-8")
         except:
             return ""
+
+def create_image_slider(image_paths, unique_key):
+    """Создает слайдер изображений с стрелочками"""
+    if not image_paths:
+        return "<div>No images</div>"
+    
+    images_base64 = [get_image_base64(img_path) for img_path in image_paths]
+    
+    slider_html = f"""
+    <div id="slider-{unique_key}" style="position: relative; width: 100%; margin: 0 auto; overflow: hidden; border-radius: 12px;">
+        <div class="slides-{unique_key}" style="display: flex; transition: transform 0.5s ease; width: {len(images_base64) * 100}%;">
+    """
+    
+    for i, img_base64 in enumerate(images_base64):
+        slider_html += f"""
+            <div class="slide-{unique_key}" style="width: {100/len(images_base64)}%; flex-shrink: 0;">
+                <img src="data:image/jpeg;base64,{img_base64}" 
+                     style="width: 100%; height: 220px; object-fit: cover; border-radius: 12px;">
+            </div>
+        """
+    
+    slider_html += f"""
+        </div>
+        
+        <!-- Стрелки -->
+        <button class="prev-{unique_key}" 
+                onclick="changeSlide('{unique_key}', -1)"
+                style="position: absolute; top: 50%; left: 10px; transform: translateY(-50%); 
+                       background: rgba(255,255,255,0.7); border: none; border-radius: 50%; 
+                       width: 35px; height: 35px; font-size: 18px; cursor: pointer; 
+                       display: flex; align-items: center; justify-content: center;">
+            ‹
+        </button>
+        <button class="next-{unique_key}" 
+                onclick="changeSlide('{unique_key}', 1)"
+                style="position: absolute; top: 50%; right: 10px; transform: translateY(-50%); 
+                       background: rgba(255,255,255,0.7); border: none; border-radius: 50%; 
+                       width: 35px; height: 35px; font-size: 18px; cursor: pointer;
+                       display: flex; align-items: center; justify-content: center;">
+            ›
+        </button>
+        
+        <!-- Точки-индикаторы -->
+        <div style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); 
+                    display: flex; gap: 5px;">
+    """
+    
+    for i in range(len(images_base64)):
+        slider_html += f"""
+            <span class="dot-{unique_key}" 
+                  onclick="currentSlide('{unique_key}', {i})"
+                  style="width: 8px; height: 8px; background: {'#fff' if i == 0 else 'rgba(255,255,255,0.5)'}; 
+                         border-radius: 50%; cursor: pointer; transition: background 0.3s;">
+            </span>
+        """
+    
+    slider_html += """
+        </div>
+    </div>
+    
+    <script>
+    let currentSlideIndex = {};
+    
+    function changeSlide(sliderId, direction) {{
+        const slides = document.querySelector('.slides-' + sliderId);
+        const dots = document.querySelectorAll('.dot-' + sliderId);
+        const totalSlides = dots.length;
+        
+        currentSlideIndex[sliderId] = (currentSlideIndex[sliderId] || 0) + direction;
+        
+        if (currentSlideIndex[sliderId] >= totalSlides) {{
+            currentSlideIndex[sliderId] = 0;
+        }}
+        if (currentSlideIndex[sliderId] < 0) {{
+            currentSlideIndex[sliderId] = totalSlides - 1;
+        }}
+        
+        slides.style.transform = 'translateX(-' + (currentSlideIndex[sliderId] * (100 / totalSlides)) + '%)';
+        
+        // Обновляем точки
+        dots.forEach((dot, index) => {{
+            dot.style.background = index === currentSlideIndex[sliderId] ? '#fff' : 'rgba(255,255,255,0.5)';
+        }});
+    }}
+    
+    function currentSlide(sliderId, index) {{
+        currentSlideIndex[sliderId] = index;
+        const slides = document.querySelector('.slides-' + sliderId);
+        const dots = document.querySelectorAll('.dot-' + sliderId);
+        
+        slides.style.transform = 'translateX(-' + (index * (100 / dots.length)) + '%)';
+        
+        dots.forEach((dot, i) => {{
+            dot.style.background = i === index ? '#fff' : 'rgba(255,255,255,0.5)';
+        }});
+    }}
+    
+    // Добавляем обработчики свайпа
+    document.addEventListener('DOMContentLoaded', function() {{
+        const sliders = document.querySelectorAll('[id^="slider-"]');
+        sliders.forEach(slider => {{
+            let startX = 0;
+            let endX = 0;
+            
+            slider.addEventListener('touchstart', (e) => {{
+                startX = e.touches[0].clientX;
+            }});
+            
+            slider.addEventListener('touchend', (e) => {{
+                endX = e.changedTouches[0].clientX;
+                const sliderId = slider.id.replace('slider-', '');
+                
+                if (startX - endX > 50) {{
+                    // Свайп влево - следующий слайд
+                    changeSlide(sliderId, 1);
+                }} else if (endX - startX > 50) {{
+                    // Свайп вправо - предыдущий слайд
+                    changeSlide(sliderId, -1);
+                }}
+            }});
+        }});
+    }});
+    
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', function() {{
+        currentSlideIndex = {{}};
+    }});
+    </script>
+    
+    <style>
+    .prev-{unique_key}:hover, .next-{unique_key}:hover {{
+        background: rgba(255,255,255,0.9) !important;
+    }}
+    .dot-{unique_key}:hover {{
+        background: rgba(255,255,255,0.8) !important;
+    }}
+    </style>
+    """.format(len(images_base64))
+    
+    return slider_html
 
 # --- Функции для группировки моделей ---
 def get_unique_models(df):
@@ -159,13 +303,6 @@ def load_data():
 
 # --- Загружаем данные ---
 df = load_data()
-
-# --- Отладочная информация ---
-if len(df) > 0 and 'image' in df.columns:
-    st.sidebar.write("📸 Примеры названий изображений:")
-    sample_images = df['image'].head(3).tolist()
-    for img in sample_images:
-        st.sidebar.write(f" - {img}")
 
 # --- Фильтры ---
 st.divider()
@@ -272,15 +409,20 @@ else:
         num_cols = 4
         rows = [unique_models.iloc[i:i+num_cols] for i in range(0, len(unique_models), num_cols)]
 
-        for row_df in rows:
+        for i, row_df in enumerate(rows):
             cols = st.columns(num_cols)
             for col, (_, model_row) in zip(cols, row_df.iterrows()):
                 with col:
-                    # Берем первый SKU и image для изображения
+                    # Получаем все изображения для товара
                     first_sku = model_row['sku']
                     first_image = model_row['image']
-                    image_path = get_image_path(first_image, first_sku)
-                    image_base64 = get_image_base64(image_path)
+                    all_image_paths = get_all_image_paths(first_image, first_sku)
+                    
+                    # Создаем уникальный ключ для слайдера
+                    unique_key = f"{first_sku}_{i}"
+                    
+                    # Создаем слайдер
+                    slider_html = create_image_slider(all_image_paths, unique_key)
                     
                     # Формируем строку с размерами
                     us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
@@ -314,8 +456,7 @@ else:
                             transition:transform 0.2s ease-in-out;
                         " onmouseover="this.style.transform='scale(1.02)';"
                           onmouseout="this.style.transform='scale(1)';">
-                            <img src="data:image/jpeg;base64,{image_base64}" 
-                                 style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                            {slider_html}
                             <h4 style="margin:10px 0 4px 0;">{model_row['brand']} {model_row['model_clean']}</h4>
                             <p style="color:gray; font-size:13px; margin:0;">
                                 {model_row['color']} | {model_row['gender']}
