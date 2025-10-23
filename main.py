@@ -110,50 +110,68 @@ def create_no_image_placeholder():
     except:
         return None
 
-def display_image_grid(image_paths, key_suffix):
-    """Отображает сетку изображений используя st.columns"""
+def display_modern_cards(image_paths, key_suffix):
+    """Современные карточки с превью фото"""
     if not image_paths:
-        # Если нет изображений, показываем заглушку
-        st.image(create_no_image_placeholder(), use_container_width=True, caption="Нет изображения")
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 40px; background: #f8f9fa; 
+                        border-radius: 12px; margin: 10px 0;">
+                <div style="font-size: 48px;">📷</div>
+                <div style="color: #666;">Нет изображений</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         return
     
-    # Ограничиваем количество изображений
-    image_paths = image_paths[:4]
+    # Инициализируем выбранное фото в session_state
+    if f"selected_{key_suffix}" not in st.session_state:
+        st.session_state[f"selected_{key_suffix}"] = 0
     
-    if len(image_paths) == 1:
-        # Одно изображение - полноразмерное
+    selected_index = st.session_state[f"selected_{key_suffix}"]
+    
+    # Создаем колонки: основное фото и превью
+    main_col, preview_col = st.columns([3, 1])
+    
+    with main_col:
+        # Основное большое фото
         try:
-            st.image(image_paths[0], use_container_width=True)
+            st.image(
+                image_paths[selected_index], 
+                use_container_width=True,
+                caption=f"Вид {selected_index + 1} из {len(image_paths)}"
+            )
         except:
-            st.image(create_no_image_placeholder(), use_container_width=True, caption="Ошибка загрузки")
+            st.markdown(
+                f"""
+                <div style="text-align: center; padding: 60px; background: #fff3cd; 
+                            border-radius: 12px; color: #856404; margin: 10px 0;">
+                    <div style="font-size: 36px;">❌</div>
+                    <div>Ошибка загрузки фото</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
     
-    elif len(image_paths) == 2:
-        # Два изображения - бок о бок
-        cols = st.columns(2)
-        for i, img_path in enumerate(image_paths):
-            with cols[i]:
-                try:
-                    st.image(img_path, use_container_width=True)
-                except:
-                    st.image(create_no_image_placeholder(), use_container_width=True)
-    
-    else:
-        # Три и более изображений - сетка 2x2
-        cols = st.columns(2)
-        for i in range(4):
-            col_idx = i % 2
-            img_idx = i if i < len(image_paths) else None
+    with preview_col:
+        st.write("")  # Отступ
+        st.write("")  # Отступ
+        
+        # Маленькие превью-кнопки
+        for i, img_path in enumerate(image_paths[:4]):  # Максимум 4 превью
+            # Определяем эмодзи для кнопки
+            emoji = "🟢" if i == selected_index else "⚪"
             
-            with cols[col_idx]:
-                if img_idx is not None:
-                    try:
-                        st.image(image_paths[img_idx], use_container_width=True)
-                    except:
-                        st.image(create_no_image_placeholder(), use_container_width=True)
-                else:
-                    # Пустое место в сетке
-                    st.empty()
-
+            # Создаем кнопку выбора
+            if st.button(
+                f"{emoji} {i+1}", 
+                key=f"btn_{key_suffix}_{i}",
+                use_container_width=True,
+                type="primary" if i == selected_index else "secondary"
+            ):
+                st.session_state[f"selected_{key_suffix}"] = i
+                st.rerun()
 # --- Функции для группировки моделей ---
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
