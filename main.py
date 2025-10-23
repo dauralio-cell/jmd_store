@@ -26,7 +26,39 @@ size_conversion = {
 }
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
+# --- Инициализация сессии ---
+if 'cart' not in st.session_state:
+    st.session_state.cart = []
+
+# --- Вспомогательные функции ---
+def safe_int_convert(value):
+    """Безопасное преобразование в int"""
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return 0
+
+def validate_data(df):
+    """Проверка качества данных"""
+    if df.empty:
+        st.error("Каталог пуст или не загружен")
+        return False
+    
+    required_columns = ['brand', 'model']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    
+    if missing_columns:
+        st.error(f"Отсутствуют обязательные колонки: {missing_columns}")
+        return False
+    
+    return True
+
 # --- Функции для работы с изображениями ---
+@st.cache_data(show_spinner=False)
+def get_image_paths_cached(image_names, sku):
+    """Кэширование путей к изображениям"""
+    return get_all_image_paths(image_names, sku)
+
 def get_all_image_paths(image_names, sku):
     """Ищет все изображения по названиям из колонки image или по SKU"""
     image_paths = []
@@ -84,7 +116,12 @@ def get_image_base64(image_path):
 def create_simple_image_slider(image_paths, slider_id):
     """Создает простой слайдер изображений"""
     if not image_paths or len(image_paths) == 0:
-        return "<div>No images</div>"
+        return """
+        <div style="width:100%; height:220px; background:#f0f0f0; border-radius:12px; 
+                    display:flex; align-items:center; justify-content:center;">
+            <span style="color:#666;">Нет изображения</span>
+        </div>
+        """
     
     images_base64 = [get_image_base64(img_path) for img_path in image_paths]
     
@@ -240,6 +277,50 @@ def get_unique_models(df):
     
     return grouped
 
+# --- Функции корзины ---
+def add_to_cart(item):
+    """Добавление товара в корзину"""
+    st.session_state.cart.append(item)
+    st.success(f"✅ Добавлено: {item['brand']} {item['model_clean']} {item['size_us']}US")
+
+def clear_cart():
+    """Очистка корзины"""
+    st.session_state.cart = []
+    st.success("🛒 Корзина очищена")
+
+def display_cart():
+    """Отображение корзины"""
+    if not st.session_state.cart:
+        st.info("🛒 Корзина пуста")
+        return
+    
+    st.subheader("🛒 Ваша корзина")
+    
+    total = 0
+    for i, item in enumerate(st.session_state.cart):
+        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+        with col1:
+            st.write(f"**{item['brand']} {item['model_clean']}**")
+            st.write(f"Размер: {item['size_us']}US ({item['size_eu']}EU)")
+        with col2:
+            st.write(f"{item['price']} ₸")
+        with col3:
+            if st.button("🗑️", key=f"remove_{i}", help="Удалить из корзины"):
+                st.session_state.cart.pop(i)
+                st.rerun()
+        
+        total += safe_int_convert(item['price'])
+    
+    st.markdown(f"**Итого: {total} ₸**")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📦 Оформить заказ", type="primary"):
+            st.success("🎉 Заказ оформлен! С вами свяжутся для подтверждения.")
+    with col2:
+        if st.button("🗑️ Очистить корзину", type="secondary"):
+            clear_cart()
+
 # --- Загрузка данных ---
 @st.cache_data(show_spinner=False)
 def load_data():
@@ -304,10 +385,38 @@ def load_data():
         st.error(f"Ошибка загрузки данных: {e}")
         return pd.DataFrame()
 
-# --- Загружаем данные ---
-df = load_data()
+# --- Основной интерфейс ---
+# Загрузка данных с индикатором
+with st.spinner('🔄 Загрузка каталога...'):
+    df = load_data()
 
-# --- Фильтры ---
+# Валидация данных
+if not validate_data(df):
+    st.stop()
+
+# --- Боковая панель с корзиной и поиском ---
+with st.sidebar:
+    st.header("🛒 Корзина")
+    display_cart()
+    
+    st.divider()
+    
+    st.header("🔍 Расширенный поиск")
+    search_query = st.text_input("Поиск по названию", "")
+    
+    st.divider()
+    
+    st.header("⚙️ Настройки")
+    items_per_page = st.slider("Товаров на странице", 8, 32, 16)
+    sort_option = st.selectbox("Сортировка", [
+        "По умолчанию", 
+        "Цена (по возрастанию)", 
+        "Цена (по убыванию)",
+        "Название (А-Я)",
+        "Название (Я-А)"
+    ])
+
+# --- Основные фильтры ---
 st.divider()
 st.markdown("### 🔎 Фильтр каталога")
 
@@ -358,6 +467,13 @@ if len(df) > 0:
         filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
     if color_filter != "Все":
         filtered_df = filtered_df[filtered_df["color"] == color_filter]
+    
+    # Поиск по названию
+    if search_query:
+        filtered_df = filtered_df[
+            filtered_df["model_clean"].str.contains(search_query, case=False, na=False) |
+            filtered_df["brand"].str.contains(search_query, case=False, na=False)
+        ]
 
 st.divider()
 
@@ -372,7 +488,7 @@ with col_info3:
         # Фильтруем только товары с ценой
         prices_with_values = filtered_df[filtered_df['price'].astype(str).str.strip() != ""]
         if len(prices_with_values) > 0:
-            min_price = int(prices_with_values["price"].min())
+            min_price = safe_int_convert(prices_with_values["price"].min())
             st.metric("💰 Минимальная цена", f"{min_price} ₸")
         else:
             st.metric("💰 Минимальная цена", "—")
@@ -383,7 +499,7 @@ with col_info4:
         # Фильтруем только товары с ценой
         prices_with_values = filtered_df[filtered_df['price'].astype(str).str.strip() != ""]
         if len(prices_with_values) > 0:
-            max_price = int(prices_with_values["price"].max())
+            max_price = safe_int_convert(prices_with_values["price"].max())
             st.metric("💎 Максимальная цена", f"{max_price} ₸")
         else:
             st.metric("💎 Максимальная цена", "—")
@@ -400,17 +516,39 @@ if len(filtered_df) == 0:
     st.info("💡 Попробуйте изменить параметры фильтрации")
     
     if st.button("🔄 Сбросить все фильтры"):
-        st.experimental_rerun()
+        st.rerun()
 else:
     # Получаем сгруппированные модели
     unique_models = get_unique_models(filtered_df)
     
+    # Сортировка
+    if sort_option == "Цена (по возрастанию)":
+        unique_models = unique_models.sort_values(by='price', key=lambda x: x.apply(lambda p: min(p) if p and any(p) else 0))
+    elif sort_option == "Цена (по убыванию)":
+        unique_models = unique_models.sort_values(by='price', key=lambda x: x.apply(lambda p: max(p) if p and any(p) else 0), ascending=False)
+    elif sort_option == "Название (А-Я)":
+        unique_models = unique_models.sort_values(by='model_clean')
+    elif sort_option == "Название (Я-А)":
+        unique_models = unique_models.sort_values(by='model_clean', ascending=False)
+    
     if len(unique_models) == 0:
         st.warning("🔍 Нет данных для отображения.")
     else:
+        # Пагинация
+        if len(unique_models) > items_per_page:
+            total_pages = (len(unique_models) - 1) // items_per_page + 1
+            page = st.number_input("Страница", min_value=1, max_value=total_pages, value=1, key="pagination")
+            start_idx = (page - 1) * items_per_page
+            end_idx = start_idx + items_per_page
+            paginated_models = unique_models.iloc[start_idx:end_idx]
+            
+            st.caption(f"Страница {page} из {total_pages} | Показано {len(paginated_models)} из {len(unique_models)} моделей")
+        else:
+            paginated_models = unique_models
+        
         # Отображаем по 4 модели в ряд
         num_cols = 4
-        rows = [unique_models.iloc[i:i+num_cols] for i in range(0, len(unique_models), num_cols)]
+        rows = [paginated_models.iloc[i:i+num_cols] for i in range(0, len(paginated_models), num_cols)]
 
         for i, row_df in enumerate(rows):
             cols = st.columns(num_cols)
@@ -419,7 +557,7 @@ else:
                     # Получаем все изображения для товара
                     first_sku = model_row['sku']
                     first_image = model_row['image']
-                    all_image_paths = get_all_image_paths(first_image, first_sku)
+                    all_image_paths = get_image_paths_cached(first_image, first_sku)
                     
                     # Создаем простой уникальный ключ для слайдера
                     unique_key = f"{first_sku}_{i}_{col_idx}"
@@ -441,7 +579,7 @@ else:
                         if valid_prices:
                             min_price = min(valid_prices)
                             max_price = max(valid_prices)
-                            price_text = f"{int(min_price)} - {int(max_price)} ₸" if min_price != max_price else f"{int(min_price)} ₸"
+                            price_text = f"{safe_int_convert(min_price)} - {safe_int_convert(max_price)} ₸" if min_price != max_price else f"{safe_int_convert(min_price)} ₸"
                         else:
                             price_text = "Цена не указана"
                     else:
@@ -483,7 +621,7 @@ else:
                         ]
                         
                         for _, variant in model_variants.iterrows():
-                            col1, col2, col3 = st.columns([1, 1, 2])
+                            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                             with col1:
                                 st.text(f"US: {variant['size_us']}")
                             with col2:
@@ -491,11 +629,19 @@ else:
                             with col3:
                                 price_val = variant['price']
                                 if price_val and str(price_val).strip() != "":
-                                    st.text(f"{int(price_val)} ₸")
+                                    st.text(f"{safe_int_convert(price_val)} ₸")
                                 else:
-                                    st.text("Цена не указана")
+                                    st.text("—")
+                            with col4:
                                 if st.button("🛒", key=f"cart_{variant['sku']}", help="Добавить в корзину"):
-                                    st.success(f"Добавлен размер {variant['size_us']}US")
+                                    add_to_cart({
+                                        'brand': variant['brand'],
+                                        'model_clean': variant['model_clean'],
+                                        'size_us': variant['size_us'],
+                                        'size_eu': variant['size_eu'],
+                                        'price': variant['price'],
+                                        'sku': variant['sku']
+                                    })
 
 # Добавляем JavaScript для всех слайдеров один раз в конце
 st.markdown(slider_js, unsafe_allow_html=True)
