@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Миниатюрные превью-фото с переключением - ПРОСТАЯ ВЕРСИЯ"""
+    """Миниатюрные превью-фото - ГОРИЗОНТАЛЬНЫЙ ВАРИАНТ"""
     if not image_paths:
         st.markdown(
             """
@@ -122,49 +122,44 @@ def display_modern_cards(image_paths, key_suffix):
     
     selected_index = st.session_state[f"selected_{key_suffix}"]
     
-    # Создаем колонки: основное фото и превью
-    main_col, preview_col = st.columns([3, 1])
+    # Основное большое фото
+    try:
+        st.image(image_paths[selected_index], use_container_width=True)
+    except:
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 60px; background: #f5f5f5; 
+                        border-radius: 12px; color: #999; margin: 10px 0;">
+                <div style="font-size: 36px;">❌</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     
-    with main_col:
-        # Основное большое фото
-        try:
-            st.image(image_paths[selected_index], use_container_width=True)
-        except:
-            st.markdown(
-                """
-                <div style="text-align: center; padding: 60px; background: #f5f5f5; 
-                            border-radius: 12px; color: #999; margin: 10px 0;">
-                    <div style="font-size: 36px;">❌</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-    
-    with preview_col:
-        # ПРОСТО миниатюры - каждая миниатюра это кнопка
+    # Горизонтальные миниатюры под основным фото
+    if len(image_paths) > 1:
+        cols = st.columns(len(image_paths[:4]))
         for i, img_path in enumerate(image_paths[:4]):
-            try:
-                # Создаем кнопку с изображением
-                if st.button(
-                    "",  # Пустой текст
-                    key=f"thumb_{key_suffix}_{i}",
-                    use_container_width=True
-                ):
-                    st.session_state[f"selected_{key_suffix}"] = i
-                    st.rerun()
-                
-                # Изображение миниатюры
-                st.image(img_path, width=60)
-                
-            except:
-                # Если ошибка загрузки
-                if st.button(
-                    "❌",
-                    key=f"thumb_err_{key_suffix}_{i}",
-                    use_container_width=True
-                ):
-                    st.session_state[f"selected_{key_suffix}"] = i
-                    st.rerun()
+            with cols[i]:
+                try:
+                    if st.button(
+                        "",  # Пустой текст
+                        key=f"thumb_{key_suffix}_{i}",
+                        use_container_width=True
+                    ):
+                        st.session_state[f"selected_{key_suffix}"] = i
+                        st.rerun()
+                    
+                    st.image(img_path, width=60)
+                    
+                except:
+                    if st.button(
+                        "❌",
+                        key=f"thumb_err_{key_suffix}_{i}",
+                        use_container_width=True
+                    ):
+                        st.session_state[f"selected_{key_suffix}"] = i
+                        st.rerun()
 
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
