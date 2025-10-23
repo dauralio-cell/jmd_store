@@ -111,14 +111,25 @@ def load_data():
         if "description" not in df.columns:
             df["description"] = "Описание временно недоступно."
 
+        # ДЕБАГ: Покажем какие колонки есть в данных
+        st.sidebar.write("📊 Доступные колонки:", df.columns.tolist())
+        
         # Фильтрация по наличию товара (колонка 'yes')
         if 'yes' in df.columns:
-            df = df[df['yes'].str.lower() == 'yes']
+            st.sidebar.write("🔍 Фильтруем по наличию...")
+            st.sidebar.write("Уникальные значения в колонке 'yes':", df['yes'].unique().tolist())
+            
+            # Более гибкая фильтрация
+            df = df[df['yes'].astype(str).str.lower().str.strip().isin(['yes', 'да', '1', 'true', 'есть'])]
+            st.sidebar.write(f"✅ Осталось товаров после фильтрации: {len(df)}")
+        else:
+            st.sidebar.warning("⚠️ Колонка 'yes' не найдена, показываем все товары")
         
         # Исключаем товары без цены или модели
         df = df[df["price"].astype(str).str.strip() != ""]
         df = df[df["model_clean"].astype(str).str.strip() != ""]
 
+        st.sidebar.write(f"📦 Итоговое количество товаров: {len(df)}")
         return df
         
     except Exception as e:
@@ -128,6 +139,14 @@ def load_data():
 # --- Загружаем данные ---
 df = load_data()
 
+# --- Покажем отладочную информацию ---
+st.sidebar.divider()
+st.sidebar.write("🔧 Отладочная информация:")
+st.sidebar.write(f"Всего записей: {len(df)}")
+if len(df) > 0:
+    st.sidebar.write(f"Бренды: {df['brand'].unique().tolist()}")
+    st.sidebar.write(f"Модели: {len(df['model_clean'].unique())}")
+
 # --- Фильтры ---
 st.divider()
 st.markdown("### 🔎 Фильтр каталога")
@@ -135,46 +154,50 @@ st.markdown("### 🔎 Фильтр каталога")
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 # Бренд
-available_brands = ["Все"] + sorted(df["brand"].unique().tolist())
+available_brands = ["Все"] + sorted(df["brand"].unique().tolist()) if len(df) > 0 else ["Все"]
 brand_filter = col1.selectbox("Бренд", available_brands)
 
 # Модель зависит от выбранного бренда
-if brand_filter != "Все":
-    brand_models = sorted(df[df["brand"] == brand_filter]["model_clean"].unique().tolist())
+if len(df) > 0:
+    if brand_filter != "Все":
+        brand_models = sorted(df[df["brand"] == brand_filter]["model_clean"].unique().tolist())
+    else:
+        brand_models = sorted(df["model_clean"].unique().tolist())
 else:
-    brand_models = sorted(df["model_clean"].unique().tolist())
+    brand_models = ["Все"]
 model_filter = col2.selectbox("Модель", ["Все"] + brand_models)
 
 # Размеры
-available_sizes_us = ["Все"] + sorted(df["size_us"].dropna().unique().tolist())
-available_sizes_eu = ["Все"] + sorted(df["size_eu"].dropna().unique().tolist())
+available_sizes_us = ["Все"] + sorted(df["size_us"].dropna().unique().tolist()) if len(df) > 0 else ["Все"]
+available_sizes_eu = ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()) if len(df) > 0 else ["Все"]
 size_us_filter = col3.selectbox("Размер (US)", available_sizes_us)
 size_eu_filter = col4.selectbox("Размер (EU)", available_sizes_eu)
 
 # Пол и цвет
 gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()) if len(df) > 0 else ["Все"])
 
 # --- Применяем фильтры ---
 filtered_df = df.copy()
-if brand_filter != "Все":
-    filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
-if model_filter != "Все":
-    filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_us_filter != "Все":
-    eu_equiv = size_conversion.get(size_us_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
-    ]
-if size_eu_filter != "Все":
-    us_equiv = reverse_conversion.get(size_eu_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
-    ]
-if gender_filter != "Все":
-    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
-if color_filter != "Все":
-    filtered_df = filtered_df[filtered_df["color"] == color_filter]
+if len(df) > 0:
+    if brand_filter != "Все":
+        filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
+    if model_filter != "Все":
+        filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
+    if size_us_filter != "Все":
+        eu_equiv = size_conversion.get(size_us_filter, "")
+        filtered_df = filtered_df[
+            (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
+        ]
+    if size_eu_filter != "Все":
+        us_equiv = reverse_conversion.get(size_eu_filter, "")
+        filtered_df = filtered_df[
+            (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
+        ]
+    if gender_filter != "Все":
+        filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
+    if color_filter != "Все":
+        filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
 st.divider()
 
@@ -183,7 +206,7 @@ col_info1, col_info2, col_info3, col_info4 = st.columns(4)
 with col_info1:
     st.metric("📦 Всего товаров", len(filtered_df))
 with col_info2:
-    st.metric("🏷️ Уникальных моделей", filtered_df["model_clean"].nunique())
+    st.metric("🏷️ Уникальных моделей", filtered_df["model_clean"].nunique() if len(filtered_df) > 0 else 0)
 with col_info3:
     if len(filtered_df) > 0:
         min_price = int(filtered_df["price"].min())
