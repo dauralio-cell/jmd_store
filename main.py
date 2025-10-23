@@ -6,6 +6,7 @@ import re
 import base64
 import json
 import hashlib
+from PIL import Image
 
 # --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
@@ -98,60 +99,60 @@ def get_all_image_paths(image_names, sku):
     
     # Убираем дубликаты и возвращаем
     unique_paths = list(dict.fromkeys(image_paths))
-    return unique_paths if unique_paths else [os.path.join(IMAGES_PATH, "no_image.jpg")]
+    return unique_paths if unique_paths else []
 
-def create_image_grid(image_paths, max_images=4):
-    """Создает сетку изображений вместо слайдера"""
-    if not image_paths or len(image_paths) == 0:
-        return """
-        <div style="width:100%; height:220px; background:#f0f0f0; border-radius:12px; 
-                    display:flex; align-items:center; justify-content:center;">
-            <span style="color:#666;">Нет изображения</span>
-        </div>
-        """
+def create_no_image_placeholder():
+    """Создает placeholder для отсутствующего изображения"""
+    try:
+        # Создаем простое изображение-заглушку
+        img = Image.new('RGB', (300, 300), color='#f0f0f0')
+        return img
+    except:
+        return None
+
+def display_image_grid(image_paths, key_suffix):
+    """Отображает сетку изображений используя st.columns"""
+    if not image_paths:
+        # Если нет изображений, показываем заглушку
+        st.image(create_no_image_placeholder(), use_column_width=True, caption="Нет изображения")
+        return
     
     # Ограничиваем количество изображений
-    image_paths = image_paths[:max_images]
+    image_paths = image_paths[:4]
     
     if len(image_paths) == 1:
-        # Если одно изображение - показываем полноразмерно
-        img_path = image_paths[0] if os.path.exists(image_paths[0]) else os.path.join(IMAGES_PATH, "no_image.jpg")
-        return f"""
-        <div style="width:100%; height:220px; border-radius:12px; overflow:hidden;">
-            <img src="{img_path}" 
-                 style="width:100%; height:100%; object-fit:cover;"
-                 onerror="this.src='{os.path.join(IMAGES_PATH, "no_image.jpg")}'">
-        </div>
-        """
+        # Одно изображение - полноразмерное
+        try:
+            st.image(image_paths[0], use_column_width=True)
+        except:
+            st.image(create_no_image_placeholder(), use_column_width=True, caption="Ошибка загрузки")
+    
     elif len(image_paths) == 2:
         # Два изображения - бок о бок
-        images_html = ""
-        for img_path in image_paths:
-            img_path = img_path if os.path.exists(img_path) else os.path.join(IMAGES_PATH, "no_image.jpg")
-            images_html += f"""
-            <div style="width:50%; height:220px; padding:2px;">
-                <img src="{img_path}" 
-                     style="width:100%; height:100%; object-fit:cover; border-radius:8px;"
-                     onerror="this.src='{os.path.join(IMAGES_PATH, "no_image.jpg")}'">
-            </div>
-            """
-        return f'<div style="display:flex; width:100%; height:220px;">{images_html}</div>'
+        cols = st.columns(2)
+        for i, img_path in enumerate(image_paths):
+            with cols[i]:
+                try:
+                    st.image(img_path, use_column_width=True)
+                except:
+                    st.image(create_no_image_placeholder(), use_column_width=True)
     
     else:
         # Три и более изображений - сетка 2x2
-        images_html = ""
-        for i, img_path in enumerate(image_paths):
-            if i >= 4:  # Максимум 4 изображения
-                break
-            img_path = img_path if os.path.exists(img_path) else os.path.join(IMAGES_PATH, "no_image.jpg")
-            images_html += f"""
-            <div style="width:50%; height:110px; padding:2px;">
-                <img src="{img_path}" 
-                     style="width:100%; height:100%; object-fit:cover; border-radius:6px;"
-                     onerror="this.src='{os.path.join(IMAGES_PATH, "no_image.jpg")}'">
-            </div>
-            """
-        return f'<div style="display:flex; flex-wrap:wrap; width:100%; height:220px;">{images_html}</div>'
+        cols = st.columns(2)
+        for i in range(4):
+            col_idx = i % 2
+            img_idx = i if i < len(image_paths) else None
+            
+            with cols[col_idx]:
+                if img_idx is not None:
+                    try:
+                        st.image(image_paths[img_idx], use_column_width=True)
+                    except:
+                        st.image(create_no_image_placeholder(), use_column_width=True)
+                else:
+                    # Пустое место в сетке
+                    st.empty()
 
 # --- Функции для группировки моделей ---
 def get_unique_models(df):
@@ -211,7 +212,7 @@ def display_cart():
         if st.button("📦 Оформить заказ", type="primary"):
             st.success("🎉 Заказ оформлен! С вами свяжутся для подтверждения.")
     with col2:
-        if st.button("🗑️ Очистить корзина", type="secondary"):
+        if st.button("🗑️ Очистить корзину", type="secondary"):
             clear_cart()
 
 # --- Загрузка данных ---
@@ -388,7 +389,7 @@ with col_info3:
     else:
         st.metric("💰 Минимальная цена", "—")
 with col_info4:
-    if len(filtered_df) > 0 and 'price' in filtered_df.columns:
+    if len(filtered_df) > 0 and 'price' в filtered_df.columns:
         # Фильтруем только товары с ценой
         prices_with_values = filtered_df[filtered_df['price'].astype(str).str.strip() != ""]
         if len(prices_with_values) > 0:
@@ -447,59 +448,59 @@ else:
             cols = st.columns(num_cols)
             for col_idx, (_, model_row) in zip(cols, row_df.iterrows()):
                 with col_idx:
-                    # Получаем все изображения для товара
-                    first_sku = model_row['sku']
-                    first_image = model_row['image']
-                    all_image_paths = get_image_paths_cached(first_image, first_sku)
-                    
-                    # Создаем сетку изображений вместо слайдера
-                    image_grid_html = create_image_grid(all_image_paths)
-                    
-                    # Формируем строку с размерами
-                    us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
-                    eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
-                    sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else "Размеры не указаны"
-                    if eu_sizes:
-                        sizes_text += f" | EU: {', '.join(eu_sizes)}"
-                    
-                    # Диапазон цен
-                    prices = model_row['price']
-                    if prices and any(prices):
-                        valid_prices = [p for p in prices if p != "" and str(p).strip() != ""]
-                        if valid_prices:
-                            min_price = min(valid_prices)
-                            max_price = max(valid_prices)
-                            price_text = f"{safe_int_convert(min_price)} - {safe_int_convert(max_price)} ₸" if min_price != max_price else f"{safe_int_convert(min_price)} ₸"
+                    # Создаем контейнер для карточки товара
+                    with st.container():
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border:1px solid #eee;
+                                border-radius:16px;
+                                padding:12px;
+                                margin-bottom:16px;
+                                background-color:#fff;
+                                box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                            ">
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        # Получаем все изображения для товара
+                        first_sku = model_row['sku']
+                        first_image = model_row['image']
+                        all_image_paths = get_image_paths_cached(first_image, first_sku)
+                        
+                        # Отображаем сетку изображений
+                        display_image_grid(all_image_paths, f"{first_sku}_{i}_{col_idx}")
+                        
+                        # Информация о товаре
+                        st.markdown(f"**{model_row['brand']} {model_row['model_clean']}**")
+                        st.caption(f"{model_row['color']} | {model_row['gender']}")
+                        
+                        # Формируем строку с размерами
+                        us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
+                        eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
+                        sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else "Размеры не указаны"
+                        if eu_sizes:
+                            sizes_text += f" | EU: {', '.join(eu_sizes)}"
+                        
+                        st.write(sizes_text)
+                        
+                        # Диапазон цен
+                        prices = model_row['price']
+                        if prices and any(prices):
+                            valid_prices = [p for p in prices if p != "" and str(p).strip() != ""]
+                            if valid_prices:
+                                min_price = min(valid_prices)
+                                max_price = max(valid_prices)
+                                price_text = f"{safe_int_convert(min_price)} - {safe_int_convert(max_price)} ₸" if min_price != max_price else f"{safe_int_convert(min_price)} ₸"
+                            else:
+                                price_text = "Цена не указана"
                         else:
                             price_text = "Цена не указана"
-                    else:
-                        price_text = "Цена не указана"
-
-                    st.markdown(
-                        f"""
-                        <div style="
-                            border:1px solid #eee;
-                            border-radius:16px;
-                            padding:12px;
-                            margin-bottom:16px;
-                            background-color:#fff;
-                            box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                            transition:transform 0.2s ease-in-out;
-                        " onmouseover="this.style.transform='scale(1.02)';"
-                          onmouseout="this.style.transform='scale(1)';">
-                            {image_grid_html}
-                            <h4 style="margin:10px 0 4px 0;">{model_row['brand']} {model_row['model_clean']}</h4>
-                            <p style="color:gray; font-size:13px; margin:0;">
-                                {model_row['color']} | {model_row['gender']}
-                            </p>
-                            <p style="font-size:12px; color:#666; margin:4px 0;">
-                                {sizes_text}
-                            </p>
-                            <p style="font-weight:bold; font-size:16px; margin-top:6px;">{price_text}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                        
+                        st.markdown(f"**{price_text}**")
+                        
+                        st.markdown("</div>", unsafe_allow_html=True)
                     
                     # Кнопка для просмотра всех размеров
                     with st.expander("📋 Все размеры", expanded=False):
@@ -523,7 +524,7 @@ else:
                                 else:
                                     st.text("—")
                             with col4:
-                                if st.button("🛒", key=f"cart_{variant['sku']}", help="Добавить в корзину"):
+                                if st.button("🛒", key=f"cart_{variant['sku']}_{i}_{col_idx}", help="Добавить в корзину"):
                                     add_to_cart({
                                         'brand': variant['brand'],
                                         'model_clean': variant['model_clean'],
