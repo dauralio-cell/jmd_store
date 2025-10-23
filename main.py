@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Современные карточки с миниатюрными превью-фото"""
+    """Миниатюрные превью-фото с переключением"""
     if not image_paths:
         st.markdown(
             """
@@ -128,85 +128,43 @@ def display_modern_cards(image_paths, key_suffix):
     with main_col:
         # Основное большое фото
         try:
-            st.image(
-                image_paths[selected_index], 
-                use_container_width=True,
-                caption=f"📸 Вид {selected_index + 1} из {len(image_paths)}"
-            )
+            st.image(image_paths[selected_index], use_container_width=True)
         except:
             st.markdown(
-                f"""
-                <div style="text-align: center; padding: 60px; background: #fff3cd; 
-                            border-radius: 12px; color: #856404; margin: 10px 0;">
+                """
+                <div style="text-align: center; padding: 60px; background: #f5f5f5; 
+                            border-radius: 12px; color: #999; margin: 10px 0;">
                     <div style="font-size: 36px;">❌</div>
-                    <div>Ошибка загрузки фото</div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
     
     with preview_col:
-        st.write("")  # Отступ
-        
-        # Миниатюрные превью-фото с кнопками
+        # Миниатюрные превью-фото
         for i, img_path in enumerate(image_paths[:4]):
-            
-            # Создаем контейнер для каждой миниатюры
-            with st.container():
-                # Определяем стиль для активной миниатюры
-                container_style = """
-                    border: 2px solid #FF4B4B; 
-                    border-radius: 8px; 
-                    padding: 4px;
-                    margin-bottom: 8px;
-                    background: #fff;
-                """ if i == selected_index else """
-                    border: 1px solid #e0e0e0; 
-                    border-radius: 6px; 
-                    padding: 5px;
-                    margin-bottom: 8px;
-                    background: #fafafa;
-                """
+            try:
+                # Показываем миниатюрное фото как кнопку
+                if st.button(
+                    "",  # Пустой текст
+                    key=f"btn_{key_suffix}_{i}",
+                    use_container_width=True
+                ):
+                    st.session_state[f"selected_{key_suffix}"] = i
+                    st.rerun()
                 
-                st.markdown(f'<div style="{container_style}">', unsafe_allow_html=True)
+                # Показываем миниатюрное фото
+                st.image(img_path, width=60)
                 
-                try:
-                    # Показываем миниатюрное фото
-                    st.image(
-                        img_path,
-                        width=70,  # Фиксированный размер миниатюр
-                    )
-                    
-                    # Кнопка выбора (невидимая, но покрывает всю миниатюру)
-                    if st.button(
-                        "⠀",  # Невидимый символ
-                        key=f"btn_{key_suffix}_{i}",
-                        use_container_width=True,
-                        help=f"Показать вид {i+1}"
-                    ):
-                        st.session_state[f"selected_{key_suffix}"] = i
-                        st.rerun()
-                        
-                except:
-                    # Если фото не загрузилось, показываем заглушку
-                    st.markdown(
-                        f"""
-                        <div style="text-align: center; padding: 15px; background: #f5f5f5; 
-                                    border-radius: 4px; color: #999; font-size: 12px;">
-                            ❓ {i+1}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    if st.button(
-                        "Выбрать",
-                        key=f"btn_err_{key_suffix}_{i}",
-                        use_container_width=True
-                    ):
-                        st.session_state[f"selected_{key_suffix}"] = i
-                        st.rerun()
-                
-                st.markdown('</div>', unsafe_allow_html=True)# --- Функции для группировки моделей ---
+            except:
+                # Если не удалось загрузить миниатюру
+                if st.button(
+                    "❓",
+                    key=f"btn_err_{key_suffix}_{i}",
+                    use_container_width=True
+                ):
+                    st.session_state[f"selected_{key_suffix}"] = i
+                    st.rerun()
 
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
