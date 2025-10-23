@@ -389,7 +389,7 @@ with col_info3:
     else:
         st.metric("💰 Минимальная цена", "—")
 with col_info4:
-    if len(filtered_df) > 0 and 'price' в filtered_df.columns:
+    if len(filtered_df) > 0 and 'price' in filtered_df.columns:
         # Фильтруем только товары с ценой
         prices_with_values = filtered_df[filtered_df['price'].astype(str).str.strip() != ""]
         if len(prices_with_values) > 0:
