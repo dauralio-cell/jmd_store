@@ -52,9 +52,12 @@ def get_image_base64(image_path):
 # --- Функции для группировки моделей ---
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
+    if len(df) == 0:
+        return pd.DataFrame()
+        
     # Группируем по основным характеристикам модели
     grouped = df.groupby(['brand', 'model_clean', 'gender', 'color']).agg({
-        'SKU': 'first',  # берем первый SKU для изображения
+        'sku': 'first',  # берем первый SKU для изображения
         'price': lambda x: list(x.unique()),  # все уникальные цены
         'size_us': list,  # все доступные размеры US
         'size_eu': list   # все доступные размеры EU
@@ -111,25 +114,14 @@ def load_data():
         if "description" not in df.columns:
             df["description"] = "Описание временно недоступно."
 
-        # ДЕБАГ: Покажем какие колонки есть в данных
-        st.sidebar.write("📊 Доступные колонки:", df.columns.tolist())
-        
         # Фильтрация по наличию товара (колонка 'yes')
         if 'yes' in df.columns:
-            st.sidebar.write("🔍 Фильтруем по наличию...")
-            st.sidebar.write("Уникальные значения в колонке 'yes':", df['yes'].unique().tolist())
-            
             # Более гибкая фильтрация
             df = df[df['yes'].astype(str).str.lower().str.strip().isin(['yes', 'да', '1', 'true', 'есть'])]
-            st.sidebar.write(f"✅ Осталось товаров после фильтрации: {len(df)}")
-        else:
-            st.sidebar.warning("⚠️ Колонка 'yes' не найдена, показываем все товары")
         
-        # Исключаем товары без цены или модели
-        df = df[df["price"].astype(str).str.strip() != ""]
+        # Исключаем товары без модели (но оставляем без цены)
         df = df[df["model_clean"].astype(str).str.strip() != ""]
 
-        st.sidebar.write(f"📦 Итоговое количество товаров: {len(df)}")
         return df
         
     except Exception as e:
@@ -138,14 +130,6 @@ def load_data():
 
 # --- Загружаем данные ---
 df = load_data()
-
-# --- Покажем отладочную информацию ---
-st.sidebar.divider()
-st.sidebar.write("🔧 Отладочная информация:")
-st.sidebar.write(f"Всего записей: {len(df)}")
-if len(df) > 0:
-    st.sidebar.write(f"Бренды: {df['brand'].unique().tolist()}")
-    st.sidebar.write(f"Модели: {len(df['model_clean'].unique())}")
 
 # --- Фильтры ---
 st.divider()
@@ -208,15 +192,25 @@ with col_info1:
 with col_info2:
     st.metric("🏷️ Уникальных моделей", filtered_df["model_clean"].nunique() if len(filtered_df) > 0 else 0)
 with col_info3:
-    if len(filtered_df) > 0:
-        min_price = int(filtered_df["price"].min())
-        st.metric("💰 Минимальная цена", f"{min_price} ₸")
+    if len(filtered_df) > 0 and 'price' in filtered_df.columns:
+        # Фильтруем только товары с ценой
+        prices_with_values = filtered_df[filtered_df['price'].astype(str).str.strip() != ""]
+        if len(prices_with_values) > 0:
+            min_price = int(prices_with_values["price"].min())
+            st.metric("💰 Минимальная цена", f"{min_price} ₸")
+        else:
+            st.metric("💰 Минимальная цена", "—")
     else:
         st.metric("💰 Минимальная цена", "—")
 with col_info4:
-    if len(filtered_df) > 0:
-        max_price = int(filtered_df["price"].max())
-        st.metric("💎 Максимальная цена", f"{max_price} ₸")
+    if len(filtered_df) > 0 and 'price' in filtered_df.columns:
+        # Фильтруем только товары с ценой
+        prices_with_values = filtered_df[filtered_df['price'].astype(str).str.strip() != ""]
+        if len(prices_with_values) > 0:
+            max_price = int(prices_with_values["price"].max())
+            st.metric("💎 Максимальная цена", f"{max_price} ₸")
+        else:
+            st.metric("💎 Максимальная цена", "—")
     else:
         st.metric("💎 Максимальная цена", "—")
 
@@ -235,89 +229,92 @@ else:
     # Получаем сгруппированные модели
     unique_models = get_unique_models(filtered_df)
     
-    # Отображаем по 4 модели в ряд
-    num_cols = 4
-    rows = [unique_models.iloc[i:i+num_cols] for i in range(0, len(unique_models), num_cols)]
+    if len(unique_models) == 0:
+        st.warning("🔍 Нет данных для отображения.")
+    else:
+        # Отображаем по 4 модели в ряд
+        num_cols = 4
+        rows = [unique_models.iloc[i:i+num_cols] for i in range(0, len(unique_models), num_cols)]
 
-    for row_df in rows:
-        cols = st.columns(num_cols)
-        for col, (_, model_row) in zip(cols, row_df.iterrows()):
-            with col:
-                # Берем первый SKU для изображения
-                first_sku = model_row['SKU']
-                image_path = get_image_path(first_sku)
-                image_base64 = get_image_base64(image_path)
-                
-                # Формируем строку с размерами
-                us_sizes = [str(size) for size in model_row['size_us'] if size]
-                eu_sizes = [str(size) for size in model_row['size_eu'] if size]
-                sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else "Размеры не указаны"
-                if eu_sizes:
-                    sizes_text += f" | EU: {', '.join(eu_sizes)}"
-                
-                # Диапазон цен
-                prices = model_row['price']
-                if prices and any(prices):
-                    valid_prices = [p for p in prices if p != ""]
-                    if valid_prices:
-                        min_price = min(valid_prices)
-                        max_price = max(valid_prices)
-                        price_text = f"{int(min_price)} - {int(max_price)} ₸" if min_price != max_price else f"{int(min_price)} ₸"
+        for row_df in rows:
+            cols = st.columns(num_cols)
+            for col, (_, model_row) in zip(cols, row_df.iterrows()):
+                with col:
+                    # Берем первый SKU для изображения
+                    first_sku = model_row['sku']
+                    image_path = get_image_path(first_sku)
+                    image_base64 = get_image_base64(image_path)
+                    
+                    # Формируем строку с размерами
+                    us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
+                    eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
+                    sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else "Размеры не указаны"
+                    if eu_sizes:
+                        sizes_text += f" | EU: {', '.join(eu_sizes)}"
+                    
+                    # Диапазон цен
+                    prices = model_row['price']
+                    if prices and any(prices):
+                        valid_prices = [p for p in prices if p != "" and str(p).strip() != ""]
+                        if valid_prices:
+                            min_price = min(valid_prices)
+                            max_price = max(valid_prices)
+                            price_text = f"{int(min_price)} - {int(max_price)} ₸" if min_price != max_price else f"{int(min_price)} ₸"
+                        else:
+                            price_text = "Цена не указана"
                     else:
                         price_text = "Цена не указана"
-                else:
-                    price_text = "Цена не указана"
 
-                st.markdown(
-                    f"""
-                    <div style="
-                        border:1px solid #eee;
-                        border-radius:16px;
-                        padding:12px;
-                        margin-bottom:16px;
-                        background-color:#fff;
-                        box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                        transition:transform 0.2s ease-in-out;
-                    " onmouseover="this.style.transform='scale(1.02)';"
-                      onmouseout="this.style.transform='scale(1)';">
-                        <img src="data:image/jpeg;base64,{image_base64}" 
-                             style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
-                        <h4 style="margin:10px 0 4px 0;">{model_row['brand']} {model_row['model_clean']}</h4>
-                        <p style="color:gray; font-size:13px; margin:0;">
-                            {model_row['color']} | {model_row['gender']}
-                        </p>
-                        <p style="font-size:12px; color:#666; margin:4px 0;">
-                            {sizes_text}
-                        </p>
-                        <p style="font-weight:bold; font-size:16px; margin-top:6px;">{price_text}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                
-                # Кнопка для просмотра всех размеров
-                with st.expander("📋 Все размеры", expanded=False):
-                    # Находим все варианты этой модели в отфильтрованных данных
-                    model_variants = filtered_df[
-                        (filtered_df['brand'] == model_row['brand']) & 
-                        (filtered_df['model_clean'] == model_row['model_clean']) &
-                        (filtered_df['color'] == model_row['color'])
-                    ]
+                    st.markdown(
+                        f"""
+                        <div style="
+                            border:1px solid #eee;
+                            border-radius:16px;
+                            padding:12px;
+                            margin-bottom:16px;
+                            background-color:#fff;
+                            box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                            transition:transform 0.2s ease-in-out;
+                        " onmouseover="this.style.transform='scale(1.02)';"
+                          onmouseout="this.style.transform='scale(1)';">
+                            <img src="data:image/jpeg;base64,{image_base64}" 
+                                 style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                            <h4 style="margin:10px 0 4px 0;">{model_row['brand']} {model_row['model_clean']}</h4>
+                            <p style="color:gray; font-size:13px; margin:0;">
+                                {model_row['color']} | {model_row['gender']}
+                            </p>
+                            <p style="font-size:12px; color:#666; margin:4px 0;">
+                                {sizes_text}
+                            </p>
+                            <p style="font-weight:bold; font-size:16px; margin-top:6px;">{price_text}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
                     
-                    for _, variant in model_variants.iterrows():
-                        col1, col2, col3 = st.columns([1, 1, 2])
-                        with col1:
-                            st.text(f"US: {variant['size_us']}")
-                        with col2:
-                            st.text(f"EU: {variant['size_eu']}")
-                        with col3:
-                            price_val = variant['price']
-                            if price_val and price_val != "":
-                                st.text(f"{int(price_val)} ₸")
-                            else:
-                                st.text("Цена не указана")
-                            if st.button("🛒", key=f"cart_{variant['SKU']}", help="Добавить в корзину"):
-                                st.success(f"Добавлен размер {variant['size_us']}US")
+                    # Кнопка для просмотра всех размеров
+                    with st.expander("📋 Все размеры", expanded=False):
+                        # Находим все варианты этой модели в отфильтрованных данных
+                        model_variants = filtered_df[
+                            (filtered_df['brand'] == model_row['brand']) & 
+                            (filtered_df['model_clean'] == model_row['model_clean']) &
+                            (filtered_df['color'] == model_row['color'])
+                        ]
+                        
+                        for _, variant in model_variants.iterrows():
+                            col1, col2, col3 = st.columns([1, 1, 2])
+                            with col1:
+                                st.text(f"US: {variant['size_us']}")
+                            with col2:
+                                st.text(f"EU: {variant['size_eu']}")
+                            with col3:
+                                price_val = variant['price']
+                                if price_val and str(price_val).strip() != "":
+                                    st.text(f"{int(price_val)} ₸")
+                                else:
+                                    st.text("Цена не указана")
+                                if st.button("🛒", key=f"cart_{variant['sku']}", help="Добавить в корзину"):
+                                    st.success(f"Добавлен размер {variant['size_us']}US")
 
 st.divider()
 st.caption("© DENE Store 2025")
