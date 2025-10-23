@@ -563,7 +563,101 @@ else:
                     unique_key = f"{first_sku}_{i}_{col_idx}"
                     
                     # Создаем слайдер
-                    slider_html = create_simple_image_slider(all_image_paths, unique_key)
+                    def create_simple_image_slider(image_paths, slider_id):
+    """Создает простой слайдер изображений с улучшенной обработкой ошибок"""
+    if not image_paths or len(image_paths) == 0:
+        return """
+        <div style="width:100%; height:220px; background:#f0f0f0; border-radius:12px; 
+                    display:flex; align-items:center; justify-content:center;">
+            <span style="color:#666;">Нет изображения</span>
+        </div>
+        """
+    
+    # Ограничиваем количество изображений для производительности
+    image_paths = image_paths[:5]
+    
+    # Создаем простой уникальный ID
+    simple_id = abs(hash(slider_id)) % 10000
+    
+    slider_html = f"""
+    <div id="slider{simple_id}" style="position: relative; width: 100%; margin: 0 auto; overflow: hidden; border-radius: 12px; height: 220px;">
+        <div id="slides{simple_id}" style="display: flex; transition: transform 0.5s ease; width: {len(image_paths) * 100}%; height: 100%;">
+    """
+    
+    for i, img_path in enumerate(image_paths):
+        # Используем прямые ссылки на файлы вместо base64
+        try:
+            # Проверяем существование файла
+            if os.path.exists(img_path):
+                slider_html += f"""
+                <div style="width: {100/len(image_paths)}%; flex-shrink: 0; height: 100%;">
+                    <img src="{img_path}" 
+                         style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;"
+                         onerror="this.src='{os.path.join(IMAGES_PATH, "no_image.jpg")}'">
+                </div>
+                """
+            else:
+                # Если файл не существует, используем placeholder
+                slider_html += f"""
+                <div style="width: {100/len(image_paths)}%; flex-shrink: 0; height: 100%; 
+                            background:#f0f0f0; display:flex; align-items:center; justify-content:center;">
+                    <span style="color:#666;">Нет изображения</span>
+                </div>
+                """
+        except Exception:
+            # В случае ошибки используем placeholder
+            slider_html += f"""
+            <div style="width: {100/len(image_paths)}%; flex-shrink: 0; height: 100%; 
+                        background:#f0f0f0; display:flex; align-items:center; justify-content:center;">
+                <span style="color:#666;">Ошибка загрузки</span>
+            </div>
+            """
+    
+    slider_html += f"""
+        </div>
+    """
+    
+    # Добавляем навигацию только если больше 1 изображения
+    if len(image_paths) > 1:
+        slider_html += f"""
+        <!-- Стрелки -->
+        <button onclick="slidePrev({simple_id}, {len(image_paths)})" 
+                style="position: absolute; top: 50%; left: 10px; transform: translateY(-50%); 
+                       background: rgba(255,255,255,0.7); border: none; border-radius: 50%; 
+                       width: 35px; height: 35px; font-size: 18px; cursor: pointer; 
+                       display: flex; align-items: center; justify-content: center; z-index: 10;">
+            ‹
+        </button>
+        <button onclick="slideNext({simple_id}, {len(image_paths)})" 
+                style="position: absolute; top: 50%; right: 10px; transform: translateY(-50%); 
+                       background: rgba(255,255,255,0.7); border: none; border-radius: 50%; 
+                       width: 35px; height: 35px; font-size: 18px; cursor: pointer;
+                       display: flex; align-items: center; justify-content: center; z-index: 10;">
+            ›
+        </button>
+        
+        <!-- Точки-индикаторы -->
+        <div style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); 
+                    display: flex; gap: 5px; z-index: 10;">
+    """
+    
+        for i in range(len(image_paths)):
+            slider_html += f"""
+            <span onclick="slideTo({simple_id}, {i}, {len(image_paths)})"
+                  style="width: 8px; height: 8px; background: {'#fff' if i == 0 else 'rgba(255,255,255,0.5)'}; 
+                         border-radius: 50%; cursor: pointer; transition: background 0.3s;">
+            </span>
+            """
+    
+        slider_html += """
+        </div>
+        """
+    
+    slider_html += """
+    </div>
+    """
+    
+    return slider_html
                     
                     # Формируем строку с размерами
                     us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
