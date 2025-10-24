@@ -102,13 +102,12 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Главное фото + кликабельные миниатюры"""
+    """Показывает большое фото и миниатюры, без кнопок и эмоджи."""
     if not image_paths:
         st.markdown(
             """
             <div style="text-align: center; padding: 40px; background: #f8f9fa; 
                         border-radius: 12px; margin: 10px 0;">
-                <div style="font-size: 48px;">📷</div>
                 <div style="color: #666;">Нет изображений</div>
             </div>
             """,
@@ -116,51 +115,57 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Инициализируем выбранное фото
+    # Сохраняем индекс выбранного фото
     if f"selected_{key_suffix}" not in st.session_state:
         st.session_state[f"selected_{key_suffix}"] = 0
-    
+
     selected_index = st.session_state[f"selected_{key_suffix}"]
-    
-    # 1. ГЛАВНОЕ БОЛЬШОЕ ФОТО
+
+    # --- Главное изображение ---
     try:
         st.image(image_paths[selected_index], use_container_width=True)
-    except:
-        st.error("❌ Ошибка загрузки основного фото")
-    
-    # 2. КЛИКАБЕЛЬНЫЕ МИНИАТЮРЫ (если есть больше 1 фото)
+    except Exception as e:
+        st.error(f"Ошибка загрузки изображения: {e}")
+
+    # --- Миниатюры (если есть больше одного фото) ---
     if len(image_paths) > 1:
-        st.markdown("---")
-        st.write("**Другие фото:**")
-        
-        # Создаем колонки для миниатюр
-        num_thumbs = min(len(image_paths), 4)  # максимум 4 миниатюры
-        cols = st.columns(num_thumbs)
-        
-        for i in range(num_thumbs):
+        st.markdown(
+            """
+            <style>
+            .thumb {
+                border-radius: 8px;
+                cursor: pointer;
+                transition: transform 0.15s ease, box-shadow 0.15s ease;
+            }
+            .thumb:hover {
+                transform: scale(1.05);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        cols = st.columns(len(image_paths))
+        for i, img_path in enumerate(image_paths):
             with cols[i]:
-                try:
-                    # Создаем кнопку с изображением
-                    if st.button(
-                        "",  # Пустой текст
-                        key=f"thumb_{key_suffix}_{i}",
-                        help=f"Нажмите чтобы посмотреть фото {i+1}"
-                    ):
-                        st.session_state[f"selected_{key_suffix}"] = i
-                        st.rerun()
-                    
-                    # Показываем миниатюру под кнопкой
-                    st.image(image_paths[i], width=100)
-                        
-                except:
-                    # Если ошибка загрузки миниатюры
-                    if st.button(
-                        "❌",
-                        key=f"err_thumb_{key_suffix}_{i}",
-                        help="Ошибка загрузки фото"
-                    ):
-                        st.session_state[f"selected_{key_suffix}"] = i
-                        st.rerun()
+                # если выбранное фото — подсвечиваем рамкой
+                border = "3px solid #0078FF" if i == selected_index else "1px solid #ccc"
+                st.markdown(
+                    f"""
+                    <img src="data:image/jpeg;base64,{get_image_base64(img_path)}"
+                         style="width:100%; border-radius:10px; border:{border}; cursor:pointer;"
+                         onClick="window.parent.postMessage({{'thumb_click_{key_suffix}': {i}}}, '*')">
+                    """,
+                    unsafe_allow_html=True
+                )
+
+        # перехватываем клики по миниатюрам через postMessage
+        clicked = st.session_state.get(f"clicked_{key_suffix}")
+        if clicked is not None and clicked < len(image_paths):
+            st.session_state[f"selected_{key_suffix}"] = clicked
+            st.session_state[f"clicked_{key_suffix}"] = None
+            st.rerun()
 
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
