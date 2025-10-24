@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Стандартный вариант: главное фото + миниатюры под ним"""
+    """Простой и надежный вариант отображения фото"""
     if not image_paths:
         st.markdown(
             """
@@ -126,52 +126,32 @@ def display_modern_cards(image_paths, key_suffix):
     try:
         st.image(image_paths[selected_index], use_container_width=True)
     except:
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 60px; background: #f5f5f5; 
-                        border-radius: 12px; color: #999; margin: 10px 0;">
-                <div style="font-size: 36px;">❌</div>
-                <div>Ошибка загрузки изображения</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.error("❌ Ошибка загрузки основного фото")
     
-    # 2. МИНИАТЮРЫ ПОД ГЛАВНЫМ ФОТО
+    # 2. МИНИАТЮРЫ ДЛЯ ПЕРЕКЛЮЧЕНИЯ (если есть больше 1 фото)
     if len(image_paths) > 1:
+        st.markdown("---")
+        st.write("**Другие фото:**")
+        
         # Создаем колонки для миниатюр
-        num_thumbs = min(len(image_paths), 5)
-        thumb_cols = st.columns(num_thumbs)
+        num_thumbs = min(len(image_paths), 4)  # максимум 4 миниатюры
+        cols = st.columns(num_thumbs)
         
         for i in range(num_thumbs):
-            with thumb_cols[i]:
+            with cols[i]:
                 try:
                     # Показываем миниатюру
-                    st.image(image_paths[i], width=80)
+                    st.image(image_paths[i], width=100)
                     
-                    # Кнопка выбора
-                    if st.button("▸", 
-                               key=f"select_{key_suffix}_{i}",
-                               help=f"Показать фото {i+1}",
-                               use_container_width=True):
+                    # Кнопка для выбора этого фото
+                    if st.button("Показать это фото", key=f"btn_{key_suffix}_{i}"):
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
                         
                 except:
-                    # Если ошибка загрузки
-                    st.markdown(
-                        """
-                        <div style="text-align: center; padding: 25px; background: #f5f5f5; 
-                                    border-radius: 8px; color: #999;">
-                            ❌
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    
-                    if st.button("▸", 
-                               key=f"select_err_{key_suffix}_{i}",
-                               use_container_width=True):
+                    # Если ошибка загрузки миниатюры
+                    st.error("❌ Ошибка загрузки")
+                    if st.button("Показать это фото", key=f"err_btn_{key_suffix}_{i}"):
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
 
