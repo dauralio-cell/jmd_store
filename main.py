@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Главное фото слева + миниатюры справа (как в интернет-магазинах)"""
+    """Стандартный вариант: главное фото + миниатюры под ним"""
     if not image_paths:
         st.markdown(
             """
@@ -122,76 +122,56 @@ def display_modern_cards(image_paths, key_suffix):
     
     selected_index = st.session_state[f"selected_{key_suffix}"]
     
-    # Создаем две колонки: главное фото слева (70%), миниатюры справа (30%)
-    main_col, thumbs_col = st.columns([7, 3])
+    # 1. ГЛАВНОЕ БОЛЬШОЕ ФОТО
+    try:
+        st.image(image_paths[selected_index], use_container_width=True)
+    except:
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 60px; background: #f5f5f5; 
+                        border-radius: 12px; color: #999; margin: 10px 0;">
+                <div style="font-size: 36px;">❌</div>
+                <div>Ошибка загрузки изображения</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     
-    with main_col:
-        # ГЛАВНОЕ БОЛЬШОЕ ФОТО
-        try:
-            st.image(image_paths[selected_index], use_container_width=True)
-        except:
-            st.markdown(
-                """
-                <div style="text-align: center; padding: 60px; background: #f5f5f5; 
-                            border-radius: 12px; color: #999; margin: 10px 0;">
-                    <div style="font-size: 36px;">❌</div>
-                    <div>Ошибка загрузки изображения</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-    
-    with thumbs_col:
-        # МИНИАТЮРЫ СПРАВА (вертикальный ряд)
-        if len(image_paths) > 1:
-            for i, img_path in enumerate(image_paths[:6]):  # максимум 6 миниатюр
+    # 2. МИНИАТЮРЫ ПОД ГЛАВНЫМ ФОТО
+    if len(image_paths) > 1:
+        # Создаем колонки для миниатюр
+        num_thumbs = min(len(image_paths), 5)
+        thumb_cols = st.columns(num_thumbs)
+        
+        for i in range(num_thumbs):
+            with thumb_cols[i]:
                 try:
-                    # Создаем контейнер для каждой миниатюры
-                    with st.container():
-                        # Определяем прозрачность: выбранная фото - непрозрачная, остальные - полупрозрачные
-                        opacity = "1.0" if i == selected_index else "0.7"
+                    # Показываем миниатюру
+                    st.image(image_paths[i], width=80)
+                    
+                    # Кнопка выбора
+                    if st.button("▸", 
+                               key=f"select_{key_suffix}_{i}",
+                               help=f"Показать фото {i+1}",
+                               use_container_width=True):
+                        st.session_state[f"selected_{key_suffix}"] = i
+                        st.rerun()
                         
-                        # Используем HTML чтобы сделать изображение кликабельным
-                        st.markdown(
-                            f"""
-                            <div style="text-align: center; margin-bottom: 10px; opacity: {opacity};">
-                                <a href="#" onclick="this.closest('.streamlit-button').click()">
-                                    <img src="{img_path}" width="80" style="border-radius: 8px; cursor: pointer; transition: opacity 0.3s;">
-                                </a>
-                            </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
-                        
-                        # Невидимая кнопка для обработки клика
-                        if st.button("", key=f"thumb_{key_suffix}_{i}", 
-                                   help=f"Показать фото {i+1}",
-                                   use_container_width=True,
-                                   label_visibility="collapsed"):
-                            st.session_state[f"selected_{key_suffix}"] = i
-                            st.rerun()
-                            
                 except:
-                    # Если ошибка загрузки миниатюры
-                    opacity = "1.0" if i == selected_index else "0.7"
+                    # Если ошибка загрузки
                     st.markdown(
-                        f"""
-                        <div style="text-align: center; margin-bottom: 10px; opacity: {opacity};">
-                            <a href="#" onclick="this.closest('.streamlit-button').click()">
-                                <div style="width: 80px; height: 80px; background: #f5f5f5; 
-                                            border-radius: 8px; display: flex; align-items: center; 
-                                            justify-content: center; cursor: pointer; margin: 0 auto;">
-                                    ❌
-                                </div>
-                            </a>
+                        """
+                        <div style="text-align: center; padding: 25px; background: #f5f5f5; 
+                                    border-radius: 8px; color: #999;">
+                            ❌
                         </div>
-                        """, 
+                        """,
                         unsafe_allow_html=True
                     )
                     
-                    if st.button("", key=f"thumb_err_{key_suffix}_{i}",
-                               use_container_width=True,
-                               label_visibility="collapsed"):
+                    if st.button("▸", 
+                               key=f"select_err_{key_suffix}_{i}",
+                               use_container_width=True):
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
 
