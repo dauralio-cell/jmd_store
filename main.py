@@ -101,18 +101,8 @@ def get_all_image_paths(image_names, sku):
     unique_paths = list(dict.fromkeys(image_paths))
     return unique_paths if unique_paths else []
 
-import base64
-
-def get_image_base64(path):
-    """Конвертирует локальный файл в base64, чтобы вставить в HTML."""
-    try:
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
-    except Exception:
-        return ""
-
 def display_modern_cards(image_paths, key_suffix):
-    """Главное фото + кликабельные миниатюры без HTML и JS"""
+    """Показываем только первое фото товара"""
     if not image_paths:
         st.markdown(
             """
@@ -126,26 +116,20 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # состояние выбранного фото
-    if f"selected_{key_suffix}" not in st.session_state:
-        st.session_state[f"selected_{key_suffix}"] = 0
-    
-    selected_index = st.session_state[f"selected_{key_suffix}"]
-    
-    # --- ГЛАВНОЕ ФОТО ---
-    st.image(image_paths[selected_index], use_container_width=True)
-
-    # --- МИНИАТЮРЫ ---
-    if len(image_paths) > 1:
-        st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-        cols = st.columns(len(image_paths))
-        for i, img_path in enumerate(image_paths):
-            with cols[i]:
-                if st.button(" ", key=f"thumb_{key_suffix}_{i}"):
-                    st.session_state[f"selected_{key_suffix}"] = i
-                    st.rerun()
-                st.image(img_path, width=100)
-
+    # Показываем только первое фото
+    try:
+        st.image(image_paths[0], use_container_width=True)
+    except:
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 60px; background: #f5f5f5; 
+                        border-radius: 12px; color: #999; margin: 10px 0;">
+                <div style="font-size: 36px;">❌</div>
+                <div>Ошибка загрузки изображения</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
@@ -204,7 +188,7 @@ def display_cart():
         if st.button("📦 Оформить заказ", type="primary"):
             st.success("🎉 Заказ оформлен! С вами свяжутся для подтверждения.")
     with col2:
-        if st.button("🗑️ Очистить корзину", type="secondary"):
+        if st.button("🗑️ Очистить корзина", type="secondary"):
             clear_cart()
 
 # --- Загрузка данных ---
@@ -461,7 +445,7 @@ else:
                         first_image = model_row['image']
                         all_image_paths = get_image_paths_cached(first_image, first_sku)
                         
-                        # Отображаем современные карточки с превью
+                        # Отображаем только первое фото
                         display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
                         
                         # Информация о товаре
