@@ -101,6 +101,16 @@ def get_all_image_paths(image_names, sku):
     unique_paths = list(dict.fromkeys(image_paths))
     return unique_paths if unique_paths else []
 
+import base64
+
+def get_image_base64(path):
+    """Конвертирует локальный файл в base64, чтобы вставить в HTML."""
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    except Exception:
+        return ""
+
 def display_modern_cards(image_paths, key_suffix):
     """Показывает большое фото и миниатюры, без кнопок и эмоджи."""
     if not image_paths:
