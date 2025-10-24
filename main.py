@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Простой и надежный вариант отображения фото"""
+    """Главное фото + кликабельные миниатюры"""
     if not image_paths:
         st.markdown(
             """
@@ -128,7 +128,7 @@ def display_modern_cards(image_paths, key_suffix):
     except:
         st.error("❌ Ошибка загрузки основного фото")
     
-    # 2. МИНИАТЮРЫ ДЛЯ ПЕРЕКЛЮЧЕНИЯ (если есть больше 1 фото)
+    # 2. КЛИКАБЕЛЬНЫЕ МИНИАТЮРЫ (если есть больше 1 фото)
     if len(image_paths) > 1:
         st.markdown("---")
         st.write("**Другие фото:**")
@@ -140,18 +140,25 @@ def display_modern_cards(image_paths, key_suffix):
         for i in range(num_thumbs):
             with cols[i]:
                 try:
-                    # Показываем миниатюру
-                    st.image(image_paths[i], width=100)
-                    
-                    # Кнопка для выбора этого фото
-                    if st.button("Показать это фото", key=f"btn_{key_suffix}_{i}"):
+                    # Создаем кнопку с изображением
+                    if st.button(
+                        "",  # Пустой текст
+                        key=f"thumb_{key_suffix}_{i}",
+                        help=f"Нажмите чтобы посмотреть фото {i+1}"
+                    ):
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
+                    
+                    # Показываем миниатюру под кнопкой
+                    st.image(image_paths[i], width=100)
                         
                 except:
                     # Если ошибка загрузки миниатюры
-                    st.error("❌ Ошибка загрузки")
-                    if st.button("Показать это фото", key=f"err_btn_{key_suffix}_{i}"):
+                    if st.button(
+                        "❌",
+                        key=f"err_thumb_{key_suffix}_{i}",
+                        help="Ошибка загрузки фото"
+                    ):
                         st.session_state[f"selected_{key_suffix}"] = i
                         st.rerun()
 
