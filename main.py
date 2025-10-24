@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Показываем только первое фото товара"""
+    """Показываем большое фото товара"""
     if not image_paths:
         st.markdown(
             """
@@ -116,15 +116,23 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Показываем только первое фото
+    # Показываем большое фото с фиксированной высотой
     try:
-        st.image(image_paths[0], use_container_width=True)
+        # Используем HTML для контроля размера изображения
+        st.markdown(
+            f"""
+            <div style="text-align: center; margin: 10px 0;">
+                <img src="{image_paths[0]}" style="max-height: 300px; width: auto; border-radius: 12px;">
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
     except:
         st.markdown(
             """
-            <div style="text-align: center; padding: 60px; background: #f5f5f5; 
+            <div style="text-align: center; padding: 80px; background: #f5f5f5; 
                         border-radius: 12px; color: #999; margin: 10px 0;">
-                <div style="font-size: 36px;">❌</div>
+                <div style="font-size: 48px;">❌</div>
                 <div>Ошибка загрузки изображения</div>
             </div>
             """,
