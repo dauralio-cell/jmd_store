@@ -60,6 +60,36 @@ def get_image_paths_cached(image_names, sku):
     """Кэширование путей к изображениям"""
     return get_all_image_paths(image_names, sku)
 
+def display_modern_cards(image_paths, key_suffix):
+    """Показываем большое фото товара"""
+    if not image_paths:
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 40px; background: #f8f9fa; 
+                        border-radius: 12px; margin: 10px 0;">
+                <div style="font-size: 48px;">📷</div>
+                <div style="color: #666;">Нет изображений</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        return
+    
+    # Просто показываем фото
+    try:
+        st.image(image_paths[0], use_container_width=True)
+    except:
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 80px; background: #f5f5f5; 
+                        border-radius: 12px; color: #999; margin: 10px 0;">
+                <div style="font-size: 48px;">❌</div>
+                <div>Ошибка загрузки изображения</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
 def get_all_image_paths(image_names, sku):
     """Ищет все изображения по названиям из колонки image или по SKU"""
     image_paths = []
@@ -457,34 +487,9 @@ else:
                         first_image = model_row['image']
                         all_image_paths = get_image_paths_cached(first_image, first_sku)
 
-    """Показываем большое фото товара"""
-    if not image_paths:
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 40px; background: #f8f9fa; 
-                        border-radius: 12px; margin: 10px 0;">
-                <div style="font-size: 48px;">📷</div>
-                <div style="color: #666;">Нет изображений</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        return
-    
-    # Просто показываем фото
-    try:
-        st.image(image_paths[0], use_container_width=True)
-    except:
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 80px; background: #f5f5f5; 
-                        border-radius: 12px; color: #999; margin: 10px 0;">
-                <div style="font-size: 48px;">❌</div>
-                <div>Ошибка загрузки изображения</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+			# Отображаем только первое фото
+			display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
+
                         
                         # Информация о товаре
                         st.markdown(f"**{model_row['brand']} {model_row['model_clean']}**")
