@@ -101,31 +101,35 @@ def get_all_image_paths(image_names, sku):
     unique_paths = list(dict.fromkeys(image_paths))
     return unique_paths if unique_paths else []
 
-def display_modern_cards(image_paths, key_suffix):
-    """Показываем большое фото товара"""
+import streamlit as st
+import os
+
+def display_main_photo(image_paths):
+    """Показывает одно основное фото товара"""
     if not image_paths:
         st.markdown(
             """
             <div style="text-align: center; padding: 40px; background: #f8f9fa; 
                         border-radius: 12px; margin: 10px 0;">
                 <div style="font-size: 48px;">📷</div>
-                <div style="color: #666;">Нет изображений</div>
+                <div style="color: #666;">Нет изображения</div>
             </div>
             """,
             unsafe_allow_html=True
         )
         return
-    
-    # Показываем большое фото (просто игнорируем значок)
-    try:
-        st.image(image_paths[0], use_container_width=True)
-    except:
+
+    first_image = image_paths[0]
+
+    if os.path.exists(first_image):
+        st.image(first_image, use_container_width=True)
+    else:
         st.markdown(
-            """
-            <div style="text-align: center; padding: 80px; background: #f5f5f5; 
-                        border-radius: 12px; color: #999; margin: 10px 0;">
-                <div style="font-size: 48px;">❌</div>
-                <div>Ошибка загрузки изображения</div>
+            f"""
+            <div style="text-align: center; padding: 40px; background: #f8f9fa; 
+                        border-radius: 12px; margin: 10px 0;">
+                <div style="font-size: 32px;">❌</div>
+                <div style="color: #666;">Файл не найден: {first_image}</div>
             </div>
             """,
             unsafe_allow_html=True
