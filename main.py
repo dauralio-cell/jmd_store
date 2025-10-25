@@ -75,9 +75,9 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Просто показываем фото
+    # Показываем большое фото
     try:
-        st.image(image_paths[0], use_container_width=True)
+        st.image(image_paths[0], width=350)  # Увеличили ширину фото
     except:
         st.markdown(
             """
@@ -519,37 +519,12 @@ else:
                         
                         st.markdown("</div>", unsafe_allow_html=True)
                     
-                    # Кнопка для просмотра всех размеров
-                    with st.expander("📋 Все размеры", expanded=False):
-                        # Находим все варианты этой модели в отфильтрованных данных
-                        model_variants = filtered_df[
-                            (filtered_df['brand'] == model_row['brand']) & 
-                            (filtered_df['model_clean'] == model_row['model_clean']) &
-                            (filtered_df['color'] == model_row['color'])
-                        ]
-                        
-                        for _, variant in model_variants.iterrows():
-                            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-                            with col1:
-                                st.text(f"US: {variant['size_us']}")
-                            with col2:
-                                st.text(f"EU: {variant['size_eu']}")
-                            with col3:
-                                price_val = variant['price']
-                                if price_val and str(price_val).strip() != "":
-                                    st.text(f"{safe_int_convert(price_val)} ₸")
-                                else:
-                                    st.text("—")
-                            with col4:
-                                if st.button("🛒", key=f"cart_{variant['sku']}_{i}_{col_idx}", help="Добавить в корзину"):
-                                    add_to_cart({
-                                        'brand': variant['brand'],
-                                        'model_clean': variant['model_clean'],
-                                        'size_us': variant['size_us'],
-                                        'size_eu': variant['size_eu'],
-                                        'price': variant['price'],
-                                        'sku': variant['sku']
-                                    })
+                   # Вместо expander показываем размеры сразу
+if len(model_row['size_us']) > 0:
+    st.write("**Доступные размеры:**")
+    us_sizes = ", ".join([str(size) for size in model_row['size_us'] if size])
+    eu_sizes = ", ".join([str(size) for size in model_row['size_eu'] if size])
+    st.write(f"US: {us_sizes} | EU: {eu_sizes}")
 
 st.divider()
 st.caption("© DENE Store 2025")
