@@ -130,8 +130,7 @@ def display_modern_cards(image_paths, key_suffix):
         try:
             st.image(
                 image_paths[selected_index], 
-                use_container_width=True,
-                caption=f"Вид {selected_index + 1} из {len(image_paths)}"
+                use_container_width=True
             )
         except:
             st.markdown(
@@ -149,16 +148,15 @@ def display_modern_cards(image_paths, key_suffix):
         st.write("")  # Отступ
         st.write("")  # Отступ
         
-        # Маленькие превью-кнопки
+        # Маленькие точки-превью без цифр и подсказок
         for i, img_path in enumerate(image_paths[:4]):  # Максимум 4 превью
-            # Определяем эмодзи для кнопки
-            emoji = "🟢" if i == selected_index else "⚪"
+            # Определяем символ для кнопки (маленькие точки)
+            dot = "●" if i == selected_index else "○"
             
-            # Создаем кнопку выбора
+            # Создаем маленькую кнопку выбора
             if st.button(
-                f"{emoji} {i+1}", 
+                dot, 
                 key=f"btn_{key_suffix}_{i}",
-                use_container_width=True,
                 type="primary" if i == selected_index else "secondary"
             ):
                 st.session_state[f"selected_{key_suffix}"] = i
