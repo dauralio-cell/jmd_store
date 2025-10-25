@@ -459,7 +459,7 @@ else:
                         all_image_paths = get_image_paths_cached(first_image, first_sku)
                         
                         # Отображаем только первое фото
-                        display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
+                        display_main_photo(all_image_paths)
                         
                         # Информация о товаре
                         st.markdown(f"**{model_row['brand']} {model_row['model_clean']}**")
