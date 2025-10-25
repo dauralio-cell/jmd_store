@@ -247,15 +247,17 @@ def load_data():
             .str.strip()
         )
 
-        # Извлекаем размеры
-        df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", str(x)))
-        df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
-        df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", str(x)))
-        df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
+        # Используем готовые колонки из Excel
+        df["size_us"] = df["size US"].fillna("")
+        df["size_eu"] = df["size EU"].fillna("")
 
-        # Автозаполнение при отсутствии одного из размеров
-        df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
-        df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
+        # Очищаем размеры от лишних пробелов
+        df["size_us"] = df["size_us"].astype(str).str.strip()
+        df["size_eu"] = df["size_eu"].astype(str).str.strip()
+
+        # Автозаполнение при отсутствии одного из размеров (если нужно)
+        df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]) if not r["size_eu"] else r["size_eu"], axis=1)
+        df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]) if not r["size_us"] else r["size_us"], axis=1)
 
         # Пол и цвет
         df["gender"] = df["model"].apply(
