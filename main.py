@@ -119,7 +119,7 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Показываем большое фото (просто игнорируем значок)
+    # Просто показываем фото
     try:
         st.image(image_paths[0], use_container_width=True)
     except:
