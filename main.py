@@ -482,14 +482,13 @@ else:
                             unsafe_allow_html=True
                         )
                         
-                        # Получаем все изображения для товара
+                                               # Получаем все изображения для товара
                         first_sku = model_row['sku']
                         first_image = model_row['image']
                         all_image_paths = get_image_paths_cached(first_image, first_sku)
-
-			# Отображаем только первое фото
-			display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
-
+                        
+                        # Отображаем только первое фото
+                        display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
                         
                         # Информация о товаре
                         st.markdown(f"**{model_row['brand']} {model_row['model_clean']}**")
@@ -502,8 +501,7 @@ else:
                         if eu_sizes:
                             sizes_text += f" | EU: {', '.join(eu_sizes)}"
                         
-                        st.write(sizes_text)
-                        
+                        st.write(sizes_text)                        
                         # Диапазон цен
                         prices = model_row['price']
                         if prices and any(prices):
