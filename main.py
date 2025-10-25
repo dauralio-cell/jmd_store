@@ -162,7 +162,6 @@ def display_modern_cards(image_paths, key_suffix):
                 st.session_state[f"selected_{key_suffix}"] = i
                 st.rerun()
 
-# --- Функции для группировки моделей ---
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
     if len(df) == 0:
@@ -170,15 +169,14 @@ def get_unique_models(df):
         
     # Группируем по основным характеристикам модели
     grouped = df.groupby(['brand', 'model_clean', 'gender', 'color']).agg({
-        'sku': 'first',  # берем первый SKU для изображения
-        'image': 'first', # берем первое изображение
-        'price': lambda x: list(x.unique()),  # все уникальные цены
-        'size_us': lambda x: [size for size in x if size and str(size).strip() != ""],  # фильтруем пустые размеры
-        'size_eu': lambda x: [size for size in x if size and str(size).strip() != ""]   # фильтруем пустые размеры
+        'sku': 'first',
+        'image': 'first',
+        'price': lambda x: list(x.unique()),
+        'size_us': lambda x: list(x.dropna().astype(str).str.strip().unique()),  # Улучшенная обработка
+        'size_eu': lambda x: list(x.dropna().astype(str).str.strip().unique())   # Улучшенная обработка
     }).reset_index()
     
     return grouped
-
 # --- Функции корзины ---
 def add_to_cart(item):
     """Добавление товара в корзину"""
@@ -487,20 +485,29 @@ else:
                         st.caption(f"{model_row['color']} | {model_row['gender']}")
                         
                                                # Формируем строку с размерами
-                        us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
-                        eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
+us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
+eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
 
-                        if us_sizes or eu_sizes:
-                            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
-                            if eu_sizes:
-                                if sizes_text:
-                                    sizes_text += f" | EU: {', '.join(eu_sizes)}"
-                                else:
-                                    sizes_text = f"EU: {', '.join(eu_sizes)}"
-                        else:
-                            sizes_text = "Размеры не указаны"
+# ВРЕМЕННО: отладочная информация
+if st.checkbox("🔍 Отладка", key=f"debug_{first_sku}"):
+    st.write("Размеры US:", model_row['size_us'])
+    st.write("Размеры EU:", model_row['size_eu'])
+    st.write("Отфильтрованные US:", us_sizes)
+    st.write("Отфильтрованные EU:", eu_sizes)
+    st.write("Тип sizes_us:", type(model_row['size_us']))
+    st.write("Тип sizes_eu:", type(model_row['size_eu']))
 
-                        st.write(sizes_text)
+if us_sizes or eu_sizes:
+    sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
+    if eu_sizes:
+        if sizes_text:
+            sizes_text += f" | EU: {', '.join(eu_sizes)}"
+        else:
+            sizes_text = f"EU: {', '.join(eu_sizes)}"
+else:
+    sizes_text = "Размеры не указаны"
+
+st.write(sizes_text)
                         
                         # Диапазон цен
                         prices = model_row['price']
