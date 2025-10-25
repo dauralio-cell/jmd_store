@@ -484,30 +484,45 @@ else:
                         st.markdown(f"**{model_row['brand']} {clean_model_name}**")
                         st.caption(f"{model_row['color']} | {model_row['gender']}")
                         
-                                               # Формируем строку с размерами
-us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
-eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
+                                                                      # Формируем строку с размерами
+                        us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
+                        eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
 
-# ВРЕМЕННО: отладочная информация
-if st.checkbox("🔍 Отладка", key=f"debug_{first_sku}"):
-    st.write("Размеры US:", model_row['size_us'])
-    st.write("Размеры EU:", model_row['size_eu'])
-    st.write("Отфильтрованные US:", us_sizes)
-    st.write("Отфильтрованные EU:", eu_sizes)
-    st.write("Тип sizes_us:", type(model_row['size_us']))
-    st.write("Тип sizes_eu:", type(model_row['size_eu']))
+                        # ВРЕМЕННО: отладочная информация
+                        if st.checkbox("🔍 Отладка", key=f"debug_{first_sku}"):
+                            st.write("Размеры US:", model_row['size_us'])
+                            st.write("Размеры EU:", model_row['size_eu'])
+                            st.write("Отфильтрованные US:", us_sizes)
+                            st.write("Отфильтрованные EU:", eu_sizes)
+                            st.write("Тип sizes_us:", type(model_row['size_us']))
+                            st.write("Тип sizes_eu:", type(model_row['size_eu']))
 
-if us_sizes or eu_sizes:
-    sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
-    if eu_sizes:
-        if sizes_text:
-            sizes_text += f" | EU: {', '.join(eu_sizes)}"
-        else:
-            sizes_text = f"EU: {', '.join(eu_sizes)}"
-else:
-    sizes_text = "Размеры не указаны"
+                        if us_sizes or eu_sizes:
+                            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
+                            if eu_sizes:
+                                if sizes_text:
+                                    sizes_text += f" | EU: {', '.join(eu_sizes)}"
+                                else:
+                                    sizes_text = f"EU: {', '.join(eu_sizes)}"
+                        else:
+                            sizes_text = "Размеры не указаны"
 
-st.write(sizes_text)
+                        st.write(sizes_text)
+                        
+                        # Диапазон цен
+                        prices = model_row['price']
+                        if prices and any(prices):
+                            valid_prices = [p for p in prices if p != "" and str(p).strip() != ""]
+                            if valid_prices:
+                                min_price = min(valid_prices)
+                                max_price = max(valid_prices)
+                                price_text = f"{safe_int_convert(min_price)} - {safe_int_convert(max_price)} ₸" if min_price != max_price else f"{safe_int_convert(min_price)} ₸"
+                            else:
+                                price_text = "Цена не указана"
+                        else:
+                            price_text = "Цена не указана"
+                        
+                        st.markdown(f"**{price_text}**")
                         
                         # Диапазон цен
                         prices = model_row['price']
