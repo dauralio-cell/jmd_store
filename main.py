@@ -173,8 +173,8 @@ def get_unique_models(df):
         'sku': 'first',  # берем первый SKU для изображения
         'image': 'first', # берем первое изображение
         'price': lambda x: list(x.unique()),  # все уникальные цены
-        'size_us': list,  # все доступные размеры US
-        'size_eu': list   # все доступные размеры EU
+        'size_us': lambda x: [size for size in x if size and str(size).strip() != ""],  # фильтруем пустые размеры
+        'size_eu': lambda x: [size for size in x if size and str(size).strip() != ""]   # фильтруем пустые размеры
     }).reset_index()
     
     return grouped
@@ -487,13 +487,21 @@ else:
                         st.caption(f"{model_row['color']} | {model_row['gender']}")
                         
                         # Формируем строку с размерами
+                        # Формируем строку с размерами
                         us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
                         eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
-                        sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else "Размеры не указаны"
+
+                        if us_sizes or eu_sizes:
+                        sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
                         if eu_sizes:
-                            sizes_text += f" | EU: {', '.join(eu_sizes)}"
-                        
-                        st.write(sizes_text)
+                        if sizes_text:
+            sizes_text += f" | EU: {', '.join(eu_sizes)}"
+        else:
+            sizes_text = f"EU: {', '.join(eu_sizes)}"
+else:
+    sizes_text = "Размеры не указаны"
+
+st.write(sizes_text)
                         
                         # Диапазон цен
                         prices = model_row['price']
