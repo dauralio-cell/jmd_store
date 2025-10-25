@@ -116,20 +116,9 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Показываем большое фото и скрываем значок полноэкранного режима через CSS
+    # Показываем большое фото (просто игнорируем значок)
     try:
-        # Сначала скрываем значок через CSS
-        st.markdown("""
-            <style>
-            .stImage > button {
-                display: none !important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        # Показываем фото
         st.image(image_paths[0], use_container_width=True)
-        
     except:
         st.markdown(
             """
