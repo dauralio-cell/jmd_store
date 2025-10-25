@@ -486,22 +486,21 @@ else:
                         st.markdown(f"**{model_row['brand']} {clean_model_name}**")
                         st.caption(f"{model_row['color']} | {model_row['gender']}")
                         
-                        # Формируем строку с размерами
-                        # Формируем строку с размерами
+                                               # Формируем строку с размерами
                         us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
                         eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
 
                         if us_sizes or eu_sizes:
-                        sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
-                        if eu_sizes:
-                        if sizes_text:
-            sizes_text += f" | EU: {', '.join(eu_sizes)}"
-        else:
-            sizes_text = f"EU: {', '.join(eu_sizes)}"
-else:
-    sizes_text = "Размеры не указаны"
+                            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
+                            if eu_sizes:
+                                if sizes_text:
+                                    sizes_text += f" | EU: {', '.join(eu_sizes)}"
+                                else:
+                                    sizes_text = f"EU: {', '.join(eu_sizes)}"
+                        else:
+                            sizes_text = "Размеры не указаны"
 
-st.write(sizes_text)
+                        st.write(sizes_text)
                         
                         # Диапазон цен
                         prices = model_row['price']
