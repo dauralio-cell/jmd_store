@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Главное фото + миниатюры"""
+    """Показываем большое фото товара"""
     if not image_paths:
         st.markdown(
             """
@@ -115,33 +115,21 @@ def display_modern_cards(image_paths, key_suffix):
             unsafe_allow_html=True
         )
         return
-
-    # Запоминаем выбранное фото
-    if f"selected_{key_suffix}" not in st.session_state:
-        st.session_state[f"selected_{key_suffix}"] = 0
-
-    selected_index = st.session_state[f"selected_{key_suffix}"]
-
-    # --- Главное фото ---
-    st.image(image_paths[selected_index], use_container_width=True)
-
-    # --- Миниатюры ---
-    if len(image_paths) > 1:
-        cols = st.columns(len(image_paths))
-        for i, img_path in enumerate(image_paths):
-            with cols[i]:
-                if st.button(" ", key=f"thumb_{key_suffix}_{i}"):
-                    st.session_state[f"selected_{key_suffix}"] = i
-                    st.rerun()
-                border_color = "#007BFF" if i == selected_index else "#ccc"
-                st.markdown(
-                    f"""
-                    <div style="border: 3px solid {border_color}; border-radius: 8px; padding: 2px; text-align:center;">
-                        <img src="data:image/jpeg;base64,{get_image_base64(img_path)}" width="80">
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+    
+    # Показываем большое фото
+    try:
+        st.image(image_paths[0], width=280)  # Увеличиваем ширину фото
+    except:
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 80px; background: #f5f5f5; 
+                        border-radius: 12px; color: #999; margin: 10px 0;">
+                <div style="font-size: 48px;">❌</div>
+                <div>Ошибка загрузки изображения</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 def get_image_base64(img_path):
     """Возвращает base64 код изображения"""
