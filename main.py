@@ -481,7 +481,9 @@ else:
                         display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
                         
                         # Информация о товаре
-                        st.markdown(f"**{model_row['brand']} {model_row['model_clean']}**")
+                        # Убираем текст в скобках из названия модели
+                        clean_model_name = re.sub(r'\([^)]*\)', '', model_row['model_clean']).strip()
+                        st.markdown(f"**{model_row['brand']} {clean_model_name}**")
                         st.caption(f"{model_row['color']} | {model_row['gender']}")
                         
                         # Формируем строку с размерами
