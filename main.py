@@ -60,36 +60,6 @@ def get_image_paths_cached(image_names, sku):
     """Кэширование путей к изображениям"""
     return get_all_image_paths(image_names, sku)
 
-def display_modern_cards(image_paths, key_suffix):
-    """Показываем большое фото товара"""
-    if not image_paths:
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 40px; background: #f8f9fa; 
-                        border-radius: 12px; margin: 10px 0;">
-                <div style="font-size: 48px;">📷</div>
-                <div style="color: #666;">Нет изображений</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        return
-    
-    # Показываем большое фото
-    try:
-        st.image(image_paths[0], width=350)  # Увеличили ширину фото
-    except:
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 80px; background: #f5f5f5; 
-                        border-radius: 12px; color: #999; margin: 10px 0;">
-                <div style="font-size: 48px;">❌</div>
-                <div>Ошибка загрузки изображения</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
 def get_all_image_paths(image_names, sku):
     """Ищет все изображения по названиям из колонки image или по SKU"""
     image_paths = []
@@ -131,11 +101,8 @@ def get_all_image_paths(image_names, sku):
     unique_paths = list(dict.fromkeys(image_paths))
     return unique_paths if unique_paths else []
 
-import streamlit as st
-import os
-
 def display_modern_cards(image_paths, key_suffix):
-    """Показываем большое фото товара"""
+    """Современные карточки с превью фото"""
     if not image_paths:
         st.markdown(
             """
@@ -149,30 +116,55 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Просто показываем фото
-    try:
-        st.image(image_paths[0], use_container_width=True)
-    except:
-        st.markdown(
-            """
-            <div style="text-align: center; padding: 80px; background: #f5f5f5; 
-                        border-radius: 12px; color: #999; margin: 10px 0;">
-                <div style="font-size: 48px;">❌</div>
-                <div>Ошибка загрузки изображения</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    # Инициализируем выбранное фото в session_state
+    if f"selected_{key_suffix}" not in st.session_state:
+        st.session_state[f"selected_{key_suffix}"] = 0
+    
+    selected_index = st.session_state[f"selected_{key_suffix}"]
+    
+    # Создаем колонки: основное фото и превью
+    main_col, preview_col = st.columns([3, 1])
+    
+    with main_col:
+        # Основное большое фото
+        try:
+            st.image(
+                image_paths[selected_index], 
+                use_container_width=True,
+                caption=f"Вид {selected_index + 1} из {len(image_paths)}"
+            )
+        except:
+            st.markdown(
+                f"""
+                <div style="text-align: center; padding: 60px; background: #fff3cd; 
+                            border-radius: 12px; color: #856404; margin: 10px 0;">
+                    <div style="font-size: 36px;">❌</div>
+                    <div>Ошибка загрузки фото</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+    
+    with preview_col:
+        st.write("")  # Отступ
+        st.write("")  # Отступ
+        
+        # Маленькие превью-кнопки
+        for i, img_path in enumerate(image_paths[:4]):  # Максимум 4 превью
+            # Определяем эмодзи для кнопки
+            emoji = "🟢" if i == selected_index else "⚪"
+            
+            # Создаем кнопку выбора
+            if st.button(
+                f"{emoji} {i+1}", 
+                key=f"btn_{key_suffix}_{i}",
+                use_container_width=True,
+                type="primary" if i == selected_index else "secondary"
+            ):
+                st.session_state[f"selected_{key_suffix}"] = i
+                st.rerun()
 
-def get_image_base64(img_path):
-    """Возвращает base64 код изображения"""
-    import base64
-    from io import BytesIO
-    from PIL import Image
-    with open(img_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
+# --- Функции для группировки моделей ---
 def get_unique_models(df):
     """Получаем уникальные модели для отображения"""
     if len(df) == 0:
@@ -230,7 +222,7 @@ def display_cart():
         if st.button("📦 Оформить заказ", type="primary"):
             st.success("🎉 Заказ оформлен! С вами свяжутся для подтверждения.")
     with col2:
-        if st.button("🗑️ Очистить корзина", type="secondary"):
+        if st.button("🗑️ Очистить корзину", type="secondary"):
             clear_cart()
 
 # --- Загрузка данных ---
@@ -482,12 +474,12 @@ else:
                             unsafe_allow_html=True
                         )
                         
-                                               # Получаем все изображения для товара
+                        # Получаем все изображения для товара
                         first_sku = model_row['sku']
                         first_image = model_row['image']
                         all_image_paths = get_image_paths_cached(first_image, first_sku)
                         
-                        # Отображаем только первое фото
+                        # Отображаем современные карточки с превью
                         display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
                         
                         # Информация о товаре
@@ -501,7 +493,8 @@ else:
                         if eu_sizes:
                             sizes_text += f" | EU: {', '.join(eu_sizes)}"
                         
-                        st.write(sizes_text)                        
+                        st.write(sizes_text)
+                        
                         # Диапазон цен
                         prices = model_row['price']
                         if prices and any(prices):
@@ -519,12 +512,37 @@ else:
                         
                         st.markdown("</div>", unsafe_allow_html=True)
                     
-                   # Вместо expander показываем размеры сразу
-if len(model_row['size_us']) > 0:
-    st.write("**Доступные размеры:**")
-    us_sizes = ", ".join([str(size) for size in model_row['size_us'] if size])
-    eu_sizes = ", ".join([str(size) for size in model_row['size_eu'] if size])
-    st.write(f"US: {us_sizes} | EU: {eu_sizes}")
+                    # Кнопка для просмотра всех размеров
+                    with st.expander("📋 Все размеры", expanded=False):
+                        # Находим все варианты этой модели в отфильтрованных данных
+                        model_variants = filtered_df[
+                            (filtered_df['brand'] == model_row['brand']) & 
+                            (filtered_df['model_clean'] == model_row['model_clean']) &
+                            (filtered_df['color'] == model_row['color'])
+                        ]
+                        
+                        for _, variant in model_variants.iterrows():
+                            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+                            with col1:
+                                st.text(f"US: {variant['size_us']}")
+                            with col2:
+                                st.text(f"EU: {variant['size_eu']}")
+                            with col3:
+                                price_val = variant['price']
+                                if price_val and str(price_val).strip() != "":
+                                    st.text(f"{safe_int_convert(price_val)} ₸")
+                                else:
+                                    st.text("—")
+                            with col4:
+                                if st.button("🛒", key=f"cart_{variant['sku']}_{i}_{col_idx}", help="Добавить в корзину"):
+                                    add_to_cart({
+                                        'brand': variant['brand'],
+                                        'model_clean': variant['model_clean'],
+                                        'size_us': variant['size_us'],
+                                        'size_eu': variant['size_eu'],
+                                        'price': variant['price'],
+                                        'sku': variant['sku']
+                                    })
 
 st.divider()
 st.caption("© DENE Store 2025")
