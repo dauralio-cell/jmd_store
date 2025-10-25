@@ -162,21 +162,31 @@ def display_modern_cards(image_paths, key_suffix):
                 st.session_state[f"selected_{key_suffix}"] = i
                 st.rerun()
 
+# --- Функции для группировки моделей ---
 def get_unique_models(df):
-    """Получаем уникальные модели для отображения"""
+    """Получаем уникальные модели с цветами и размерами"""
     if len(df) == 0:
         return pd.DataFrame()
-        
-    # Группируем по основным характеристикам модели
-    grouped = df.groupby(['brand', 'model_clean', 'gender', 'color']).agg({
+    
+    # Очищаем данные от пустых строк
+    df_clean = df[
+        (df['brand'].notna()) & (df['brand'] != "") &
+        (df['model_clean'].notna()) & (df['model_clean'] != "") &
+        (df['color'].notna()) & (df['color'] != "")
+    ].copy()
+    
+    # Группируем по модели и цвету
+    grouped = df_clean.groupby(['brand', 'model_clean', 'color']).agg({
         'sku': 'first',
         'image': 'first',
-        'price': lambda x: list(x.unique()),
-        'size_us': lambda x: list(x.dropna().astype(str).str.strip().unique()),  # Улучшенная обработка
-        'size_eu': lambda x: list(x.dropna().astype(str).str.strip().unique())   # Улучшенная обработка
+        'gender': 'first',
+        'price': lambda x: [p for p in x if p and str(p).strip() != ""],
+        'size_us': lambda x: [str(size) for size in x if size and str(size).strip() != ""],
+        'size_eu': lambda x: [str(size) for size in x if size and str(size).strip() != ""]
     }).reset_index()
     
     return grouped
+
 # --- Функции корзины ---
 def add_to_cart(item):
     """Добавление товара в корзину"""
@@ -201,6 +211,7 @@ def display_cart():
         col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
         with col1:
             st.write(f"**{item['brand']} {item['model_clean']}**")
+            st.write(f"Цвет: {item['color']}")
             st.write(f"Размер: {item['size_us']}US ({item['size_eu']}EU)")
         with col2:
             st.write(f"{item['price']} ₸")
@@ -233,11 +244,11 @@ def load_data():
         df = pd.concat([df_nike, df_mizuno], ignore_index=True)
         df = df.fillna("")
 
-        # Заполняем пустые значения в бренде и модели
+        # Заполняем пустые значения в бренде, модели и цвете
         df['brand'] = df['brand'].fillna(method='ffill')
         df['model'] = df['model'].fillna(method='ffill')
-        df['gender'] = df['gender'].fillna(method='ffill')
         df['color'] = df['color'].fillna(method='ffill')
+        df['gender'] = df['gender'].fillna(method='ffill')
         df['image'] = df['image'].fillna(method='ffill')
 
         # Обработка модели
@@ -247,27 +258,20 @@ def load_data():
             .str.strip()
         )
 
-        # Используем готовые колонки из Excel
-        df["size_us"] = df["size US"].fillna("")
-        df["size_eu"] = df["size EU"].fillna("")
+        # Используем готовые колонки из Excel для размеров
+        df["size_us"] = df["size US"].fillna("").astype(str).str.strip()
+        df["size_eu"] = df["size EU"].fillna("").astype(str).str.strip()
 
-        # Очищаем размеры от лишних пробелов
-        df["size_us"] = df["size_us"].astype(str).str.strip()
-        df["size_eu"] = df["size_eu"].astype(str).str.strip()
-
-        # Автозаполнение при отсутствии одного из размеров (если нужно)
+        # Автозаполнение при отсутствии одного из размеров
         df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]) if not r["size_eu"] else r["size_eu"], axis=1)
         df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]) if not r["size_us"] else r["size_us"], axis=1)
 
-        # Пол и цвет
+        # Пол
         df["gender"] = df["model"].apply(
             lambda x: "men" if "men" in str(x).lower() else (
                 "women" if "women" in str(x).lower() else "unisex"
             )
         )
-        df["color"] = df["model"].str.extract(
-            r"(white|black|blue|red|green|pink|gray|brown)", flags=re.IGNORECASE, expand=False
-        ).fillna("other")
 
         # Описание
         if "description" not in df.columns:
@@ -356,15 +360,9 @@ if len(df) > 0:
     if model_filter != "Все":
         filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
     if size_us_filter != "Все":
-        eu_equiv = size_conversion.get(size_us_filter, "")
-        filtered_df = filtered_df[
-            (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
-        ]
+        filtered_df = filtered_df[filtered_df["size_us"] == size_us_filter]
     if size_eu_filter != "Все":
-        us_equiv = reverse_conversion.get(size_eu_filter, "")
-        filtered_df = filtered_df[
-            (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
-        ]
+        filtered_df = filtered_df[filtered_df["size_eu"] == size_eu_filter]
     if gender_filter != "Все":
         filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
     if color_filter != "Все":
@@ -481,50 +479,23 @@ else:
                         display_modern_cards(all_image_paths, f"{first_sku}_{i}_{col_idx}")
                         
                         # Информация о товаре
-                        # Убираем текст в скобках из названия модели
                         clean_model_name = re.sub(r'\([^)]*\)', '', model_row['model_clean']).strip()
                         st.markdown(f"**{model_row['brand']} {clean_model_name}**")
-                        st.caption(f"{model_row['color']} | {model_row['gender']}")
+                        st.caption(f"Цвет: {model_row['color']} | {model_row['gender']}")
                         
-                                                                      # Формируем строку с размерами
-                        us_sizes = [str(size) for size in model_row['size_us'] if size and str(size).strip() != ""]
-                        eu_sizes = [str(size) for size in model_row['size_eu'] if size and str(size).strip() != ""]
-
-                        # ВРЕМЕННО: отладочная информация
-                        if st.checkbox("🔍 Отладка", key=f"debug_{first_sku}"):
-                            st.write("Размеры US:", model_row['size_us'])
-                            st.write("Размеры EU:", model_row['size_eu'])
-                            st.write("Отфильтрованные US:", us_sizes)
-                            st.write("Отфильтрованные EU:", eu_sizes)
-                            st.write("Тип sizes_us:", type(model_row['size_us']))
-                            st.write("Тип sizes_eu:", type(model_row['size_eu']))
+                        # Формируем строку с размерами
+                        us_sizes = model_row['size_us']
+                        eu_sizes = model_row['size_eu']
 
                         if us_sizes or eu_sizes:
-                            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
+                            sizes_display = []
+                            if us_sizes:
+                                sizes_display.append(f"US: {', '.join(us_sizes)}")
                             if eu_sizes:
-                                if sizes_text:
-                                    sizes_text += f" | EU: {', '.join(eu_sizes)}"
-                                else:
-                                    sizes_text = f"EU: {', '.join(eu_sizes)}"
+                                sizes_display.append(f"EU: {', '.join(eu_sizes)}")
+                            st.write(" | ".join(sizes_display))
                         else:
-                            sizes_text = "Размеры не указаны"
-
-                        st.write(sizes_text)
-                        
-                        # Диапазон цен
-                        prices = model_row['price']
-                        if prices and any(prices):
-                            valid_prices = [p for p in prices if p != "" and str(p).strip() != ""]
-                            if valid_prices:
-                                min_price = min(valid_prices)
-                                max_price = max(valid_prices)
-                                price_text = f"{safe_int_convert(min_price)} - {safe_int_convert(max_price)} ₸" if min_price != max_price else f"{safe_int_convert(min_price)} ₸"
-                            else:
-                                price_text = "Цена не указана"
-                        else:
-                            price_text = "Цена не указана"
-                        
-                        st.markdown(f"**{price_text}**")
+                            st.write("Размеры не указаны")
                         
                         # Диапазон цен
                         prices = model_row['price']
@@ -543,8 +514,8 @@ else:
                         
                         st.markdown("</div>", unsafe_allow_html=True)
                     
-                    # Кнопка для просмотра всех размеров
-                    with st.expander("📋 Все размеры", expanded=False):
+                    # Кнопка для просмотра всех вариантов размеров
+                    with st.expander("📋 Все варианты размеров", expanded=False):
                         # Находим все варианты этой модели в отфильтрованных данных
                         model_variants = filtered_df[
                             (filtered_df['brand'] == model_row['brand']) & 
@@ -569,6 +540,7 @@ else:
                                     add_to_cart({
                                         'brand': variant['brand'],
                                         'model_clean': variant['model_clean'],
+                                        'color': variant['color'],
                                         'size_us': variant['size_us'],
                                         'size_eu': variant['size_eu'],
                                         'price': variant['price'],
