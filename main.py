@@ -456,9 +456,6 @@ else:
                         first_sku = model_row['sku']
                         first_image = model_row['image']
                         all_image_paths = get_image_paths_cached(first_image, first_sku)
-                        
-                        # Отображаем только первое фото
-                        def display_modern_cards(image_paths, key_suffix):
 
     """Показываем большое фото товара"""
     if not image_paths:
