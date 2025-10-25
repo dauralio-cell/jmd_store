@@ -102,7 +102,7 @@ def get_all_image_paths(image_names, sku):
     return unique_paths if unique_paths else []
 
 def display_modern_cards(image_paths, key_suffix):
-    """Показываем большое фото товара"""
+    """Показываем большое фото товара без значка полноэкранного режима"""
     if not image_paths:
         st.markdown(
             """
@@ -116,9 +116,17 @@ def display_modern_cards(image_paths, key_suffix):
         )
         return
     
-    # Показываем большое фото
+    # Показываем большое фото без значка полноэкранного режима
     try:
-        st.image(image_paths[0], width=280)  # Увеличиваем ширину фото
+        # Используем HTML для отображения фото без значка
+        st.markdown(
+            f"""
+            <div style="text-align: center; margin: 10px 0;">
+                <img src="{image_paths[0]}" style="max-width: 100%; height: auto; border-radius: 12px;">
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
     except:
         st.markdown(
             """
