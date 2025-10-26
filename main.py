@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CSS стили как у Intertop ---
+# --- CSS стили ---
 st.markdown("""
 <style>
     /* Основные стили */
@@ -23,25 +23,42 @@ st.markdown("""
     /* Хедер */
     .header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem 0;
+        padding: 2rem 0;
         margin-bottom: 2rem;
+        border-radius: 0 0 15px 15px;
     }
     
-    /* Карточки товаров */
+    /* Карточки товаров - ФИКСИРОВАННЫЕ */
     .product-card {
-        border: 1px solid #e5e5e5;
+        border: 1px solid #e0e0e0;
         border-radius: 12px;
         padding: 16px;
         margin-bottom: 20px;
         background: white;
         transition: all 0.3s ease;
-        height: 100%;
+        height: auto;
+        min-height: 400px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
     .product-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
         border-color: #667eea;
+    }
+    
+    /* Контейнер для изображения */
+    .image-container {
+        height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        overflow: hidden;
     }
     
     /* Кнопки */
@@ -49,28 +66,53 @@ st.markdown("""
         border-radius: 8px;
         font-weight: 600;
         transition: all 0.3s ease;
+        border: none;
     }
     
-    .primary-button {
+    .primary-btn {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         color: white !important;
-        border: none !important;
     }
     
-    .secondary-button {
+    .secondary-btn {
         background: #f8f9fa !important;
         color: #333 !important;
         border: 1px solid #dee2e6 !important;
     }
     
-    /* Бейджи */
-    .badge {
-        background: #ff4444;
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
+    /* Цены */
+    .price {
+        font-size: 1.25rem;
         font-weight: bold;
+        color: #2c5530;
+        margin: 8px 0;
+    }
+    
+    /* Текст */
+    .product-brand {
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin-bottom: 4px;
+        color: #333;
+    }
+    
+    .product-model {
+        font-weight: 600;
+        font-size: 1rem;
+        margin-bottom: 4px;
+        color: #555;
+    }
+    
+    .product-color {
+        color: #666;
+        font-style: italic;
+        margin-bottom: 8px;
+    }
+    
+    .sizes {
+        color: #888;
+        font-size: 0.9rem;
+        margin-bottom: 12px;
     }
     
     /* Фильтры */
@@ -79,62 +121,20 @@ st.markdown("""
         padding: 1.5rem;
         border-radius: 12px;
         margin-bottom: 2rem;
-    }
-    
-    /* Навигация */
-    .nav-tabs {
-        display: flex;
-        border-bottom: 2px solid #e5e5e5;
-        margin-bottom: 2rem;
-    }
-    
-    .nav-tab {
-        padding: 12px 24px;
-        margin-right: 8px;
-        cursor: pointer;
-        border-radius: 8px 8px 0 0;
-        font-weight: 600;
-    }
-    
-    .nav-tab.active {
-        background: #667eea;
-        color: white;
-    }
-    
-    /* Цены */
-    .price {
-        font-size: 1.25rem;
-        font-weight: bold;
-        color: #2c5530;
-    }
-    
-    .old-price {
-        text-decoration: line-through;
-        color: #999;
-        font-size: 0.9rem;
-    }
-    
-    /* Корзина */
-    .cart-item {
-        border-bottom: 1px solid #eee;
-        padding: 12px 0;
-    }
-    
-    /* Изображения */
-    .product-image {
-        border-radius: 8px;
-        margin-bottom: 12px;
+        border: 1px solid #e9ecef;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Обложка ---
-st.markdown('<div class="header">', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    st.markdown("<h1 style='text-align:center; color:white; margin:0;'>DENE STORE</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center; color:white; margin:0; opacity:0.9;'>Премиальные кроссовки и спортивная обувь</p>", unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="header">
+    <div style="text-align:center; color:white;">
+        <h1 style="margin:0; font-size:2.5rem;">DENE STORE</h1>
+        <p style="margin:0; opacity:0.9; font-size:1.2rem;">Премиальные кроссовки и спортивная обувь</p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # --- Пути ---
 CATALOG_PATH = "data/catalog.xlsx"
@@ -149,24 +149,29 @@ if 'current_tab' not in st.session_state:
     st.session_state.current_tab = "Каталог"
 
 # --- Навигационные табы ---
-col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    if st.button("🏠 Главная", use_container_width=True):
+tabs = st.columns(5)
+with tabs[0]:
+    if st.button("🏠 Главная", use_container_width=True, type="primary" if st.session_state.current_tab == "Главная" else "secondary"):
         st.session_state.current_tab = "Главная"
-with col2:
-    if st.button("👟 Каталог", use_container_width=True):
+        st.rerun()
+with tabs[1]:
+    if st.button("👟 Каталог", use_container_width=True, type="primary" if st.session_state.current_tab == "Каталог" else "secondary"):
         st.session_state.current_tab = "Каталог"
-with col3:
-    if st.button("🔥 Новинки", use_container_width=True):
+        st.rerun()
+with tabs[2]:
+    if st.button("🔥 Новинки", use_container_width=True, type="primary" if st.session_state.current_tab == "Новинки" else "secondary"):
         st.session_state.current_tab = "Новинки"
-with col4:
-    if st.button("🏷️ Акции", use_container_width=True):
+        st.rerun()
+with tabs[3]:
+    if st.button("🏷️ Акции", use_container_width=True, type="primary" if st.session_state.current_tab == "Акции" else "secondary"):
         st.session_state.current_tab = "Акции"
-with col5:
+        st.rerun()
+with tabs[4]:
     cart_count = len(st.session_state.cart)
-    badge = f" 🛒 ({cart_count})" if cart_count > 0 else " 🛒 Корзина"
-    if st.button(badge, use_container_width=True):
+    badge_text = f"🛒 Корзина ({cart_count})" if cart_count > 0 else "🛒 Корзина"
+    if st.button(badge_text, use_container_width=True, type="primary" if st.session_state.current_tab == "Корзина" else "secondary"):
         st.session_state.current_tab = "Корзина"
+        st.rerun()
 
 st.markdown("---")
 
@@ -175,6 +180,7 @@ st.markdown("---")
 def load_data():
     try:
         if not os.path.exists(CATALOG_PATH):
+            st.error("Файл каталога не найден")
             return pd.DataFrame()
         
         df_nike = pd.read_excel(CATALOG_PATH, sheet_name='Nike')
@@ -247,15 +253,18 @@ def get_image_paths(image_names, sku):
     
     return list(dict.fromkeys(image_paths))
 
-def display_product_image(image_paths, product_name, key_suffix=""):
+def display_product_image(image_paths, key_suffix=""):
+    """Улучшенное отображение изображения товара"""
     if not image_paths:
-        st.markdown(f"""
-            <div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 12px; height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-                <div style="font-size: 48px; color: #ccc;">👟</div>
-                <div style="color: #999;">Нет изображения</div>
+        st.markdown("""
+            <div class="image-container">
+                <div style="text-align: center; color: #999;">
+                    <div style="font-size: 48px;">👟</div>
+                    <div>Нет изображения</div>
+                </div>
             </div>
         """, unsafe_allow_html=True)
-        return
+        return None
     
     if f"selected_{key_suffix}" not in st.session_state:
         st.session_state[f"selected_{key_suffix}"] = 0
@@ -264,14 +273,20 @@ def display_product_image(image_paths, product_name, key_suffix=""):
     
     try:
         img = Image.open(image_paths[selected_index])
-        st.image(img, use_container_width=True, caption=product_name)
-    except:
-        st.markdown(f"""
-            <div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 12px; height: 200px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-                <div style="font-size: 48px; color: #ccc;">❌</div>
-                <div style="color: #999;">Ошибка загрузки</div>
+        # Ресайзим изображение для единообразия
+        img.thumbnail((300, 200))
+        st.image(img, use_container_width=True)
+        return True
+    except Exception as e:
+        st.markdown("""
+            <div class="image-container">
+                <div style="text-align: center; color: #999;">
+                    <div style="font-size: 48px;">❌</div>
+                    <div>Ошибка загрузки</div>
+                </div>
             </div>
         """, unsafe_allow_html=True)
+        return False
 
 # --- Группировка товаров ---
 def group_products(df):
@@ -319,6 +334,9 @@ def display_cart_page():
         ### Ваша корзина пуста
         Перейдите в каталог, чтобы добавить товары
         """)
+        if st.button("Вернуться в каталог"):
+            st.session_state.current_tab = "Каталог"
+            st.rerun()
         return
     
     total = 0
@@ -364,8 +382,7 @@ def show_product_details(product, other_colors, df):
     
     with col1:
         image_paths = get_image_paths(product['image'], product['sku'])
-        display_product_image(image_paths, f"{product['brand']} {product['model_clean']}", 
-                            key_suffix=f"detail_{product['sku']}")
+        display_product_image(image_paths, key_suffix=f"detail_{product['sku']}")
     
     with col2:
         st.markdown(f"## {product['brand']} {product['model_clean']}")
@@ -412,21 +429,13 @@ def show_product_details(product, other_colors, df):
                     st.markdown('<div class="product-card">', unsafe_allow_html=True)
                     
                     variant_images = get_image_paths(variant['image'], variant['sku'])
-                    if variant_images:
-                        try:
-                            st.image(variant_images[0], use_container_width=True)
-                        except:
-                            st.markdown("""
-                                <div style="text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; color: #999;">
-                                    ❌
-                                </div>
-                            """, unsafe_allow_html=True)
+                    display_product_image(variant_images, key_suffix=f"variant_{variant['sku']}")
                     
-                    st.write(f"**{variant['color']}**")
+                    st.markdown(f'<div class="product-color">{variant["color"]}</div>', unsafe_allow_html=True)
                     
                     variant_price = variant['price']
                     if variant_price and str(variant_price).strip():
-                        st.write(f"{variant_price} ₸")
+                        st.markdown(f'<div class="price">{variant_price} ₸</div>', unsafe_allow_html=True)
                     
                     if st.button("Выбрать", key=f"select_{variant['sku']}", use_container_width=True):
                         new_other_colors = get_other_colors(df, variant['brand'], variant['model_clean'], variant['color'])
@@ -473,6 +482,72 @@ def show_home_page():
         </div>
         """, unsafe_allow_html=True)
 
+# --- Улучшенное отображение карточки товара ---
+def display_product_card(product, df, col_idx, row_idx):
+    """Отображение карточки товара без артефактов"""
+    
+    with st.container():
+        # Используем чистый HTML контейнер вместо сложных CSS
+        st.markdown("""
+        <div style='
+            border: 1px solid #e0e0e0; 
+            border-radius: 12px; 
+            padding: 16px; 
+            margin-bottom: 20px; 
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            height: auto;
+        '>
+        """, unsafe_allow_html=True)
+        
+        # Изображение товара
+        image_paths = get_image_paths(product['image'], product['sku'])
+        display_product_image(image_paths, key_suffix=f"card_{product['sku']}_{row_idx}_{col_idx}")
+        
+        # Информация о товаре
+        st.markdown(f"<div class='product-brand'>{product['brand']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='product-model'>{product['model_clean']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='product-color'>{product['color']}</div>", unsafe_allow_html=True)
+        
+        # Размеры
+        us_sizes = product['size_us']
+        if us_sizes:
+            sizes_display = ', '.join(us_sizes[:3]) + ('...' if len(us_sizes) > 3 else '')
+            st.markdown(f"<div class='sizes'>Размеры US: {sizes_display}</div>", unsafe_allow_html=True)
+        
+        # Цена
+        price = product['price']
+        if price and str(price).strip() and str(price) != 'nan':
+            st.markdown(f"<div class='price'>{price} ₸</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='color: #999; margin: 8px 0;'>Цена не указана</div>", unsafe_allow_html=True)
+        
+        # Кнопки
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("👀 Подробнее", key=f"view_{product['sku']}_{row_idx}_{col_idx}", 
+                       use_container_width=True, type="secondary"):
+                other_colors = get_other_colors(df, product['brand'], product['model_clean'], product['color'])
+                st.session_state.selected_product = {
+                    'product': product,
+                    'other_colors': other_colors
+                }
+                st.rerun()
+        
+        with col_btn2:
+            if st.button("🛒 Купить", key=f"buy_{product['sku']}_{row_idx}_{col_idx}", 
+                       use_container_width=True, type="primary"):
+                add_to_cart({
+                    'brand': product['brand'],
+                    'model': product['model_clean'],
+                    'color': product['color'],
+                    'size_us': us_sizes[0] if us_sizes else "",
+                    'price': price if price and str(price).strip() else "0"
+                })
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+
 # --- Каталог товаров ---
 def show_catalog_page():
     st.markdown("## 👟 Каталог товаров")
@@ -485,7 +560,7 @@ def show_catalog_page():
         st.error("Каталог пуст или не загружен")
         return
     
-    # Фильтры в виде карточек
+    # Фильтры
     with st.container():
         st.markdown('<div class="filter-section">', unsafe_allow_html=True)
         st.markdown("### 🔍 Поиск и фильтры")
@@ -540,63 +615,15 @@ def show_catalog_page():
     else:
         st.markdown(f"### Найдено товаров: {len(grouped_products)}")
         
-        # Отображение товаров в сетке
+        # Отображение товаров в сетке 4 колонки
         num_cols = 4
         rows = [grouped_products.iloc[i:i+num_cols] for i in range(0, len(grouped_products), num_cols)]
         
-        for i, row_df in enumerate(rows):
+        for row_idx, row_df in enumerate(rows):
             cols = st.columns(num_cols)
             for col_idx, (_, product) in zip(cols, row_df.iterrows()):
                 with col_idx:
-                    with st.container():
-                        st.markdown('<div class="product-card">', unsafe_allow_html=True)
-                        
-                        # Фото товара
-                        image_paths = get_image_paths(product['image'], product['sku'])
-                        display_product_image(image_paths, f"{product['brand']} {product['model_clean']}", 
-                                            key_suffix=f"main_{product['sku']}_{i}_{col_idx}")
-                        
-                        # Информация о товаре
-                        st.markdown(f"**{product['brand']}**")
-                        st.markdown(f"**{product['model_clean']}**")
-                        st.markdown(f"*{product['color']}*")
-                        
-                        # Размеры
-                        us_sizes = product['size_us']
-                        if us_sizes:
-                            st.markdown(f"Размеры US: {', '.join(us_sizes[:3])}{'...' if len(us_sizes) > 3 else ''}")
-                        
-                        # Цена
-                        price = product['price']
-                        if price and str(price).strip() and str(price) != 'nan':
-                            st.markdown(f'<div class="price">{price} ₸</div>', unsafe_allow_html=True)
-                        else:
-                            st.markdown('<div style="color: #999;">Цена не указана</div>', unsafe_allow_html=True)
-                        
-                        # Кнопки
-                        col_btn1, col_btn2 = st.columns(2)
-                        with col_btn1:
-                            if st.button("👀 Подробнее", key=f"view_{product['sku']}_{i}_{col_idx}", 
-                                       use_container_width=True):
-                                other_colors = get_other_colors(df, product['brand'], product['model_clean'], product['color'])
-                                st.session_state.selected_product = {
-                                    'product': product,
-                                    'other_colors': other_colors
-                                }
-                                st.rerun()
-                        
-                        with col_btn2:
-                            if st.button("🛒 Купить", key=f"buy_{product['sku']}_{i}_{col_idx}", 
-                                       use_container_width=True, type="primary"):
-                                add_to_cart({
-                                    'brand': product['brand'],
-                                    'model': product['model_clean'],
-                                    'color': product['color'],
-                                    'size_us': us_sizes[0] if us_sizes else "",
-                                    'price': price if price and str(price).strip() else "0"
-                                })
-                        
-                        st.markdown('</div>', unsafe_allow_html=True)
+                    display_product_card(product, df, col_idx, row_idx)
 
 # --- Основная логика приложения ---
 def main():
@@ -611,12 +638,14 @@ def main():
         # Показываем соответствующую страницу по табу
         if st.session_state.current_tab == "Главная":
             show_home_page()
-            show_catalog_page()  # Показываем часть каталога на главной
+            # Показываем часть каталога на главной
+            st.markdown("---")
+            st.markdown("## 🎯 Популярные товары")
+            show_catalog_page()
         elif st.session_state.current_tab == "Каталог":
             show_catalog_page()
         elif st.session_state.current_tab == "Новинки":
             st.markdown("## 🔥 Новинки")
-            # Здесь можно добавить фильтрацию по новинкам
             show_catalog_page()
         elif st.session_state.current_tab == "Акции":
             st.markdown("## 🏷️ Акции и скидки")
@@ -629,8 +658,6 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 2rem;">
-        <h3>DENE STORE</h3>
-        <p>Премиальные кроссовки и спортивная обувь</p>
         <p>© 2025 DENE Store. Все права защищены.</p>
     </div>
     """, unsafe_allow_html=True)
