@@ -94,11 +94,11 @@ def get_image_paths(image_names, sku):
     
     return list(dict.fromkeys(image_paths))
 
-def display_product_photo(image_paths, key_suffix=""):
+def display_product_photos(image_paths, key_suffix=""):
+    """Отображение фото как на Intertop - большое фото + миниатюры снизу"""
     if not image_paths:
         st.markdown("""
             <div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 12px;">
-                <div style="font-size: 48px;">📷</div>
                 <div style="color: #666;">Нет изображений</div>
             </div>
         """, unsafe_allow_html=True)
@@ -109,33 +109,35 @@ def display_product_photo(image_paths, key_suffix=""):
     
     selected_index = st.session_state[f"selected_{key_suffix}"]
     
-    main_col, dots_col = st.columns([3, 1])
+    # Основное большое фото
+    try:
+        st.image(image_paths[selected_index], use_container_width=True)
+    except:
+        st.markdown("""
+            <div style="text-align: center; padding: 60px; background: #f5f5f5; border-radius: 12px; color: #999;">
+                Ошибка загрузки изображения
+            </div>
+        """, unsafe_allow_html=True)
     
-    with main_col:
-        try:
-            st.image(image_paths[selected_index], use_container_width=True)
-        except:
-            st.markdown("""
-                <div style="text-align: center; padding: 60px; background: #f5f5f5; border-radius: 12px; color: #999;">
-                    <div style="font-size: 36px;">❌</div>
-                    <div>Ошибка загрузки изображения</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-    with dots_col:
-        st.write("")
-        st.write("")
-        
-        for i in range(len(image_paths[:4])):
-            dot = "●" if i == selected_index else "○"
-            
-            if st.button(
-                dot, 
-                key=f"dot_{key_suffix}_{i}",
-                type="primary" if i == selected_index else "secondary"
-            ):
-                st.session_state[f"selected_{key_suffix}"] = i
-                st.rerun()
+    # Миниатюры под основным фото
+    if len(image_paths) > 1:
+        cols = st.columns(len(image_paths[:4]))
+        for i, img_path in enumerate(image_paths[:4]):
+            with cols[i]:
+                # Рамка вокруг выбранной миниатюры
+                border_style = "2px solid #000" if i == selected_index else "1px solid #ddd"
+                st.markdown(f"<div style='border: {border_style}; border-radius: 4px; padding: 2px;'>", unsafe_allow_html=True)
+                
+                if st.button("", key=f"thumb_{key_suffix}_{i}", use_container_width=True):
+                    st.session_state[f"selected_{key_suffix}"] = i
+                    st.rerun()
+                
+                try:
+                    st.image(img_path, use_container_width=True)
+                except:
+                    st.markdown("<div style='text-align: center; padding: 20px;'>❌</div>", unsafe_allow_html=True)
+                
+                st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Группировка товаров ---
 def group_products(df):
@@ -163,7 +165,7 @@ def group_products(df):
     return grouped
 
 def get_other_colors(df, brand, model_clean, current_color):
-    """Получает другие цвета для данной модели (исключая текущий)"""
+    """Получает другие цвета для данной модели"""
     variants = df[
         (df['brand'] == brand) & 
         (df['model_clean'] == model_clean) &
@@ -174,18 +176,18 @@ def get_other_colors(df, brand, model_clean, current_color):
 # --- Корзина ---
 def add_to_cart(item):
     st.session_state.cart.append(item)
-    st.success(f"✅ Добавлено: {item['brand']} {item['model']} {item['size_us']}US")
+    st.success(f"Добавлено: {item['brand']} {item['model']} {item['size_us']}US")
 
 def display_cart():
     if not st.session_state.cart:
-        st.info("🛒 Корзина пуста")
+        st.info("Корзина пуста")
         return
     
-    st.subheader("🛒 Ваша корзина")
+    st.subheader("Корзина")
     
     total = 0
     for i, item in enumerate(st.session_state.cart):
-        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+        col1, col2, col3 = st.columns([3, 1, 1])
         with col1:
             st.write(f"**{item['brand']} {item['model']}**")
             st.write(f"Цвет: {item['color']}")
@@ -193,7 +195,7 @@ def display_cart():
         with col2:
             st.write(f"{item['price']} ₸")
         with col3:
-            if st.button("🗑️", key=f"remove_{i}"):
+            if st.button("Удалить", key=f"remove_{i}"):
                 st.session_state.cart.pop(i)
                 st.rerun()
         
@@ -201,110 +203,102 @@ def display_cart():
     
     st.markdown(f"**Итого: {total} ₸**")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("📦 Оформить заказ", type="primary"):
-            st.success("🎉 Заказ оформлен! С вами свяжутся для подтверждения.")
-    with col2:
-        if st.button("🗑️ Очистить корзину", type="secondary"):
-            st.session_state.cart = []
-            st.rerun()
+    if st.button("Оформить заказ", type="primary"):
+        st.success("Заказ оформлен! С вами свяжутся для подтверждения.")
 
-# --- Детальная страница товара ---
+# --- Детальная страница товара как на Intertop ---
 def show_product_details(product, other_colors, df):
-    """Показывает детальную информацию о товаре"""
+    """Детальная страница товара в стиле Intertop"""
     
-    # Кнопка назад
-    if st.button("← Назад к каталогу"):
-        st.session_state.selected_product = None
-        st.rerun()
+    # Хлебные крошки
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.markdown(f"**Главная → {product['brand']} → {product['model_clean']}**")
+    with col2:
+        if st.button("← Назад к каталогу"):
+            st.session_state.selected_product = None
+            st.rerun()
     
     st.markdown("---")
     
+    # Основная информация о товаре
     col1, col2 = st.columns([2, 1])
     
     with col1:
         # Фото товара
         image_paths = get_image_paths(product['image'], product['sku'])
-        display_product_photo(image_paths, key_suffix=f"detail_{product['sku']}")
+        display_product_photos(image_paths, key_suffix=f"detail_{product['sku']}")
     
     with col2:
         # Информация о товаре
-        st.markdown(f"**{product['brand']} {product['model_clean']}**")
-        st.write(f"Цвет: {product['color']}")
-        st.write(f"{product['gender']}")
-        
-        # Размеры
-        us_sizes = product['size_us']
-        eu_sizes = product['size_eu']
-        
-        if us_sizes or eu_sizes:
-            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
-            if eu_sizes:
-                sizes_text += f" | EU: {', '.join(eu_sizes)}" if sizes_text else f"EU: {', '.join(eu_sizes)}"
-            st.write(sizes_text)
-        else:
-            st.write("Размеры не указаны")
+        st.markdown(f"## {product['brand']} {product['model_clean']}")
         
         # Цена
         price = product['price']
         if price and str(price).strip() and str(price) != 'nan':
-            st.markdown(f"**{price} ₸**")
+            st.markdown(f"# {price} ₸")
         else:
-            st.write("Цена не указана")
+            st.markdown("### Цена не указана")
+        
+        st.markdown("---")
+        
+        # Цвет
+        st.markdown(f"**Цвет:** {product['color']}")
+        
+        # Другие цвета
+        if not other_colors.empty:
+            st.markdown("**Другие цвета:**")
+            color_cols = st.columns(len(other_colors))
+            for idx, (_, variant) in enumerate(other_colors.iterrows()):
+                with color_cols[idx]:
+                    if st.button(variant['color'], key=f"color_{variant['sku']}", use_container_width=True):
+                        new_other_colors = get_other_colors(df, variant['brand'], variant['model_clean'], variant['color'])
+                        st.session_state.selected_product = {
+                            'product': variant,
+                            'other_colors': new_other_colors
+                        }
+                        st.rerun()
+        
+        st.markdown("---")
+        
+        # Размеры
+        st.markdown("**Выберите размер:**")
+        us_sizes = product['size_us']
+        eu_sizes = product['size_eu']
+        
+        if us_sizes:
+            # Показываем размеры в виде сетки кнопок
+            size_cols = st.columns(4)
+            for i, size in enumerate(us_sizes):
+                with size_cols[i % 4]:
+                    if st.button(f"{size} US", key=f"size_{size}", use_container_width=True):
+                        selected_size = size
+        
+        st.markdown("---")
         
         # Кнопка добавления в корзину
-        if st.button("🛒 Добавить в корзину", use_container_width=True, type="primary"):
+        if st.button("Добавить в корзину", type="primary", use_container_width=True):
+            selected_size = us_sizes[0] if us_sizes else ""
             add_to_cart({
                 'brand': product['brand'],
                 'model': product['model_clean'],
                 'color': product['color'],
-                'size_us': us_sizes[0] if us_sizes else "",
+                'size_us': selected_size,
                 'price': price if price and str(price).strip() else "0"
             })
-    
-    # Другие цвета (только если есть)
-    if not other_colors.empty:
-        st.markdown("---")
-        st.markdown("**Другие цвета:**")
         
-        cols = st.columns(min(len(other_colors), 4))
-        
-        for idx, (_, variant) in enumerate(other_colors.iterrows()):
-            with cols[idx]:
-                variant_images = get_image_paths(variant['image'], variant['sku'])
-                
-                if variant_images:
-                    try:
-                        st.image(variant_images[0], width=100)
-                    except:
-                        st.markdown("""
-                            <div style="text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; color: #999;">
-                                ❌
-                            </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.markdown("""
-                        <div style="text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; color: #999;">
-                            📷
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                st.write(f"{variant['color']}")
-                
-                if st.button("Выбрать", key=f"select_{variant['sku']}", use_container_width=True):
-                    new_other_colors = get_other_colors(df, variant['brand'], variant['model_clean'], variant['color'])
-                    st.session_state.selected_product = {
-                        'product': variant,
-                        'other_colors': new_other_colors
-                    }
-                    st.rerun()
+        # Информация о доставке и возврате
+        with st.expander("Информация о доставке и возврате"):
+            st.write("• Бесплатная доставка от 20 000 ₸")
+            st.write("• Доставка по городу 1-2 дня")
+            st.write("• Легкий возврат в течение 14 дней")
+            st.write("• Гарантия качества")
 
 # --- Основной интерфейс ---
-st.markdown("## 👟 Каталог товаров")
+st.markdown("## Каталог товаров")
 
 # --- Загружаем данные ---
-with st.spinner('🔄 Загрузка каталога...'):
+with st.spinner('Загрузка каталога...'):
     df = load_data()
 
 if df.empty:
@@ -313,14 +307,37 @@ if df.empty:
 
 # --- Боковая панель ---
 with st.sidebar:
-    st.header("🛒 Корзина")
+    st.header("Корзина")
     display_cart()
     
-    st.header("🔍 Поиск")
+    st.header("Поиск")
     search_query = st.text_input("Поиск по названию", "")
     
-    st.header("Настройки")
-    items_per_page = st.slider("Товаров на странице", 8, 32, 16)
+    st.header("Фильтры")
+    
+    # Бренд
+    brands = ["Все бренды"] + sorted(df['brand'].unique().tolist())
+    brand_filter = st.selectbox("Бренд", brands)
+    
+    # Цвет
+    colors = ["Все цвета"] + sorted(df['color'].unique().tolist())
+    color_filter = st.selectbox("Цвет", colors)
+    
+    # Размер
+    sizes = ["Все размеры"] + sorted([s for s in df['size_us'].unique() if s])
+    size_filter = st.selectbox("Размер US", sizes)
+    
+    # Пол
+    genders = ["Все", "men", "women", "unisex"]
+    gender_filter = st.selectbox("Пол", genders)
+    
+    # Сортировка
+    sort_option = st.selectbox("Сортировка", [
+        "По популярности", 
+        "По цене (сначала дешевые)",
+        "По цене (сначала дорогие)",
+        "По новизне"
+    ])
 
 # --- Показываем детальную страницу если товар выбран ---
 if st.session_state.selected_product is not None:
@@ -332,51 +349,27 @@ if st.session_state.selected_product is not None:
 else:
     # --- Обычный каталог ---
     
-    # Фильтры
-    st.markdown("### Фильтр каталога")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    
-    with col1:
-        brands = ["Все"] + sorted(df['brand'].unique().tolist())
-        brand_filter = st.selectbox("Бренд", brands)
-    with col2:
-        if brand_filter != "Все":
-            brand_models = sorted(df[df["brand"] == brand_filter]["model_clean"].unique().tolist())
-        else:
-            brand_models = sorted(df["model_clean"].unique().tolist())
-        model_filter = st.selectbox("Модель", ["Все"] + brand_models)
-    with col3:
-        sizes_us = ["Все"] + sorted([s for s in df['size_us'].unique() if s])
-        size_us_filter = st.selectbox("Размер (US)", sizes_us)
-    with col4:
-        sizes_eu = ["Все"] + sorted([s for s in df['size_eu'].unique() if s])
-        size_eu_filter = st.selectbox("Размер (EU)", sizes_eu)
-    with col5:
-        genders = ["Все", "men", "women", "unisex"]
-        gender_filter = st.selectbox("Пол", genders)
-    with col6:
-        colors = ["Все"] + sorted(df['color'].unique().tolist())
-        color_filter = st.selectbox("Цвет", colors)
-
     # Применяем фильтры
     filtered_df = df.copy()
-    if brand_filter != "Все":
+    if brand_filter != "Все бренды":
         filtered_df = filtered_df[filtered_df['brand'] == brand_filter]
-    if model_filter != "Все":
-        filtered_df = filtered_df[filtered_df['model_clean'] == model_filter]
-    if size_us_filter != "Все":
-        filtered_df = filtered_df[filtered_df['size_us'] == size_us_filter]
-    if size_eu_filter != "Все":
-        filtered_df = filtered_df[filtered_df['size_eu'] == size_eu_filter]
+    if color_filter != "Все цвета":
+        filtered_df = filtered_df[filtered_df['color'] == color_filter]
+    if size_filter != "Все размеры":
+        filtered_df = filtered_df[filtered_df['size_us'] == size_filter]
     if gender_filter != "Все":
         filtered_df = filtered_df[filtered_df['gender'] == gender_filter]
-    if color_filter != "Все":
-        filtered_df = filtered_df[filtered_df['color'] == color_filter]
     if search_query:
         filtered_df = filtered_df[
             filtered_df["model_clean"].str.contains(search_query, case=False, na=False) |
             filtered_df["brand"].str.contains(search_query, case=False, na=False)
         ]
+
+    # Сортировка
+    if sort_option == "По цене (сначала дешевые)":
+        filtered_df = filtered_df.sort_values('price', ascending=True)
+    elif sort_option == "По цене (сначала дорогие)":
+        filtered_df = filtered_df.sort_values('price', ascending=False)
 
     # Группируем товары
     grouped_products = group_products(filtered_df)
@@ -384,7 +377,7 @@ else:
     if grouped_products.empty:
         st.warning("Товары по заданным фильтрам не найдены.")
     else:
-        # Показываем товары
+        # Показываем товары в сетке
         num_cols = 4
         rows = [grouped_products.iloc[i:i+num_cols] for i in range(0, len(grouped_products), num_cols)]
 
@@ -394,39 +387,20 @@ else:
                 with col_idx:
                     # Карточка товара
                     with st.container():
-                        st.markdown(
-                            f"""
-                            <div style="
-                                border:1px solid #eee;
-                                border-radius:16px;
-                                padding:12px;
-                                margin-bottom:16px;
-                                background-color:#fff;
-                                box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                            ">
-                            """,
-                            unsafe_allow_html=True
-                        )
-                        
                         # Фото
                         image_paths = get_image_paths(product['image'], product['sku'])
-                        display_product_photo(image_paths, key_suffix=f"main_{product['sku']}_{i}_{col_idx}")
+                        if image_paths:
+                            try:
+                                st.image(image_paths[0], use_container_width=True)
+                            except:
+                                st.markdown("<div style='height: 200px; background: #f5f5f5; display: flex; align-items: center; justify-content: center;'>Нет фото</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown("<div style='height: 200px; background: #f5f5f5; display: flex; align-items: center; justify-content: center;'>Нет фото</div>", unsafe_allow_html=True)
                         
                         # Информация
-                        st.markdown(f"**{product['brand']} {product['model_clean']}**")
-                        st.write(f"{product['color']} | {product['gender']}")
-                        
-                        # Размеры
-                        us_sizes = product['size_us']
-                        eu_sizes = product['size_eu']
-                        
-                        if us_sizes or eu_sizes:
-                            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
-                            if eu_sizes:
-                                sizes_text += f" | EU: {', '.join(eu_sizes)}" if sizes_text else f"EU: {', '.join(eu_sizes)}"
-                            st.write(sizes_text)
-                        else:
-                            st.write("Размеры не указаны")
+                        st.markdown(f"**{product['brand']}**")
+                        st.markdown(f"*{product['model_clean']}*")
+                        st.write(f"Цвет: {product['color']}")
                         
                         # Цена
                         price = product['price']
@@ -435,16 +409,14 @@ else:
                         else:
                             st.write("Цена не указана")
                         
-                        st.markdown("</div>", unsafe_allow_html=True)
-                    
-                    # Кнопка для детального просмотра
-                    if st.button("Подробнее", key=f"view_{product['sku']}_{i}_{col_idx}", use_container_width=True):
-                        other_colors = get_other_colors(df, product['brand'], product['model_clean'], product['color'])
-                        st.session_state.selected_product = {
-                            'product': product,
-                            'other_colors': other_colors
-                        }
-                        st.rerun()
+                        # Кнопка для детального просмотра
+                        if st.button("Подробнее", key=f"view_{product['sku']}_{i}_{col_idx}", use_container_width=True):
+                            other_colors = get_other_colors(df, product['brand'], product['model_clean'], product['color'])
+                            st.session_state.selected_product = {
+                                'product': product,
+                                'other_colors': other_colors
+                            }
+                            st.rerun()
 
 st.markdown("---")
-st.caption("© DENE Store 2025")
+st.markdown("<div style='text-align: center; color: #666;'>© DENE Store 2024</div>", unsafe_allow_html=True)
