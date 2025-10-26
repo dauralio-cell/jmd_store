@@ -22,12 +22,11 @@ if 'cart' not in st.session_state:
 if 'selected_product' not in st.session_state:
     st.session_state.selected_product = None
 
-# --- Загрузка данных с автоматической проверкой ---
+# --- Загрузка данных ---
 @st.cache_data(ttl=300)
 def load_data():
     try:
         if not os.path.exists(CATALOG_PATH):
-            st.error(f"Файл каталога не найден: {CATALOG_PATH}")
             return pd.DataFrame()
         
         df_nike = pd.read_excel(CATALOG_PATH, sheet_name='Nike')
@@ -60,11 +59,9 @@ def load_data():
             (df['model_clean'].notna()) & (df['model_clean'] != '')
         ]
         
-        st.success(f"✅ Загружено {len(df)} товаров")
         return df
         
     except Exception as e:
-        st.error(f"❌ Ошибка загрузки каталога: {str(e)}")
         return pd.DataFrame()
 
 # --- Функции для изображений ---
@@ -98,7 +95,6 @@ def get_image_paths(image_names, sku):
     return list(dict.fromkeys(image_paths))
 
 def display_product_photo(image_paths, key_suffix=""):
-    """Показывает фото товара с точками для переключения"""
     if not image_paths:
         st.markdown("""
             <div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 12px;">
@@ -119,7 +115,12 @@ def display_product_photo(image_paths, key_suffix=""):
         try:
             st.image(image_paths[selected_index], use_container_width=True)
         except:
-            st.error("❌ Ошибка загрузки изображения")
+            st.markdown("""
+                <div style="text-align: center; padding: 60px; background: #f5f5f5; border-radius: 12px; color: #999;">
+                    <div style="font-size: 36px;">❌</div>
+                    <div>Ошибка загрузки изображения</div>
+                </div>
+            """, unsafe_allow_html=True)
 
     with dots_col:
         st.write("")
@@ -161,81 +162,96 @@ def group_products(df):
     
     return grouped
 
-def get_product_variants(df, brand, model_clean):
-    """Получает все варианты цвета для данной модели"""
+def get_other_colors(df, brand, model_clean, current_color):
+    """Получает другие цвета для данной модели (исключая текущий)"""
     variants = df[
         (df['brand'] == brand) & 
-        (df['model_clean'] == model_clean)
-    ]
+        (df['model_clean'] == model_clean) &
+        (df['color'] != current_color)
+    ].drop_duplicates('color')
     return variants
 
 # --- Корзина ---
 def add_to_cart(item):
     st.session_state.cart.append(item)
-    st.success(f"✅ Добавлено: {item['brand']} {item['model']}")
+    st.success(f"✅ Добавлено: {item['brand']} {item['model']} {item['size_us']}US")
 
 def display_cart():
     if not st.session_state.cart:
         st.info("🛒 Корзина пуста")
         return
     
-    st.subheader("🛒 Корзина")
+    st.subheader("🛒 Ваша корзина")
+    
+    total = 0
     for i, item in enumerate(st.session_state.cart):
-        col1, col2 = st.columns([4, 1])
+        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
         with col1:
             st.write(f"**{item['brand']} {item['model']}**")
-            st.write(f"Цвет: {item['color']} | Размер: {item['size_us']}US")
-            st.write(f"Цена: {item['price']} ₸")
+            st.write(f"Цвет: {item['color']}")
+            st.write(f"Размер: {item['size_us']}US")
         with col2:
+            st.write(f"{item['price']} ₸")
+        with col3:
             if st.button("🗑️", key=f"remove_{i}"):
                 st.session_state.cart.pop(i)
                 st.rerun()
+        
+        total += float(item['price']) if item['price'] and str(item['price']).strip() else 0
     
-    total = sum(float(item['price']) for item in st.session_state.cart if item['price'] and str(item['price']).strip())
     st.markdown(f"**Итого: {total} ₸**")
     
-    if st.button("📦 Оформить заказ"):
-        st.success("🎉 Заказ оформлен!")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📦 Оформить заказ", type="primary"):
+            st.success("🎉 Заказ оформлен! С вами свяжутся для подтверждения.")
+    with col2:
+        if st.button("🗑️ Очистить корзину", type="secondary"):
+            st.session_state.cart = []
+            st.rerun()
 
-# --- Модальное окно товара ---
-def show_product_modal(product, all_variants, df):
-    """Показывает детальную информацию о товаре в модальном окне"""
-    st.markdown("---")
-    st.markdown("### 📦 Детальная информация о товаре")
+# --- Детальная страница товара ---
+def show_product_details(product, other_colors, df):
+    """Показывает детальную информацию о товаре"""
     
-    # Кнопка закрытия
+    # Кнопка назад
     if st.button("← Назад к каталогу"):
         st.session_state.selected_product = None
         st.rerun()
     
+    st.markdown("---")
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Основное фото
+        # Фото товара
         image_paths = get_image_paths(product['image'], product['sku'])
-        display_product_photo(image_paths, key_suffix=f"modal_{product['sku']}")
+        display_product_photo(image_paths, key_suffix=f"detail_{product['sku']}")
     
     with col2:
         # Информация о товаре
-        st.markdown(f"# {product['brand']} {product['model_clean']}")
-        st.markdown(f"**Цвет:** {product['color']}")
-        st.markdown(f"**Пол:** {product['gender']}")
+        st.markdown(f"**{product['brand']} {product['model_clean']}**")
+        st.write(f"Цвет: {product['color']}")
+        st.write(f"{product['gender']}")
         
         # Размеры
         us_sizes = product['size_us']
         eu_sizes = product['size_eu']
         
-        if us_sizes:
-            st.markdown(f"**US размеры:** {', '.join(us_sizes)}")
-        if eu_sizes:
-            st.markdown(f"**EU размеры:** {', '.join(eu_sizes)}")
+        if us_sizes or eu_sizes:
+            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
+            if eu_sizes:
+                sizes_text += f" | EU: {', '.join(eu_sizes)}" if sizes_text else f"EU: {', '.join(eu_sizes)}"
+            st.write(sizes_text)
+        else:
+            st.write("Размеры не указаны")
         
         # Цена
         price = product['price']
         if price and str(price).strip() and str(price) != 'nan':
-            st.markdown(f"# {price} ₸")
+            st.markdown(f"**{price} ₸**")
         else:
-            st.markdown("**Цена:** Не указана")
+            st.write("Цена не указана")
         
         # Кнопка добавления в корзину
         if st.button("🛒 Добавить в корзину", use_container_width=True, type="primary"):
@@ -247,157 +263,186 @@ def show_product_modal(product, all_variants, df):
                 'price': price if price and str(price).strip() else "0"
             })
     
-    # Другие цвета этой модели
-    st.markdown("---")
-    st.markdown("### 🎨 Другие цвета этой модели")
-    
-    if len(all_variants) > 1:
-        cols = st.columns(min(len(all_variants), 4))
+    # Другие цвета (только если есть)
+    if not other_colors.empty:
+        st.markdown("---")
+        st.markdown("**Другие цвета:**")
         
-        for idx, (_, variant) in enumerate(all_variants.iterrows()):
-            with cols[idx % 4]:
-                # Миниатюра цвета
+        cols = st.columns(min(len(other_colors), 4))
+        
+        for idx, (_, variant) in enumerate(other_colors.iterrows()):
+            with cols[idx]:
                 variant_images = get_image_paths(variant['image'], variant['sku'])
                 
                 if variant_images:
                     try:
-                        st.image(variant_images[0], use_container_width=True)
+                        st.image(variant_images[0], width=100)
                     except:
                         st.markdown("""
-                            <div style="text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px;">
+                            <div style="text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; color: #999;">
                                 ❌
                             </div>
                         """, unsafe_allow_html=True)
                 else:
                     st.markdown("""
-                        <div style="text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px;">
+                        <div style="text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; color: #999;">
                             📷
                         </div>
                     """, unsafe_allow_html=True)
                 
-                st.markdown(f"**{variant['color']}**")
+                st.write(f"{variant['color']}")
                 
-                # Кнопка переключения на этот цвет
-                if st.button(f"Выбрать {variant['color']}", key=f"variant_{variant['sku']}", use_container_width=True):
+                if st.button("Выбрать", key=f"select_{variant['sku']}", use_container_width=True):
+                    new_other_colors = get_other_colors(df, variant['brand'], variant['model_clean'], variant['color'])
                     st.session_state.selected_product = {
                         'product': variant,
-                        'all_variants': all_variants
+                        'other_colors': new_other_colors
                     }
                     st.rerun()
-    else:
-        st.info("Другие цвета для этой модели не найдены")
 
 # --- Основной интерфейс ---
 st.markdown("## 👟 Каталог товаров")
 
-col1, col2 = st.columns([3, 1])
-with col2:
-    if st.button("🔄 Обновить каталог"):
-        st.cache_data.clear()
-        st.rerun()
-
 # --- Загружаем данные ---
-with st.spinner("📥 Загрузка каталога..."):
+with st.spinner('🔄 Загрузка каталога...'):
     df = load_data()
 
 if df.empty:
     st.error("Каталог пуст или не загружен")
     st.stop()
 
-# --- Показываем модальное окно если товар выбран ---
+# --- Боковая панель ---
+with st.sidebar:
+    st.header("🛒 Корзина")
+    display_cart()
+    
+    st.header("🔍 Поиск")
+    search_query = st.text_input("Поиск по названию", "")
+    
+    st.header("Настройки")
+    items_per_page = st.slider("Товаров на странице", 8, 32, 16)
+
+# --- Показываем детальную страницу если товар выбран ---
 if st.session_state.selected_product is not None:
-    show_product_modal(
+    show_product_details(
         st.session_state.selected_product['product'], 
-        st.session_state.selected_product['all_variants'],
+        st.session_state.selected_product['other_colors'],
         df
     )
 else:
     # --- Обычный каталог ---
-    with st.sidebar:
-        st.header("📊 Информация")
-        st.write(f"Всего товаров: {len(df)}")
-        st.write(f"Бренды: {len(df['brand'].unique())}")
-        st.write(f"Модели: {len(df['model_clean'].unique())}")
-
-    # --- Фильтры ---
-    st.markdown("### 🔍 Фильтры")
-    col1, col2, col3, col4 = st.columns(4)
+    
+    # Фильтры
+    st.markdown("### Фильтр каталога")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    
     with col1:
         brands = ["Все"] + sorted(df['brand'].unique().tolist())
         brand_filter = st.selectbox("Бренд", brands)
     with col2:
+        if brand_filter != "Все":
+            brand_models = sorted(df[df["brand"] == brand_filter]["model_clean"].unique().tolist())
+        else:
+            brand_models = sorted(df["model_clean"].unique().tolist())
+        model_filter = st.selectbox("Модель", ["Все"] + brand_models)
+    with col3:
+        sizes_us = ["Все"] + sorted([s for s in df['size_us'].unique() if s])
+        size_us_filter = st.selectbox("Размер (US)", sizes_us)
+    with col4:
+        sizes_eu = ["Все"] + sorted([s for s in df['size_eu'].unique() if s])
+        size_eu_filter = st.selectbox("Размер (EU)", sizes_eu)
+    with col5:
+        genders = ["Все", "men", "women", "unisex"]
+        gender_filter = st.selectbox("Пол", genders)
+    with col6:
         colors = ["Все"] + sorted(df['color'].unique().tolist())
         color_filter = st.selectbox("Цвет", colors)
-    with col3:
-        genders = ["Все"] + sorted(df['gender'].unique().tolist())
-        gender_filter = st.selectbox("Пол", genders)
-    with col4:
-        sizes = ["Все"] + sorted([s for s in df['size_us'].unique() if s])
-        size_filter = st.selectbox("Размер US", sizes)
 
-    # --- Применяем фильтры ---
+    # Применяем фильтры
     filtered_df = df.copy()
     if brand_filter != "Все":
         filtered_df = filtered_df[filtered_df['brand'] == brand_filter]
-    if color_filter != "Все":
-        filtered_df = filtered_df[filtered_df['color'] == color_filter]
+    if model_filter != "Все":
+        filtered_df = filtered_df[filtered_df['model_clean'] == model_filter]
+    if size_us_filter != "Все":
+        filtered_df = filtered_df[filtered_df['size_us'] == size_us_filter]
+    if size_eu_filter != "Все":
+        filtered_df = filtered_df[filtered_df['size_eu'] == size_eu_filter]
     if gender_filter != "Все":
         filtered_df = filtered_df[filtered_df['gender'] == gender_filter]
-    if size_filter != "Все":
-        filtered_df = filtered_df[filtered_df['size_us'] == size_filter]
+    if color_filter != "Все":
+        filtered_df = filtered_df[filtered_df['color'] == color_filter]
+    if search_query:
+        filtered_df = filtered_df[
+            filtered_df["model_clean"].str.contains(search_query, case=False, na=False) |
+            filtered_df["brand"].str.contains(search_query, case=False, na=False)
+        ]
 
-    # --- Группируем отфильтрованные товары ---
+    # Группируем товары
     grouped_products = group_products(filtered_df)
 
     if grouped_products.empty:
-        st.warning("🚫 Товары по выбранным фильтрам не найдены")
+        st.warning("Товары по заданным фильтрам не найдены.")
     else:
-        st.success(f"🎯 Найдено {len(grouped_products)} товаров")
-        
         # Показываем товары
         num_cols = 4
-        for i in range(0, len(grouped_products), num_cols):
+        rows = [grouped_products.iloc[i:i+num_cols] for i in range(0, len(grouped_products), num_cols)]
+
+        for i, row_df in enumerate(rows):
             cols = st.columns(num_cols)
-            batch = grouped_products.iloc[i:i+num_cols]
-            
-            for col_idx, (_, product) in zip(cols, batch.iterrows()):
+            for col_idx, (_, product) in zip(cols, row_df.iterrows()):
                 with col_idx:
-                    # Карточка товара (кликабельная)
-                    st.markdown("""
-                        <div style="border: 1px solid #ddd; border-radius: 10px; padding: 15px; margin: 10px 0; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" onclick="this.nextElementSibling.querySelector('button').click()">
-                    """, unsafe_allow_html=True)
+                    # Карточка товара
+                    with st.container():
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border:1px solid #eee;
+                                border-radius:16px;
+                                padding:12px;
+                                margin-bottom:16px;
+                                background-color:#fff;
+                                box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                            ">
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        # Фото
+                        image_paths = get_image_paths(product['image'], product['sku'])
+                        display_product_photo(image_paths, key_suffix=f"main_{product['sku']}_{i}_{col_idx}")
+                        
+                        # Информация
+                        st.markdown(f"**{product['brand']} {product['model_clean']}**")
+                        st.write(f"{product['color']} | {product['gender']}")
+                        
+                        # Размеры
+                        us_sizes = product['size_us']
+                        eu_sizes = product['size_eu']
+                        
+                        if us_sizes or eu_sizes:
+                            sizes_text = f"US: {', '.join(us_sizes)}" if us_sizes else ""
+                            if eu_sizes:
+                                sizes_text += f" | EU: {', '.join(eu_sizes)}" if sizes_text else f"EU: {', '.join(eu_sizes)}"
+                            st.write(sizes_text)
+                        else:
+                            st.write("Размеры не указаны")
+                        
+                        # Цена
+                        price = product['price']
+                        if price and str(price).strip() and str(price) != 'nan':
+                            st.markdown(f"**{price} ₸**")
+                        else:
+                            st.write("Цена не указана")
+                        
+                        st.markdown("</div>", unsafe_allow_html=True)
                     
-                    # Фото
-                    image_paths = get_image_paths(product['image'], product['sku'])
-                    display_product_photo(image_paths, key_suffix=f"main_{product['sku']}_{i}_{col_idx}")
-                    
-                    # Информация
-                    st.markdown(f"**{product['brand']} {product['model_clean']}**")
-                    st.write(f"🎨 {product['color']}")
-                    st.write(f"👫 {product['gender']}")
-                    
-                    # Размеры
-                    us_sizes = product['size_us']
-                    eu_sizes = product['size_eu']
-                    
-                    if us_sizes:
-                        st.write(f"👟 US: {', '.join(us_sizes[:3])}{'...' if len(us_sizes) > 3 else ''}")
-                    
-                    # Цена
-                    price = product['price']
-                    if price and str(price).strip() and str(price) != 'nan':
-                        st.markdown(f"**💰 {price} ₸**")
-                    else:
-                        st.write("💵 Цена не указана")
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    
-                    # Невидимая кнопка для открытия модального окна
-                    if st.button("📖 Подробнее", key=f"details_{product['sku']}_{i}_{col_idx}", use_container_width=True):
-                        all_variants = get_product_variants(df, product['brand'], product['model_clean'])
+                    # Кнопка для детального просмотра
+                    if st.button("Подробнее", key=f"view_{product['sku']}_{i}_{col_idx}", use_container_width=True):
+                        other_colors = get_other_colors(df, product['brand'], product['model_clean'], product['color'])
                         st.session_state.selected_product = {
                             'product': product,
-                            'all_variants': all_variants
+                            'other_colors': other_colors
                         }
                         st.rerun()
 
