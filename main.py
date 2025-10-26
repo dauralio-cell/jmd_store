@@ -1,666 +1,299 @@
+# main.py
 import streamlit as st
 import pandas as pd
-import glob
 import os
+import glob
 import re
-from PIL import Image
 
-# --- Настройки страницы ---
-st.set_page_config(
-    page_title="DENE Store", 
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# --- CSS стили ---
-st.markdown("""
-<style>
-    /* Основные стили */
-    .main {
-        background-color: #ffffff;
-    }
-    
-    /* Хедер */
-    .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        border-radius: 0 0 15px 15px;
-    }
-    
-    /* Карточки товаров - ФИКСИРОВАННЫЕ */
-    .product-card {
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 20px;
-        background: white;
-        transition: all 0.3s ease;
-        height: auto;
-        min-height: 400px;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    
-    .product-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-        border-color: #667eea;
-    }
-    
-    /* Контейнер для изображения */
-    .image-container {
-        height: 200px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 12px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    
-    /* Кнопки */
-    .stButton button {
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        border: none;
-    }
-    
-    .primary-btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        color: white !important;
-    }
-    
-    .secondary-btn {
-        background: #f8f9fa !important;
-        color: #333 !important;
-        border: 1px solid #dee2e6 !important;
-    }
-    
-    /* Цены */
-    .price {
-        font-size: 1.25rem;
-        font-weight: bold;
-        color: #2c5530;
-        margin: 8px 0;
-    }
-    
-    /* Текст */
-    .product-brand {
-        font-weight: bold;
-        font-size: 1.1rem;
-        margin-bottom: 4px;
-        color: #333;
-    }
-    
-    .product-model {
-        font-weight: 600;
-        font-size: 1rem;
-        margin-bottom: 4px;
-        color: #555;
-    }
-    
-    .product-color {
-        color: #666;
-        font-style: italic;
-        margin-bottom: 8px;
-    }
-    
-    .sizes {
-        color: #888;
-        font-size: 0.9rem;
-        margin-bottom: 12px;
-    }
-    
-    /* Фильтры */
-    .filter-section {
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 12px;
-        margin-bottom: 2rem;
-        border: 1px solid #e9ecef;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# --- Обложка ---
-st.markdown("""
-<div class="header">
-    <div style="text-align:center; color:white;">
-        <h1 style="margin:0; font-size:2.5rem;">DENE STORE</h1>
-        <p style="margin:0; opacity:0.9; font-size:1.2rem;">Премиальные кроссовки и спортивная обувь</p>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# --- Пути ---
+# -------------- Настройки --------------
+st.set_page_config(page_title="DENE Store", layout="wide")
 CATALOG_PATH = "data/catalog.xlsx"
-IMAGES_PATH = "data/images"
+IMAGES_ROOT = "data/images"
+NO_IMAGE_PATH = os.path.join(IMAGES_ROOT, "no_image.jpg")
 
-# --- Инициализация сессии ---
-if 'cart' not in st.session_state:
-    st.session_state.cart = []
-if 'selected_product' not in st.session_state:
-    st.session_state.selected_product = None
-if 'current_tab' not in st.session_state:
-    st.session_state.current_tab = "Каталог"
-
-# --- Навигационные табы ---
-tabs = st.columns(5)
-with tabs[0]:
-    if st.button("🏠 Главная", use_container_width=True, type="primary" if st.session_state.current_tab == "Главная" else "secondary"):
-        st.session_state.current_tab = "Главная"
-        st.rerun()
-with tabs[1]:
-    if st.button("👟 Каталог", use_container_width=True, type="primary" if st.session_state.current_tab == "Каталог" else "secondary"):
-        st.session_state.current_tab = "Каталог"
-        st.rerun()
-with tabs[2]:
-    if st.button("🔥 Новинки", use_container_width=True, type="primary" if st.session_state.current_tab == "Новинки" else "secondary"):
-        st.session_state.current_tab = "Новинки"
-        st.rerun()
-with tabs[3]:
-    if st.button("🏷️ Акции", use_container_width=True, type="primary" if st.session_state.current_tab == "Акции" else "secondary"):
-        st.session_state.current_tab = "Акции"
-        st.rerun()
-with tabs[4]:
-    cart_count = len(st.session_state.cart)
-    badge_text = f"🛒 Корзина ({cart_count})" if cart_count > 0 else "🛒 Корзина"
-    if st.button(badge_text, use_container_width=True, type="primary" if st.session_state.current_tab == "Корзина" else "secondary"):
-        st.session_state.current_tab = "Корзина"
-        st.rerun()
-
-st.markdown("---")
-
-# --- Загрузка данных ---
-@st.cache_data(ttl=300)
-def load_data():
-    try:
-        if not os.path.exists(CATALOG_PATH):
-            st.error("Файл каталога не найден")
-            return pd.DataFrame()
-        
-        df_nike = pd.read_excel(CATALOG_PATH, sheet_name='Nike')
-        df_mizuno = pd.read_excel(CATALOG_PATH, sheet_name='Mizuno')
-        
-        df = pd.concat([df_nike, df_mizuno], ignore_index=True)
-        
-        # Заполнение пропущенных значений
-        columns_to_fill = ['brand', 'model', 'color', 'gender', 'image']
-        for col in columns_to_fill:
-            if col in df.columns:
-                df[col] = df[col].fillna(method='ffill').fillna('')
-        
-        # Очистка названий моделей
-        df["model_clean"] = df["model"].apply(lambda x: re.sub(r'\([^)]*\)', '', str(x))).str.strip()
-        
-        # Обработка размеров
-        size_columns = ['size US', 'size EU', 'size_US', 'size_EU']
-        for size_col in size_columns:
-            if size_col in df.columns:
-                if 'US' in size_col:
-                    df["size_us"] = df[size_col].fillna("").astype(str).str.strip()
-                elif 'EU' in size_col:
-                    df["size_eu"] = df[size_col].fillna("").astype(str).str.strip()
-        
-        if 'size_us' not in df.columns:
-            df['size_us'] = ''
-        if 'size_eu' not in df.columns:
-            df['size_eu'] = ''
-        
-        # Фильтрация валидных данных
-        df = df[
-            (df['brand'].notna()) & (df['brand'] != '') &
-            (df['model_clean'].notna()) & (df['model_clean'] != '')
-        ]
-        
-        return df
-        
-    except Exception as e:
-        st.error(f"Ошибка загрузки данных: {e}")
-        return pd.DataFrame()
-
-# --- Функции для изображений ---
-def get_image_paths(image_names, sku):
-    image_paths = []
-    
-    if pd.notna(image_names) and image_names != "":
-        for image_name in str(image_names).split():
-            patterns = [
-                os.path.join(IMAGES_PATH, "**", f"{image_name}.*"),
-                os.path.join(IMAGES_PATH, "**", f"{image_name}.jpg"),
-            ]
-            for pattern in patterns:
-                found = glob.glob(pattern, recursive=True)
-                if found:
-                    image_paths.extend(found)
-                    break
-    
-    if pd.notna(sku) and sku != "":
-        patterns = [
-            os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg"),
-            os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp"),
-        ]
-        for pattern in patterns:
-            found = glob.glob(pattern, recursive=True)
-            if found:
-                for img in found:
-                    if img not in image_paths:
-                        image_paths.append(img)
-    
-    return list(dict.fromkeys(image_paths))
-
-def display_product_image(image_paths, key_suffix=""):
-    """Улучшенное отображение изображения товара"""
-    if not image_paths:
-        st.markdown("""
-            <div class="image-container">
-                <div style="text-align: center; color: #999;">
-                    <div style="font-size: 48px;">👟</div>
-                    <div>Нет изображения</div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        return None
-    
-    if f"selected_{key_suffix}" not in st.session_state:
-        st.session_state[f"selected_{key_suffix}"] = 0
-    
-    selected_index = st.session_state[f"selected_{key_suffix}"]
-    
-    try:
-        img = Image.open(image_paths[selected_index])
-        # Ресайзим изображение для единообразия
-        img.thumbnail((300, 200))
-        st.image(img, use_container_width=True)
-        return True
-    except Exception as e:
-        st.markdown("""
-            <div class="image-container">
-                <div style="text-align: center; color: #999;">
-                    <div style="font-size: 48px;">❌</div>
-                    <div>Ошибка загрузки</div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        return False
-
-# --- Группировка товаров ---
-def group_products(df):
-    if df.empty:
-        return pd.DataFrame()
-    
-    df_clean = df[
-        (df['brand'].notna()) & (df['brand'] != '') &
-        (df['model_clean'].notna()) & (df['model_clean'] != '') &
-        (df['color'].notna()) & (df['color'] != '')
-    ].copy()
-    
-    if df_clean.empty:
-        return pd.DataFrame()
-    
-    grouped = df_clean.groupby(['brand', 'model_clean', 'color']).agg({
-        'sku': 'first',
-        'image': 'first', 
-        'gender': 'first',
-        'price': 'first',
-        'size_us': lambda x: [str(s) for s in x if s and str(s).strip() != ""],
-        'size_eu': lambda x: [str(s) for s in x if s and str(s).strip() != ""]
-    }).reset_index()
-    
-    return grouped
-
-def get_other_colors(df, brand, model_clean, current_color):
-    variants = df[
-        (df['brand'] == brand) & 
-        (df['model_clean'] == model_clean) &
-        (df['color'] != current_color)
-    ].drop_duplicates('color')
-    return variants
-
-# --- Корзина ---
-def add_to_cart(item):
-    st.session_state.cart.append(item)
-    st.success(f"✅ {item['brand']} {item['model']} добавлен в корзину")
-
-def display_cart_page():
-    st.markdown("## 🛒 Корзина покупок")
-    
-    if not st.session_state.cart:
-        st.info("""
-        ### Ваша корзина пуста
-        Перейдите в каталог, чтобы добавить товары
-        """)
-        if st.button("Вернуться в каталог"):
-            st.session_state.current_tab = "Каталог"
-            st.rerun()
-        return
-    
-    total = 0
-    for i, item in enumerate(st.session_state.cart):
-        with st.container():
-            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-            with col1:
-                st.markdown(f"**{item['brand']} {item['model']}**")
-                st.markdown(f"Цвет: {item['color']} | Размер: {item['size_us']}US")
-            with col2:
-                st.markdown(f"**{item['price']} ₸**")
-            with col3:
-                st.markdown("Кол-во: 1")
-            with col4:
-                if st.button("🗑️ Удалить", key=f"remove_{i}"):
-                    st.session_state.cart.pop(i)
-                    st.rerun()
-        
-        total += float(item['price']) if item['price'] and str(item['price']).strip() else 0
-    
-    st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"### Итого: {total:,.0f} ₸")
-    with col2:
-        if st.button("📦 Оформить заказ", type="primary", use_container_width=True):
-            st.success("🎉 Заказ оформлен! С вами свяжутся для подтверждения.")
-            st.session_state.cart = []
-    
-    if st.button("🗑️ Очистить корзину", type="secondary"):
-        st.session_state.cart = []
-        st.rerun()
-
-# --- Детальная страница товара ---
-def show_product_details(product, other_colors, df):
-    st.markdown("### Детали товара")
-    
-    if st.button("← Назад к каталогу"):
-        st.session_state.selected_product = None
-        st.rerun()
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        image_paths = get_image_paths(product['image'], product['sku'])
-        display_product_image(image_paths, key_suffix=f"detail_{product['sku']}")
-    
-    with col2:
-        st.markdown(f"## {product['brand']} {product['model_clean']}")
-        st.markdown(f"**Цвет:** {product['color']}")
-        st.markdown(f"**Пол:** {product['gender']}")
-        
-        # Размеры
-        us_sizes = product['size_us']
-        eu_sizes = product['size_eu']
-        
-        if us_sizes:
-            selected_size = st.selectbox("Выберите размер (US):", us_sizes)
+# -------------- Утилиты --------------
+def find_images_by_name(name):
+    """Ищет рекурсивно файлы, имя без расширения или с шаблоном.
+       name может быть '100001_1' или '100001_1.jpg' или '100001_1 100001_2'."""
+    if not name or str(name).strip() == "":
+        return []
+    # split possible multiple names separated by comma/space/;
+    parts = re.split(r"[,\s;]+", str(name).strip())
+    found = []
+    exts = ["jpg", "jpeg", "png", "webp"]
+    for p in parts:
+        if not p:
+            continue
+        # if p contains extension, search exact pattern
+        base, ext = os.path.splitext(p)
+        if ext:
+            patt = os.path.join(IMAGES_ROOT, "**", p)
+            found += glob.glob(patt, recursive=True)
         else:
-            selected_size = "Не указан"
-            st.warning("Размеры не указаны")
-        
-        # Цена
-        price = product['price']
-        if price and str(price).strip() and str(price) != 'nan':
-            st.markdown(f'<div class="price">{price} ₸</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="price">Цена не указана</div>', unsafe_allow_html=True)
-        
-        # Кнопка добавления в корзину
-        if st.button("🛒 Добавить в корзину", use_container_width=True, type="primary"):
-            add_to_cart({
-                'brand': product['brand'],
-                'model': product['model_clean'],
-                'color': product['color'],
-                'size_us': selected_size,
-                'price': price if price and str(price).strip() else "0"
-            })
-    
-    # Другие цвета
-    if not other_colors.empty:
-        st.markdown("---")
-        st.markdown("### Другие цвета")
-        
-        cols = st.columns(min(len(other_colors), 4))
-        
-        for idx, (_, variant) in enumerate(other_colors.iterrows()):
-            with cols[idx]:
-                with st.container():
-                    st.markdown('<div class="product-card">', unsafe_allow_html=True)
-                    
-                    variant_images = get_image_paths(variant['image'], variant['sku'])
-                    display_product_image(variant_images, key_suffix=f"variant_{variant['sku']}")
-                    
-                    st.markdown(f'<div class="product-color">{variant["color"]}</div>', unsafe_allow_html=True)
-                    
-                    variant_price = variant['price']
-                    if variant_price and str(variant_price).strip():
-                        st.markdown(f'<div class="price">{variant_price} ₸</div>', unsafe_allow_html=True)
-                    
-                    if st.button("Выбрать", key=f"select_{variant['sku']}", use_container_width=True):
-                        new_other_colors = get_other_colors(df, variant['brand'], variant['model_clean'], variant['color'])
-                        st.session_state.selected_product = {
-                            'product': variant,
-                            'other_colors': new_other_colors
-                        }
-                        st.rerun()
-                    
-                    st.markdown('</div>', unsafe_allow_html=True)
+            # try with extensions
+            for e in exts:
+                patt = os.path.join(IMAGES_ROOT, "**", f"{p}.{e}")
+                found += glob.glob(patt, recursive=True)
+            # also try files starting with p (e.g. p_1, p_2)
+            for e in exts:
+                patt = os.path.join(IMAGES_ROOT, "**", f"{p}_*.{e}")
+                found += glob.glob(patt, recursive=True)
+    # unique and sorted
+    uniq = []
+    for f in found:
+        if f not in uniq:
+            uniq.append(f)
+    return uniq
 
-# --- Главная страница ---
-def show_home_page():
-    st.markdown("""
-    ## 🏠 Добро пожаловать в DENE Store!
-    
-    ### Лучшие предложения недели
-    """)
-    
-    # Промо-блоки
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 12px; text-align: center;">
-            <h3>🚀 Новинки</h3>
-            <p>Самые свежие модели сезона</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 2rem; border-radius: 12px; text-align: center;">
-            <h3>🔥 Распродажа</h3>
-            <p>Скидки до 50%</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 2rem; border-radius: 12px; text-align: center;">
-            <h3>⭐ Бестселлеры</h3>
-            <p>Самые популярные модели</p>
-        </div>
-        """, unsafe_allow_html=True)
+def first_image_for_row(row):
+    # Prefer entries from 'image' column, else try SKU based
+    img_col_candidates = [c for c in row.index if str(c).lower() == "image" or str(c).lower() == "images"]
+    images = []
+    if img_col_candidates:
+        raw = row[img_col_candidates[0]]
+        images = find_images_by_name(raw)
+    if not images:
+        # try SKU
+        sku_cols = [c for c in row.index if str(c).lower() == "sku"]
+        if sku_cols:
+            sku = row[sku_cols[0]]
+            if pd.notna(sku) and str(sku).strip() != "":
+                # match by prefix SKU_*
+                images = find_images_by_name(str(int(sku)) if isinstance(sku, (int,float)) and not pd.isna(sku) else str(sku))
+    return images if images else [NO_IMAGE_PATH]
 
-# --- Улучшенное отображение карточки товара ---
-def display_product_card(product, df, col_idx, row_idx):
-    """Отображение карточки товара без артефактов"""
-    
-    with st.container():
-        # Используем чистый HTML контейнер вместо сложных CSS
-        st.markdown("""
-        <div style='
-            border: 1px solid #e0e0e0; 
-            border-radius: 12px; 
-            padding: 16px; 
-            margin-bottom: 20px; 
-            background: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-            height: auto;
-        '>
-        """, unsafe_allow_html=True)
-        
-        # Изображение товара
-        image_paths = get_image_paths(product['image'], product['sku'])
-        display_product_image(image_paths, key_suffix=f"card_{product['sku']}_{row_idx}_{col_idx}")
-        
-        # Информация о товаре
-        st.markdown(f"<div class='product-brand'>{product['brand']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='product-model'>{product['model_clean']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='product-color'>{product['color']}</div>", unsafe_allow_html=True)
-        
-        # Размеры
-        us_sizes = product['size_us']
-        if us_sizes:
-            sizes_display = ', '.join(us_sizes[:3]) + ('...' if len(us_sizes) > 3 else '')
-            st.markdown(f"<div class='sizes'>Размеры US: {sizes_display}</div>", unsafe_allow_html=True)
-        
-        # Цена
-        price = product['price']
-        if price and str(price).strip() and str(price) != 'nan':
-            st.markdown(f"<div class='price'>{price} ₸</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<div style='color: #999; margin: 8px 0;'>Цена не указана</div>", unsafe_allow_html=True)
-        
-        # Кнопки
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("👀 Подробнее", key=f"view_{product['sku']}_{row_idx}_{col_idx}", 
-                       use_container_width=True, type="secondary"):
-                other_colors = get_other_colors(df, product['brand'], product['model_clean'], product['color'])
-                st.session_state.selected_product = {
-                    'product': product,
-                    'other_colors': other_colors
-                }
-                st.rerun()
-        
-        with col_btn2:
-            if st.button("🛒 Купить", key=f"buy_{product['sku']}_{row_idx}_{col_idx}", 
-                       use_container_width=True, type="primary"):
-                add_to_cart({
-                    'brand': product['brand'],
-                    'model': product['model_clean'],
-                    'color': product['color'],
-                    'size_us': us_sizes[0] if us_sizes else "",
-                    'price': price if price and str(price).strip() else "0"
-                })
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+def normalize_colnames(df):
+    # make common names lower-case with underscores
+    mapping = {}
+    for c in df.columns:
+        cl = c.strip()
+        cl_l = cl.lower().replace(" ", "_")
+        mapping[c] = cl_l
+    df = df.rename(columns=mapping)
+    return df
 
-# --- Каталог товаров ---
-def show_catalog_page():
-    st.markdown("## 👟 Каталог товаров")
-    
-    # Загружаем данные
-    with st.spinner('🔄 Загрузка каталога...'):
-        df = load_data()
-    
-    if df.empty:
-        st.error("Каталог пуст или не загружен")
-        return
-    
-    # Фильтры
-    with st.container():
-        st.markdown('<div class="filter-section">', unsafe_allow_html=True)
-        st.markdown("### 🔍 Поиск и фильтры")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            brands = ["Все бренды"] + sorted(df['brand'].unique().tolist())
-            brand_filter = st.selectbox("Бренд", brands)
-        
-        with col2:
-            if brand_filter != "Все бренды":
-                brand_models = sorted(df[df["brand"] == brand_filter]["model_clean"].unique().tolist())
-            else:
-                brand_models = sorted(df["model_clean"].unique().tolist())
-            model_filter = st.selectbox("Модель", ["Все модели"] + brand_models)
-        
-        with col3:
-            sizes_us = ["Все размеры"] + sorted([s for s in df['size_us'].unique() if s])
-            size_us_filter = st.selectbox("Размер US", sizes_us)
-        
-        with col4:
-            colors = ["Все цвета"] + sorted(df['color'].unique().tolist())
-            color_filter = st.selectbox("Цвет", colors)
-        
-        search_query = st.text_input("Поиск по названию...", placeholder="Введите название модели или бренда")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Применяем фильтры
-    filtered_df = df.copy()
-    if brand_filter != "Все бренды":
-        filtered_df = filtered_df[filtered_df['brand'] == brand_filter]
-    if model_filter != "Все модели":
-        filtered_df = filtered_df[filtered_df['model_clean'] == model_filter]
-    if size_us_filter != "Все размеры":
-        filtered_df = filtered_df[filtered_df['size_us'] == size_us_filter]
-    if color_filter != "Все цвета":
-        filtered_df = filtered_df[filtered_df['color'] == color_filter]
-    if search_query:
-        filtered_df = filtered_df[
-            filtered_df["model_clean"].str.contains(search_query, case=False, na=False) |
-            filtered_df["brand"].str.contains(search_query, case=False, na=False)
-        ]
-    
-    # Группируем товары
-    grouped_products = group_products(filtered_df)
-    
-    if grouped_products.empty:
-        st.warning("😔 Товары по заданным фильтрам не найдены.")
-        st.info("Попробуйте изменить параметры фильтрации")
-    else:
-        st.markdown(f"### Найдено товаров: {len(grouped_products)}")
-        
-        # Отображение товаров в сетке 4 колонки
-        num_cols = 4
-        rows = [grouped_products.iloc[i:i+num_cols] for i in range(0, len(grouped_products), num_cols)]
-        
-        for row_idx, row_df in enumerate(rows):
-            cols = st.columns(num_cols)
-            for col_idx, (_, product) in zip(cols, row_df.iterrows()):
-                with col_idx:
-                    display_product_card(product, df, col_idx, row_idx)
+def clean_model_name(s: str):
+    if s is None or str(s).strip() == "":
+        return ""
+    s = str(s)
+    # remove content in parentheses (article) and trailing SKU-like tokens
+    s = re.sub(r"\(.*?\)", "", s).strip()
+    s = re.sub(r"\s+\-?\s*\w+$", lambda m: m.group(0) if len(m.group(0).strip())>3 else "", s).strip()
+    return s
 
-# --- Основная логика приложения ---
-def main():
-    # Показываем детальную страницу если товар выбран
-    if st.session_state.selected_product is not None:
-        show_product_details(
-            st.session_state.selected_product['product'], 
-            st.session_state.selected_product['other_colors'],
-            load_data()
-        )
-    else:
-        # Показываем соответствующую страницу по табу
-        if st.session_state.current_tab == "Главная":
-            show_home_page()
-            # Показываем часть каталога на главной
-            st.markdown("---")
-            st.markdown("## 🎯 Популярные товары")
-            show_catalog_page()
-        elif st.session_state.current_tab == "Каталог":
-            show_catalog_page()
-        elif st.session_state.current_tab == "Новинки":
-            st.markdown("## 🔥 Новинки")
-            show_catalog_page()
-        elif st.session_state.current_tab == "Акции":
-            st.markdown("## 🏷️ Акции и скидки")
-            st.info("Скоро появятся специальные предложения!")
-            show_catalog_page()
-        elif st.session_state.current_tab == "Корзина":
-            display_cart_page()
-    
-    # Футер
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #666; padding: 2rem;">
-        <p>© 2025 DENE Store. Все права защищены.</p>
-    </div>
-    """, unsafe_allow_html=True)
+# -------------- Загрузка данных (все листы) --------------
+@st.cache_data(show_spinner=False)
+def load_catalog(path):
+    if not os.path.exists(path):
+        st.error(f"Файл каталога не найден: {path}")
+        return pd.DataFrame()
+    xls = pd.ExcelFile(path)
+    df_list = []
+    for sheet in xls.sheet_names:
+        tmp = pd.read_excel(xls, sheet_name=sheet)
+        if tmp.empty:
+            continue
+        tmp = normalize_colnames(tmp)
+        # ensure brand exists (sheet name as fallback)
+        if "brand" not in tmp.columns or tmp["brand"].isnull().all():
+            tmp["brand"] = sheet
+        tmp["__sheet_name"] = sheet
+        df_list.append(tmp)
+    if not df_list:
+        return pd.DataFrame()
+    df = pd.concat(df_list, ignore_index=True, sort=False)
+    # ensure important columns exist
+    for col in ["sku", "model", "gender", "color", "image", "price", "preorder", "in_stock", "description", "size_us", "size_eu", "sizes"]:
+        if col not in df.columns:
+            df[col] = ""
+    # clean and prepare
+    df["model_clean"] = df["model"].apply(clean_model_name)
+    # sizes fallback: if 'sizes' has comma-separated EU sizes try split into sizes list
+    # We'll keep size_us and size_eu columns if present, else try to parse from 'sizes'
+    df["size_eu"] = df["size_eu"].fillna("")
+    df["size_us"] = df["size_us"].fillna("")
+    # if size_eu empty and sizes column present, try to extract numbers like 40,41.5 etc.
+    def sizes_from_field(r):
+        if r["size_eu"] and str(r["size_eu"]).strip() != "":
+            return r["size_eu"]
+        s = str(r.get("sizes","") or "")
+        if s:
+            # return comma-separated list cleaned
+            parts = re.split(r"[,\s;]+", s.strip())
+            parts = [p for p in parts if p]
+            return ",".join(parts)
+        return ""
+    df["size_eu"] = df.apply(sizes_from_field, axis=1)
+    # price as number if possible
+    def parse_price(x):
+        if pd.isna(x) or str(x).strip()=="":
+            return None
+        try:
+            return float(str(x).replace(" ", "").replace("₸","").replace(",",""))
+        except:
+            return None
+    df["price_val"] = df["price"].apply(parse_price)
+    # fill description
+    df["description"] = df["description"].fillna("").astype(str)
+    return df
 
-if __name__ == "__main__":
-    main()
+df = load_catalog(CATALOG_PATH)
+if df.empty:
+    st.stop()
+
+# -------------- Filters UI --------------
+st.image("data/images/banner.jpg", width="stretch")
+st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
+
+st.markdown("### Фильтры")
+col1, col2, col3, col4 = st.columns([2,3,2,2])
+brands = sorted(df["brand"].dropna().unique().tolist())
+brand = col1.selectbox("Бренд", ["Все"] + brands)
+
+# models: unique model_clean for selected brand (no duplicates)
+if brand != "Все":
+    df_brand = df[df["brand"] == brand]
+else:
+    df_brand = df
+models_unique = sorted({clean_model_name(m) for m in df_brand["model_clean"].dropna().astype(str)})
+model = col2.selectbox("Модель", ["Все"] + models_unique)
+
+# size filter - collect all EU sizes across table (split commas)
+all_sizes = set()
+for s in df["size_eu"].astype(str).tolist():
+    if s and s.strip():
+        for part in re.split(r"[,\s;]+", s.strip()):
+            if part:
+                all_sizes.add(part)
+sizes_list = sorted(all_sizes, key=lambda x: float(x) if re.match(r"^\d+(\.\d+)?$", x) else 999)
+size_filter = col3.selectbox("Размер (EU)", ["Все"] + sizes_list)
+
+gender_list = ["Все", "men", "women", "unisex"]
+gender_filter = col4.selectbox("Пол", gender_list)
+
+# apply filters
+filtered = df.copy()
+if brand != "Все":
+    filtered = filtered[filtered["brand"] == brand]
+if model != "Все":
+    filtered = filtered[filtered["model_clean"].str.lower() == model.lower()]
+if size_filter != "Все":
+    filtered = filtered[filtered["size_eu"].astype(str).str.contains(rf"\b{re.escape(size_filter)}\b")]
+if gender_filter != "Все":
+    filtered = filtered[filtered["gender"].astype(str).str.lower() == gender_filter.lower()]
+
+st.write("")  # gap
+
+# -------------- Show results --------------
+st.markdown("## Каталог")
+
+# We want: after selecting a model -> show one card per color (unique color variants)
+if model != "Все":
+    # group by model_clean and color
+    grouped = filtered.groupby(["model_clean", "color"], dropna=False)
+    variants = []
+    for (m, color), g in grouped:
+        # For this variant we may have multiple SKUs (for different sizes)
+        skus = g["sku"].astype(str).unique().tolist()
+        price_vals = [p for p in g["price_val"].tolist() if p is not None]
+        price_display = f"{int(min(price_vals))} ₸" if price_vals else "Цена уточняется"
+        description = "; ".join([x for x in g["description"].astype(str).unique() if x.strip()])
+        sizes_eu = ",".join(sorted({s for s_list in g["size_eu"].astype(str) for s in re.split(r'[,\s;]+', s_list) if s.strip()}))
+        brand_name = g["brand"].iloc[0] if not g["brand"].empty else ""
+        images_all = []
+        # collect images from rows (image col), else try by sku
+        for _, row in g.iterrows():
+            imgs = find_images_by_name(row.get("image",""))
+            if not imgs:
+                # try by sku
+                sku_val = row.get("sku","")
+                if pd.notna(sku_val) and str(sku_val).strip() != "":
+                    imgs = find_images_by_name(str(int(sku_val)) if isinstance(sku_val,(int,float)) and not pd.isna(sku_val) else str(sku_val))
+            for im in imgs:
+                if im not in images_all:
+                    images_all.append(im)
+        if not images_all:
+            images_all = [NO_IMAGE_PATH]
+        variants.append({
+            "brand": brand_name,
+            "model": m,
+            "color": color,
+            "skus": skus,
+            "price": price_display,
+            "sizes_eu": sizes_eu,
+            "description": description if description else "",
+            "images": images_all
+        })
+    # Render variants as grid (2 columns)
+    cols_per_row = 2
+    for i in range(0, len(variants), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for col_obj, var in zip(cols, variants[i:i+cols_per_row]):
+            with col_obj:
+                # image gallery front: show first image and arrows (session_state per model+color)
+                key = f"sel_{var['brand']}_{var['model']}_{var['color']}".replace(" ", "_")
+                if key not in st.session_state:
+                    st.session_state[key] = 0
+                idx = st.session_state[key]
+                images = var["images"]
+                # show main image
+                try:
+                    st.image(images[idx], width=350)
+                except:
+                    st.image(NO_IMAGE_PATH, width=350)
+                # arrows
+                left, mid, right = st.columns([1,3,1])
+                with left:
+                    if st.button("◀", key=f"{key}_left"):
+                        st.session_state[key] = max(0, st.session_state[key]-1)
+                        st.experimental_rerun()
+                with mid:
+                    st.markdown(f"**{var['brand']} — {var['model']}**")
+                    st.markdown(f"*{var['color']}*")
+                    st.markdown(f"Размеры (EU): {var['sizes_eu'] or '-'}")
+                    st.markdown(f"Цена: **{var['price']}**")
+                    if var["description"]:
+                        st.markdown(f"{var['description']}")
+                with right:
+                    if st.button("▶", key=f"{key}_right"):
+                        st.session_state[key] = min(len(images)-1, st.session_state[key]+1)
+                        st.experimental_rerun()
+                # add to cart (simple notification)
+                if st.button("Добавить в корзину", key=f"cart_{key}"):
+                    st.success("Товар добавлен в корзину!")
+                st.divider()
+else:
+    # model == "Все" -> show compact card grid (brand + model_clean + first image + price)
+    num_cols = 4
+    rows = [filtered.iloc[i:i+num_cols] for i in range(0, len(filtered), num_cols)]
+    for r in rows:
+        cols = st.columns(num_cols)
+        for col_obj, (_, row) in zip(cols, r.iterrows()):
+            with col_obj:
+                brand = row.get("brand","")
+                model_clean = row.get("model_clean","")
+                price_val = row.get("price_val")
+                price_display = f"{int(price_val)} ₸" if price_val is not None else "Цена уточняется"
+                images = find_images_by_name(row.get("image",""))
+                if not images:
+                    images = find_images_by_name(row.get("sku",""))
+                if not images:
+                    images = [NO_IMAGE_PATH]
+                try:
+                    st.image(images[0], width=220)
+                except:
+                    st.image(NO_IMAGE_PATH, width=220)
+                st.markdown(f"**{brand} — {model_clean}**")
+                st.markdown(f"{price_display}")
+                # button opens details: we simulate by filtering model via special query param - but simplest: set session and rerun
+                btn_key = f"open_{brand}_{model_clean}".replace(" ", "_")
+                if st.button("Открыть модель", key=btn_key):
+                    # set session model and rerun; note: we don't change the selectbox value (can't), but we rerun with model set in session_state and show details section.
+                    st.session_state["force_model"] = model_clean
+                    st.experimental_rerun()
+                st.divider()
+
+# If user clicked "Открыть модель" via grid, set the selectbox visually (best-effort)
+if "force_model" in st.session_state:
+    # note: this won't change the selectbox widget value itself, but we force rendering the model details view:
+    st.experimental_rerun()
