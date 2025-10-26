@@ -86,8 +86,8 @@ def get_image_paths(image_names, sku):
     
     return list(dict.fromkeys(image_paths))
 
-def display_product_photo(image_paths):
-    """Показывает фото товара"""
+def display_product_photo(image_paths, key_suffix=""):
+    """Показывает фото товара с точками для переключения"""
     if not image_paths:
         st.markdown("""
             <div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 12px;">
@@ -97,11 +97,38 @@ def display_product_photo(image_paths):
         """, unsafe_allow_html=True)
         return
     
-    # Показываем только первое фото
-    try:
-        st.image(image_paths[0], use_container_width=True)
-    except:
-        st.error("❌ Ошибка загрузки изображения")
+    # Инициализируем выбранное фото
+    if f"selected_{key_suffix}" not in st.session_state:
+        st.session_state[f"selected_{key_suffix}"] = 0
+    
+    selected_index = st.session_state[f"selected_{key_suffix}"]
+    
+    # Создаем колонки: основное фото и точки
+    main_col, dots_col = st.columns([3, 1])
+    
+    with main_col:
+        # Основное большое фото
+        try:
+            st.image(image_paths[selected_index], use_container_width=True)
+        except Exception as e:
+            st.error(f"❌ Ошибка загрузки изображения")
+
+    with dots_col:
+        st.write("")  # Отступ
+        st.write("")  # Отступ
+        
+        # Точки для переключения фото
+        for i in range(len(image_paths[:4])):  # Максимум 4 точки
+            dot = "●" if i == selected_index else "○"
+            
+            # Создаем кнопку-точку
+            if st.button(
+                dot, 
+                key=f"dot_{key_suffix}_{i}",
+                type="primary" if i == selected_index else "secondary"
+            ):
+                st.session_state[f"selected_{key_suffix}"] = i
+                st.rerun()
 
 # --- Группировка товаров ---
 def group_products(df):
@@ -219,7 +246,7 @@ else:
                 
                 # Фото
                 image_paths = get_image_paths(product['image'], product['sku'])
-                display_product_photo(image_paths)
+                display_product_photo(image_paths, key_suffix=f"{product['sku']}_{i}_{col_idx}")
                 
                 # Информация
                 st.markdown(f"**{product['brand']} {product['model_clean']}**")
