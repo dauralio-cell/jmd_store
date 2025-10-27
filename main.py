@@ -287,8 +287,47 @@ else:
                 st.markdown(f"{price_display}")
                 # button opens details: we simulate by filtering model via special query param - but simplest: set session and rerun
                 btn_key = f"open_{brand}_{model_clean}".replace(" ", "_")
-                if st.button("Открыть модель", key=btn_key):
-                    # set session model and rerun; note: we don't change the selectbox value (can't), but we rerun with model set in session_state and show details section.
+                import uuid
+import streamlit as st
+
+# === Отображение карточки товара ===
+def display_product_card(row, all_image_paths):
+    """Карточка товара с фото, описанием и кнопкой открытия"""
+
+    # --- 1. Фото ---
+    if all_image_paths:
+        st.image(all_image_paths[0], use_container_width=True)
+    else:
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 40px; background: #f8f9fa; 
+                        border-radius: 12px; margin: 10px 0;">
+                <div style="font-size: 48px;">📷</div>
+                <div style="color: #666;">Нет изображения</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # --- 2. Описание ---
+    st.markdown(f"**Бренд:** {row.get('brand', '-')}")
+    st.markdown(f"**Модель:** {row.get('model', '-')}")
+    st.markdown(f"**Цена:** {row.get('price', '-')}")
+    st.markdown(f"**Пол:** {row.get('gender', '-')}")
+    st.markdown(f"**В наличии:** {row.get('in stock', '-')}")
+    st.markdown(f"**Описание:** {row.get('description', '-')}")
+    
+    # --- 3. Кнопка открытия модели ---
+    brand = str(row.get("brand", "unknown")).strip() or "unknown"
+    sku = str(row.get("sku", "unknown")).strip() or "unknown"
+    btn_key = f"open_{brand}_{sku}_{uuid.uuid4().hex[:6]}"
+
+    if st.button("Открыть модель", key=btn_key):
+        st.session_state["selected_product"] = row
+        st.session_state["selected_images"] = all_image_paths
+        st.session_state["page"] = "product"
+        st.experimental_rerun()
+
                     st.session_state["force_model"] = model_clean
                     st.experimental_rerun()
                 st.divider()
