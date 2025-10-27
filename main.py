@@ -328,9 +328,11 @@ def display_product_card(row, all_image_paths):
         st.session_state["page"] = "product"
         st.experimental_rerun()
 
-                    st.session_state["force_model"] = model_clean
-                    st.experimental_rerun()
-                st.divider()
+    def load_product_data():
+        model_clean = model.strip()
+        if "force_model" not in st.session_state:
+            st.session_state["force_model"] = model_clean
+
 
 # If user clicked "Открыть модель" via grid, set the selectbox visually (best-effort)
 if "force_model" in st.session_state:
