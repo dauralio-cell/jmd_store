@@ -9,6 +9,7 @@ st.set_page_config(page_title="DENE Store", layout="wide")
 
 # --- Загрузка данных ---
 catalog = pd.read_excel("data/catalog.xlsx").fillna("")
+catalog.columns = catalog.columns.str.strip().str.lower()
 
 # --- Получаем все картинки из подпапок ---
 image_paths = glob.glob("data/images/**/*.*", recursive=True)
