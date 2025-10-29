@@ -13,18 +13,25 @@ if os.path.exists(banner_path):
     st.image(banner_path, use_container_width=True)
 st.markdown("<h1 style='text-align:center;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
-# --- Загрузка данных ---
-df = pd.read_excel("data/catalog.xlsx")
+# --- Загрузка всех листов Excel ---
+excel_path = "data/catalog.xlsx"
+sheets = pd.ExcelFile(excel_path).sheet_names
 
-# --- Очистка названий колонок ---
+dfs = []
+for sheet in sheets:
+    df_temp = pd.read_excel(excel_path, sheet_name=sheet)
+    df_temp["brand"] = sheet.strip()  # имя листа = бренд
+    dfs.append(df_temp)
+
+df = pd.concat(dfs, ignore_index=True)
 df.columns = df.columns.str.strip().str.lower()
 
-# --- Проверим наличие ключевых колонок ---
-required_columns = ["brand", "model", "gender", "size us", "price", "in stock", "image"]
-for col in required_columns:
-    if col not in df.columns:
-        st.error(f"❌ В таблице нет колонки: '{col}'")
-        st.stop()
+# --- Проверяем ключевые колонки ---
+required_cols = ["brand", "model", "gender", "color", "image", "size us", "price", "in stock"]
+missing = [c for c in required_cols if c not in df.columns]
+if missing:
+    st.error(f"❌ В таблице не хватает колонок: {missing}")
+    st.stop()
 
 # --- Фильтры ---
 col1, col2, col3, col4 = st.columns(4)
@@ -49,34 +56,46 @@ if gender_filter != "Все":
 if size_filter != "Все":
     filtered_df = filtered_df[filtered_df["size us"] == size_filter]
 
-# --- Сканируем все изображения в data/images ---
+# --- Группировка по модели и цвету ---
+grouped = (
+    filtered_df.groupby(["brand", "model", "color"], as_index=False)
+    .agg({
+        "image": "first",
+        "price": "first",
+        "in stock": "first",
+        "size us": lambda x: sorted(x.dropna().unique().tolist()),
+        "gender": "first"
+    })
+)
+
+# --- Поиск изображений ---
 image_paths = glob.glob("data/images/**/*.*", recursive=True)
-image_map = {}
-for path in image_paths:
-    name = os.path.splitext(os.path.basename(path))[0]
-    image_map[name] = path
+image_map = {os.path.splitext(os.path.basename(p))[0]: p for p in image_paths}
 
 # --- Вывод карточек ---
 st.markdown("### Каталог товаров")
-if filtered_df.empty:
+
+if grouped.empty:
     st.warning("😕 Нет товаров по заданным фильтрам.")
 else:
     cols = st.columns(4)
-    for idx, (_, row) in enumerate(filtered_df.iterrows()):
+    for idx, (_, row) in enumerate(grouped.iterrows()):
         with cols[idx % 4]:
-            images = str(row["image"]).split()
-            found_images = []
-            for img_name in images:
-                if img_name in image_map:
-                    found_images.append(image_map[img_name])
+            image_names = str(row["image"]).split()
+            found = None
+            for name in image_names:
+                if name in image_map:
+                    found = image_map[name]
+                    break
             
-            if found_images:
-                st.image(found_images[0], use_container_width=True)
+            if found:
+                st.image(found, use_container_width=True)
             else:
                 st.image("data/images/no_image.jpg", use_container_width=True)
 
-            st.markdown(f"**{row['brand']} {row['model']}**")
-            st.markdown(f"Размер: {row['size us']}")
+            st.markdown(f"**{row['brand']} {row['model']} ({row['color']})**")
+            st.markdown(f"Пол: {row['gender']}")
+            st.markdown(f"Размеры: {', '.join(map(str, row['size us']))}")
             st.markdown(f"Цена: {int(row['price'])} ₸")
 
             color = "green" if str(row["in stock"]).strip().lower() == "yes" else "red"
