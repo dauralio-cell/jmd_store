@@ -90,3 +90,7 @@ for row_df in rows:
 
 st.divider()
 st.caption("© DENE Store 2025")
+
+st.write("🖼 Найденные изображения:")
+for path in image_paths:
+    st.write(path)
