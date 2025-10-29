@@ -8,94 +8,76 @@ from PIL import Image
 st.set_page_config(page_title="DENE Store", layout="wide")
 
 # --- Обложка ---
-if os.path.exists("data/images/banner.jpg"):
-    st.image("data/images/banner.jpg", use_container_width=True)
-st.markdown("<h1 style='text-align:center;'>DENE Store — Каталог</h1>", unsafe_allow_html=True)
-st.write("Добро пожаловать! Здесь вы можете подобрать кроссовки по бренду, модели, размеру и полу 👟")
+banner_path = "data/images/banner.jpg"
+if os.path.exists(banner_path):
+    st.image(banner_path, use_container_width=True)
+st.markdown("<h1 style='text-align:center;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
 # --- Загрузка данных ---
-@st.cache_data
-def load_data():
-    df = pd.read_excel("data/catalog.xlsx")
-    df = df.fillna("")
-    return df
+df = pd.read_excel("data/catalog.xlsx")
 
-df = load_data()
+# --- Очистка названий колонок ---
+df.columns = df.columns.str.strip().str.lower()
 
-# --- Сканирование изображений ---
-image_files = glob.glob("data/images/**/*.*", recursive=True)
-image_index = {}
-for img_path in image_files:
-    base = os.path.splitext(os.path.basename(img_path))[0].lower()
-    image_index[base] = img_path
+# --- Проверим наличие ключевых колонок ---
+required_columns = ["brand", "model", "gender", "size us", "price", "in stock", "image"]
+for col in required_columns:
+    if col not in df.columns:
+        st.error(f"❌ В таблице нет колонки: '{col}'")
+        st.stop()
 
-# --- Панель фильтров ---
-with st.expander("🔎 Фильтр товаров", expanded=True):
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        brand_filter = st.selectbox("Бренд", ["Все"] + sorted(df["brand"].dropna().unique().tolist()))
-    with col2:
-        model_filter = st.selectbox("Модель", ["Все"] + sorted(df["model"].dropna().unique().tolist()))
-    with col3:
-        size_filter = st.selectbox("Размер", ["Все"] + sorted(df["size"].dropna().unique().tolist()))
-    with col4:
-        gender_filter = st.selectbox("Пол", ["Все"] + sorted(df["gender"].dropna().unique().tolist()))
+# --- Фильтры ---
+col1, col2, col3, col4 = st.columns(4)
 
-search_query = st.text_input("🔍 Поиск по бренду или модели").strip().lower()
+brands = sorted(df["brand"].dropna().unique().tolist())
+models = sorted(df["model"].dropna().unique().tolist())
+genders = sorted(df["gender"].dropna().unique().tolist())
+sizes = sorted(df["size us"].dropna().unique().tolist())
 
-# --- Применяем фильтры ---
+brand_filter = col1.selectbox("Бренд", ["Все"] + brands)
+model_filter = col2.selectbox("Модель", ["Все"] + models)
+gender_filter = col3.selectbox("Пол", ["Все"] + genders)
+size_filter = col4.selectbox("Размер US", ["Все"] + sizes)
+
 filtered_df = df.copy()
 if brand_filter != "Все":
     filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
 if model_filter != "Все":
     filtered_df = filtered_df[filtered_df["model"] == model_filter]
-if size_filter != "Все":
-    filtered_df = filtered_df[filtered_df["size"] == size_filter]
 if gender_filter != "Все":
     filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
-if search_query:
-    filtered_df = filtered_df[
-        filtered_df["brand"].str.lower().str.contains(search_query) |
-        filtered_df["model"].str.lower().str.contains(search_query)
-    ]
+if size_filter != "Все":
+    filtered_df = filtered_df[filtered_df["size us"] == size_filter]
 
-# --- Вывод карточек товаров ---
+# --- Сканируем все изображения в data/images ---
+image_paths = glob.glob("data/images/**/*.*", recursive=True)
+image_map = {}
+for path in image_paths:
+    name = os.path.splitext(os.path.basename(path))[0]
+    image_map[name] = path
+
+# --- Вывод карточек ---
+st.markdown("### Каталог товаров")
 if filtered_df.empty:
-    st.warning("❌ Товары не найдены по вашему запросу.")
+    st.warning("😕 Нет товаров по заданным фильтрам.")
 else:
-    cols = st.columns(3)
+    cols = st.columns(4)
     for idx, (_, row) in enumerate(filtered_df.iterrows()):
-        # --- Поиск картинки ---
-        images = str(row.get("image", "")).split()
-        found_image = None
-        for name in images:
-            key = name.strip().lower()
-            if key in image_index:
-                found_image = image_index[key]
-                break
-        if not found_image:
-            found_image = "data/images/no_image.jpg"
+        with cols[idx % 4]:
+            images = str(row["image"]).split()
+            found_images = []
+            for img_name in images:
+                if img_name in image_map:
+                    found_images.append(image_map[img_name])
+            
+            if found_images:
+                st.image(found_images[0], use_container_width=True)
+            else:
+                st.image("data/images/no_image.jpg", use_container_width=True)
 
-        with cols[idx % 3]:
-            st.image(found_image, use_container_width=True)
-            st.markdown(
-                f"""
-                <div style="
-                    border:1px solid #eee;
-                    border-radius:16px;
-                    padding:12px;
-                    margin-top:8px;
-                    background-color:#fff;
-                    box-shadow:0 2px 8px rgba(0,0,0,0.05);
-                    text-align:center;
-                ">
-                    <h4 style="margin:4px 0;">{row.get('brand','')} {row.get('model','')}</h4>
-                    <p style="color:gray; font-size:13px; margin:2px 0;">{row.get('color','')} | {row.get('gender','')}</p>
-                    <p style="font-weight:bold; color:#111; margin:4px 0;">{int(row.get('price',0))} ₸</p>
-                    <p style="font-size:13px; color:{'green' if str(row.get('in stock', 'yes')).lower() in ['yes','в наличии','true'] else 'red'};">
-                        {'В наличии' if str(row.get('in stock', 'yes')).lower() in ['yes','в наличии','true'] else 'Нет в наличии'}
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            st.markdown(f"**{row['brand']} {row['model']}**")
+            st.markdown(f"Размер: {row['size us']}")
+            st.markdown(f"Цена: {int(row['price'])} ₸")
+
+            color = "green" if str(row["in stock"]).strip().lower() == "yes" else "red"
+            st.markdown(f"<p style='font-size:13px; color:{color};'>В наличии: {row['in stock']}</p>", unsafe_allow_html=True)
