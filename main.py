@@ -13,9 +13,15 @@ def load_catalog(path="data/catalog.xlsx"):
 
     for brand, df in all_sheets.items():
         df["brand"] = brand
-        df[['model', 'gender', 'color', 'price', 'preorder', 'in stock', 'description', 'image']] = (
-            df[['model', 'gender', 'color', 'price', 'preorder', 'in stock', 'description', 'image']].ffill()
-        )
+
+        # Заполняем только те колонки, которые реально есть
+        cols_to_fill = [c for c in [
+            "model", "gender", "color", "price", "preorder", "in stock", "description", "image"
+        ] if c in df.columns]
+
+        if cols_to_fill:
+            df[cols_to_fill] = df[cols_to_fill].ffill()
+
         dfs.append(df)
 
     catalog = pd.concat(dfs, ignore_index=True)
@@ -58,12 +64,12 @@ st.markdown("### Каталог моделей")
 
 # ====== 5. Карточки ======
 for (brand, model, color), group in groups:
-    gender = group["gender"].iloc[0]
-    description = group["description"].iloc[0]
-    image_code = group["image"].iloc[0]
+    gender = group["gender"].iloc[0] if "gender" in group.columns else "-"
+    description = group["description"].iloc[0] if "description" in group.columns else ""
+    image_code = group["image"].iloc[0] if "image" in group.columns else None
     images = find_images(image_code)
-    sizes_eu = group["size EU"].dropna().astype(str).tolist()
-    prices = group["price"].astype(str).tolist()
+    sizes_eu = group["size EU"].dropna().astype(str).tolist() if "size EU" in group.columns else []
+    prices = group["price"].astype(str).tolist() if "price" in group.columns else []
 
     size_price_map = dict(zip(sizes_eu, prices))
 
@@ -72,7 +78,6 @@ for (brand, model, color), group in groups:
     if img_key not in st.session_state:
         st.session_state[img_key] = 0
 
-    # Основное фото
     current_index = st.session_state[img_key]
     main_photo = images[current_index] if images else None
 
@@ -92,30 +97,33 @@ for (brand, model, color), group in groups:
                 unsafe_allow_html=True,
             )
 
-        # Мини-слайдер (миниатюры)
+        # Миниатюры со скроллом и кликом
         if len(images) > 1:
-            st.markdown(
-                "<p style='margin-top:10px;margin-bottom:4px;color:#666;'>Фото:</p>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<div style='overflow-x:auto;white-space:nowrap;'>", unsafe_allow_html=True)
             thumb_cols = st.columns(len(images))
-            for i, thumb_path in enumerate(images):
+            for i, thumb in enumerate(images):
                 with thumb_cols[i]:
-                    if os.path.exists(thumb_path):
-                        if st.button(" ", key=f"thumb_{model}_{color}_{i}"):
-                            st.session_state[img_key] = i
-                        st.image(thumb_path, use_container_width=True)
+                    if st.button(" ", key=f"thumb_{model}_{color}_{i}"):
+                        st.session_state[img_key] = i
+                        st.rerun()
+                    st.image(thumb, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
     # ====== Информация ======
     with cols[1]:
         st.markdown(f"### {model}")
         st.markdown(f"**Цвет:** {color}")
         st.markdown(f"**Пол:** {gender}")
-        st.markdown(f"<p style='color:#666'>{description}</p>", unsafe_allow_html=True)
+        if description:
+            st.markdown(f"<p style='color:#666'>{description}</p>", unsafe_allow_html=True)
 
-        selected_size = st.selectbox("Выберите размер (EU):", sizes_eu, key=f"size_{model}_{color}")
-        current_price = size_price_map.get(selected_size, group["price"].iloc[0])
-        st.markdown(f"**Цена:** {current_price} ₸")
+        if sizes_eu:
+            selected_size = st.selectbox("Выберите размер (EU):", sizes_eu, key=f"size_{model}_{color}")
+            current_price = size_price_map.get(selected_size, group["price"].iloc[0])
+            st.markdown(f"**Цена:** {current_price} ₸")
+        else:
+            current_price = group["price"].iloc[0]
+            st.markdown(f"**Цена:** {current_price} ₸")
 
-        if st.button("Добавить в корзину", key=f"add_{model}_{color}_{selected_size}"):
-            st.success(f"✅ {model} ({color}, EU {selected_size}) добавлен в корзину!")
+        if st.button("Добавить в корзину", key=f"add_{model}_{color}_{current_price}"):
+            st.success(f"✅ {model} ({color}) добавлен в корзину!")
