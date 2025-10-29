@@ -1,52 +1,305 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Магазин DENE</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
-        h1 { text-align: center; margin-bottom: 20px; }
-        form { text-align: center; margin-bottom: 30px; }
-        input, button { padding: 8px; margin: 5px; }
-        .product {
-            background: white;
-            padding: 15px;
-            margin: 10px auto;
-            max-width: 400px;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .product h3 { margin: 0; }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-        button:hover { background-color: #0056b3; }
-    </style>
+  <meta charset="UTF-8">
+  <title>DENE Store</title>
+  <style>
+    body {font-family:'Segoe UI',Arial,sans-serif;background:#f9fafb;margin:0;color:#333;}
+    header {background:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.05);padding:20px;position:sticky;top:0;z-index:10;}
+    h1 {text-align:center;margin:0;}
+    .filters {display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:15px;}
+    select,input[type=text],button {
+      padding:8px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;
+    }
+    button {cursor:pointer;background:#0078ff;color:#fff;border:none;transition:0.2s;}
+    button:hover {background:#005fcc;}
+    main {max-width:1200px;margin:30px auto;padding:0 20px;}
+    .grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;}
+    .card {background:#fff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.1);overflow:hidden;transition:transform 0.2s;cursor:pointer;position:relative;}
+    .card:hover {transform:scale(1.02);}
+    .slider {position:relative;overflow:hidden;height:220px;}
+    .slider img {width:100%;height:100%;object-fit:cover;display:none;}
+    .slider img.active {display:block;}
+    .info {padding:12px;}
+    .info h3 {margin:4px 0 8px 0;font-size:16px;}
+    .price {font-weight:bold;font-size:17px;margin-top:4px;}
+    footer {text-align:center;padding:20px;color:#777;font-size:13px;}
+
+    /* Модалка */
+    .modal {
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;z-index:9999;
+    }
+    .modal.active {display:flex;}
+    .modal-content {
+      background:#fff;border-radius:16px;max-width:800px;width:90%;max-height:90%;overflow:hidden;position:relative;
+      box-shadow:0 4px 20px rgba(0,0,0,0.4);animation:fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {from{opacity:0;transform:scale(0.95);}to{opacity:1;transform:scale(1);}}
+    .modal-slider {position:relative;overflow:hidden;height:400px;background:#000;}
+    .modal-slider img {width:100%;height:100%;object-fit:contain;background:#000;display:none;}
+    .modal-slider img.active {display:block;}
+    .arrow {
+      position:absolute;top:50%;transform:translateY(-50%);
+      background:rgba(0,0,0,0.5);color:white;font-size:24px;border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;
+    }
+    .arrow.left {left:10px;}
+    .arrow.right {right:10px;}
+    .modal-info {padding:20px;overflow-y:auto;max-height:300px;}
+    .modal-close {
+      position:absolute;top:10px;right:10px;background:#ff4c4c;color:white;border:none;border-radius:50%;
+      width:36px;height:36px;font-size:18px;cursor:pointer;transition:0.2s;
+    }
+    .modal-close:hover {background:#d93636;}
+    .add-btn {
+      background:#0078ff;color:white;padding:10px 16px;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin-top:10px;
+    }
+    .add-btn:hover {background:#005fcc;}
+
+    /* Корзина */
+    .cart-btn {
+      position:fixed;top:20px;right:20px;background:#0078ff;color:white;border:none;
+      border-radius:50%;width:50px;height:50px;font-size:20px;cursor:pointer;z-index:1000;
+    }
+    .cart-count {
+      position:absolute;top:-5px;right:-5px;background:red;color:white;border-radius:50%;width:20px;height:20px;
+      font-size:12px;display:flex;align-items:center;justify-content:center;
+    }
+    .cart {
+      position:fixed;top:0;right:-400px;width:350px;height:100%;background:#fff;
+      box-shadow:-2px 0 10px rgba(0,0,0,0.2);transition:right 0.3s ease;z-index:2000;display:flex;flex-direction:column;
+    }
+    .cart.active {right:0;}
+    .cart-header {
+      padding:20px;background:#0078ff;color:white;font-size:18px;display:flex;justify-content:space-between;align-items:center;
+    }
+    .cart-items {flex:1;overflow-y:auto;padding:15px;}
+    .cart-item {display:flex;gap:10px;margin-bottom:12px;}
+    .cart-item img {width:60px;height:60px;object-fit:cover;border-radius:8px;}
+    .cart-item-info {flex:1;}
+    .cart-item-info h4 {margin:0;font-size:14px;}
+    .cart-footer {padding:15px;border-top:1px solid #ddd;}
+    .total {font-weight:bold;font-size:16px;margin-bottom:10px;}
+    .clear-btn {
+      background:#ff4c4c;color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;
+    }
+    .clear-btn:hover {background:#d93636;}
+  </style>
 </head>
 <body>
-    <h1>Добро пожаловать в магазин DENE! 🛍</h1>
+<header>
+  <h1>👟 DENE Store</h1>
+  <div class="filters">
+    <select id="brand">
+      <option value="">Бренд: все</option>
+      {% for b in filters.brands %}
+      <option value="{{b}}">{{b}}</option>
+      {% endfor %}
+    </select>
+    <select id="color">
+      <option value="">Цвет: все</option>
+      {% for c in filters.colors %}
+      <option value="{{c}}">{{c}}</option>
+      {% endfor %}
+    </select>
+    <select id="gender">
+      <option value="">Пол: все</option>
+      {% for g in filters.genders %}
+      <option value="{{g}}">{{g}}</option>
+      {% endfor %}
+    </select>
+    <input type="text" id="search" placeholder="Поиск по модели...">
+    <button onclick="loadProducts()">Фильтр</button>
+    <button onclick="resetFilters()" style="background:#999;">Сбросить</button>
+  </div>
+</header>
 
-    <form method="get">
-        <input type="text" name="name" placeholder="Название" value="{{ request.args.get('name', '') }}">
-        <input type="text" name="brand" placeholder="Бренд" value="{{ request.args.get('brand', '') }}">
-        <input type="text" name="size" placeholder="Размер" value="{{ request.args.get('size', '') }}">
-        <input type="text" name="gender" placeholder="Пол (men/women)" value="{{ request.args.get('gender', '') }}">
-        <button type="submit">Фильтр</button>
-    </form>
+<main>
+  <div id="products" class="grid"></div>
+</main>
 
-    {% for product in products %}
-        <div class="product">
-            <h3>{{ product["Name"] }}</h3>
-            <p><b>Бренд:</b> {{ product["Brand"] }}</p>
-            <p><b>Цена:</b> {{ product["Price"] }} ₸</p>
-            <p><b>Наличие:</b> {{ product["Available"] }}</p>
-            <p><b>Количество:</b> {{ product["Quantity"] }}</p>
-            <button onclick="alert('Товар {{ product['Name'] }} добавлен в корзину!')">Купить 🛒</button>
+<footer>© DENE Store 2025</footer>
+
+<!-- Кнопка корзины -->
+<button class="cart-btn" onclick="toggleCart()">
+  🛒
+  <div class="cart-count" id="cartCount">0</div>
+</button>
+
+<!-- Корзина -->
+<div class="cart" id="cart">
+  <div class="cart-header">
+    <span>Моя корзина</span>
+    <button onclick="toggleCart()" style="background:none;border:none;color:white;font-size:20px;">×</button>
+  </div>
+  <div class="cart-items" id="cartItems"></div>
+  <div class="cart-footer">
+    <div class="total" id="cartTotal">Итого: 0 ₸</div>
+    <button class="clear-btn" onclick="clearCart()">Очистить корзину</button>
+  </div>
+</div>
+
+<!-- Модалка -->
+<div id="modal" class="modal" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal(event)">×</button>
+    <div class="modal-slider" id="modalSlider"></div>
+    <button class="arrow left" onclick="prevModalImage()">‹</button>
+    <button class="arrow right" onclick="nextModalImage()">›</button>
+    <div class="modal-info" id="modalInfo"></div>
+  </div>
+</div>
+
+<script>
+  let currentProducts = [];
+  let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+  let currentModalIndex = 0;
+
+  async function loadProducts(){
+    const brand = document.getElementById('brand').value;
+    const color = document.getElementById('color').value;
+    const gender = document.getElementById('gender').value;
+    const search = document.getElementById('search').value;
+
+    const params = new URLSearchParams({brand, color, gender, search});
+    const res = await fetch(`/api/products?${params}`);
+    const products = await res.json();
+    currentProducts = products;
+    renderProducts(products);
+  }
+
+  function renderProducts(products){
+    const grid = document.getElementById('products');
+    grid.innerHTML = '';
+    if(products.length === 0){
+      grid.innerHTML = '<p style="text-align:center; color:gray;">Нет товаров по вашему запросу</p>';
+      return;
+    }
+
+    products.forEach((p,i)=>{
+      const images = (p.images || []).map((img,j)=>
+        `<img src="${img}" class="${j===0?'active':''}">`
+      ).join('');
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.onclick = ()=>openModal(i);
+      card.innerHTML = `
+        <div class="slider" id="slider${i}" onclick="event.stopPropagation(); nextImage('slider${i}')">${images}</div>
+        <div class="info">
+          <h3>${p.brand || ''} ${p.model || ''}</h3>
+          <p>Цвет: ${p.color} | Пол: ${p.gender}</p>
+          <p class="price">${p.price} ₸</p>
         </div>
-    {% endfor %}
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  function nextImage(id){
+    const imgs = document.querySelectorAll(`#${id} img`);
+    if(imgs.length < 2) return;
+    let index = [...imgs].findIndex(i=>i.classList.contains('active'));
+    imgs[index].classList.remove('active');
+    imgs[(index+1)%imgs.length].classList.add('active');
+  }
+
+  function resetFilters(){
+    document.getElementById('brand').value = '';
+    document.getElementById('color').value = '';
+    document.getElementById('gender').value = '';
+    document.getElementById('search').value = '';
+    loadProducts();
+  }
+
+  function openModal(index){
+    const p = currentProducts[index];
+    const slider = document.getElementById('modalSlider');
+    const info = document.getElementById('modalInfo');
+    currentModalIndex = 0;
+
+    slider.innerHTML = (p.images||[]).map((img,j)=>
+      `<img src="${img}" class="${j===0?'active':''}">`
+    ).join('');
+
+    info.innerHTML = `
+      <h2>${p.brand || ''} ${p.model || ''}</h2>
+      <p><b>Цвет:</b> ${p.color}</p>
+      <p><b>Пол:</b> ${p.gender}</p>
+      <p><b>Описание:</b> ${p.description || 'Описание временно недоступно.'}</p>
+      <p class="price">${p.price} ₸</p>
+      <button class="add-btn" onclick="addToCart('${p.sku}','${p.brand}','${p.model}','${p.price}','${(p.images||[])[0] || ''}')">Добавить в корзину</button>
+    `;
+
+    document.getElementById('modal').classList.add('active');
+  }
+
+  function closeModal(){ document.getElementById('modal').classList.remove('active'); }
+  function nextModalImage(){ switchModalImage(1); }
+  function prevModalImage(){ switchModalImage(-1); }
+
+  function switchModalImage(dir){
+    const imgs = document.querySelectorAll('#modalSlider img');
+    if(imgs.length < 2) return;
+    let index = [...imgs].findIndex(i=>i.classList.contains('active'));
+    imgs[index].classList.remove('active');
+    imgs[(index+dir+imgs.length)%imgs.length].classList.add('active');
+  }
+
+  // === КОРЗИНА ===
+  function toggleCart(){
+    const cartEl = document.getElementById('cart');
+    cartEl.classList.toggle('active');
+    renderCart();
+  }
+
+  function addToCart(sku, brand, model, price, image){
+    const existing = cart.find(i=>i.sku===sku);
+    if(existing){ existing.qty++; } 
+    else { cart.push({sku,brand,model,price:+price,image,qty:1}); }
+    saveCart();
+    updateCartCount();
+    alert('Товар добавлен в корзину!');
+  }
+
+  function renderCart(){
+    const itemsEl = document.getElementById('cartItems');
+    const totalEl = document.getElementById('cartTotal');
+    itemsEl.innerHTML = '';
+    let total = 0;
+    cart.forEach((item,i)=>{
+      total += item.price * item.qty;
+      itemsEl.innerHTML += `
+        <div class="cart-item">
+          <img src="${item.image}" alt="">
+          <div class="cart-item-info">
+            <h4>${item.brand} ${item.model}</h4>
+            <p>${item.price} ₸ × ${item.qty}</p>
+          </div>
+        </div>
+      `;
+    });
+    totalEl.textContent = `Итого: ${total.toLocaleString()} ₸`;
+  }
+
+  function clearCart(){
+    if(confirm('Очистить корзину?')){
+      cart = [];
+      saveCart();
+      renderCart();
+      updateCartCount();
+    }
+  }
+
+  function saveCart(){
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }
+
+  function updateCartCount(){
+    document.getElementById('cartCount').textContent = cart.reduce((s,i)=>s+i.qty,0);
+  }
+
+  updateCartCount();
+  loadProducts();
+</script>
 </body>
 </html>
