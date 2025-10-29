@@ -1,69 +1,83 @@
 import streamlit as st
 import pandas as pd
-import glob
 import os
+import glob
 from PIL import Image
 
 # --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
 
+# --- Обложка ---
+if os.path.exists("data/images/banner.jpg"):
+    st.image("data/images/banner.jpg", use_container_width=True)
+st.markdown("<h1 style='text-align:center;'>DENE Store — Каталог</h1>", unsafe_allow_html=True)
+st.write("Добро пожаловать! Здесь вы можете подобрать кроссовки по бренду, модели, размеру и полу 👟")
+
 # --- Загрузка данных ---
-catalog = pd.read_excel("data/catalog.xlsx").fillna("")
-catalog.columns = catalog.columns.str.strip().str.lower()
+@st.cache_data
+def load_data():
+    df = pd.read_excel("data/catalog.xlsx")
+    df = df.fillna("")
+    return df
 
-# --- Проверим, какие есть колонки (можно потом удалить) ---
-# st.write("📊 Колонки:", list(catalog.columns))
+df = load_data()
 
-# --- Получаем все картинки из подпапок ---
-image_paths = glob.glob("data/images/**/*.*", recursive=True)
-image_dict = {}
-for path in image_paths:
-    filename = os.path.splitext(os.path.basename(path))[0]
-    image_dict[filename] = path
+# --- Сканирование изображений ---
+image_files = glob.glob("data/images/**/*.*", recursive=True)
+image_index = {}
+for img_path in image_files:
+    base = os.path.splitext(os.path.basename(img_path))[0].lower()
+    image_index[base] = img_path
 
-# --- Заголовок ---
-st.markdown(
-    """
-    <h1 style='text-align:center; font-size:42px; margin-bottom:10px;'>👟 DENE Store</h1>
-    <p style='text-align:center; color:gray;'>Каталог кроссовок</p>
-    <hr style='margin-top:20px;'>
-    """,
-    unsafe_allow_html=True
-)
+# --- Панель фильтров ---
+with st.expander("🔎 Фильтр товаров", expanded=True):
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        brand_filter = st.selectbox("Бренд", ["Все"] + sorted(df["brand"].dropna().unique().tolist()))
+    with col2:
+        model_filter = st.selectbox("Модель", ["Все"] + sorted(df["model"].dropna().unique().tolist()))
+    with col3:
+        size_filter = st.selectbox("Размер", ["Все"] + sorted(df["size"].dropna().unique().tolist()))
+    with col4:
+        gender_filter = st.selectbox("Пол", ["Все"] + sorted(df["gender"].dropna().unique().tolist()))
 
-# --- Поиск по бренду или модели ---
-search_query = st.text_input("🔎 Поиск по бренду или модели").strip().lower()
+search_query = st.text_input("🔍 Поиск по бренду или модели").strip().lower()
+
+# --- Применяем фильтры ---
+filtered_df = df.copy()
+if brand_filter != "Все":
+    filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
+if model_filter != "Все":
+    filtered_df = filtered_df[filtered_df["model"] == model_filter]
+if size_filter != "Все":
+    filtered_df = filtered_df[filtered_df["size"] == size_filter]
+if gender_filter != "Все":
+    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
 if search_query:
-    catalog = catalog[
-        catalog["brand"].str.lower().str.contains(search_query, na=False)
-        | catalog["model"].str.lower().str.contains(search_query, na=False)
+    filtered_df = filtered_df[
+        filtered_df["brand"].str.lower().str.contains(search_query) |
+        filtered_df["model"].str.lower().str.contains(search_query)
     ]
 
-# --- Сетка карточек товаров ---
-num_cols = 3
-rows = [catalog.iloc[i:i + num_cols] for i in range(0, len(catalog), num_cols)]
+# --- Вывод карточек товаров ---
+if filtered_df.empty:
+    st.warning("❌ Товары не найдены по вашему запросу.")
+else:
+    cols = st.columns(3)
+    for idx, (_, row) in enumerate(filtered_df.iterrows()):
+        # --- Поиск картинки ---
+        images = str(row.get("image", "")).split()
+        found_image = None
+        for name in images:
+            key = name.strip().lower()
+            if key in image_index:
+                found_image = image_index[key]
+                break
+        if not found_image:
+            found_image = "data/images/no_image.jpg"
 
-for row_df in rows:
-    cols = st.columns(num_cols)
-    for col, (_, row) in zip(cols, row_df.iterrows()):
-        with col:
-            # --- Картинки товара ---
-            image_names = str(row.get("image", "")).split()
-            found_images = [image_dict[name] for name in image_names if name in image_dict]
-
-            if found_images:
-                img = Image.open(found_images[0])
-                st.image(img, use_container_width=True)
-            else:
-                st.image("data/images/no_image.jpg", use_container_width=True)
-
-            # --- Наличие товара ---
-            availability = str(
-                row.get("in stock", row.get("in_stock", row.get("stock", "")))
-            ).strip().lower()
-            is_available = availability in ["yes", "да", "в наличии", "true", "1"]
-
-            # --- Карточка с описанием ---
+        with cols[idx % 3]:
+            st.image(found_image, use_container_width=True)
             st.markdown(
                 f"""
                 <div style="
@@ -74,23 +88,14 @@ for row_df in rows:
                     background-color:#fff;
                     box-shadow:0 2px 8px rgba(0,0,0,0.05);
                     text-align:center;
-                    transition:transform 0.2s ease-in-out;
-                " onmouseover="this.style.transform='scale(1.03)';"
-                  onmouseout="this.style.transform='scale(1)';">
-                    <h4 style="margin:4px 0;">{row['brand']} {row['model']}</h4>
-                    <p style="color:gray; font-size:13px; margin:2px 0;">{row['color']} | {row['gender']}</p>
-                    <p style="font-weight:bold; color:#111; margin:4px 0;">{int(row['price'])} ₸</p>
-                    <p style="font-size:13px; color:{'green' if is_available else 'red'};">
-                        {'В наличии' if is_available else 'Нет в наличии'}
+                ">
+                    <h4 style="margin:4px 0;">{row.get('brand','')} {row.get('model','')}</h4>
+                    <p style="color:gray; font-size:13px; margin:2px 0;">{row.get('color','')} | {row.get('gender','')}</p>
+                    <p style="font-weight:bold; color:#111; margin:4px 0;">{int(row.get('price',0))} ₸</p>
+                    <p style="font-size:13px; color:{'green' if str(row.get('in stock', 'yes')).lower() in ['yes','в наличии','true'] else 'red'};">
+                        {'В наличии' if str(row.get('in stock', 'yes')).lower() in ['yes','в наличии','true'] else 'Нет в наличии'}
                     </p>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
-
-st.divider()
-st.caption("© DENE Store 2025")
-
-st.write("🖼 Найденные изображения:")
-for path in image_paths:
-    st.write(path)
