@@ -38,12 +38,11 @@ grouped = df.groupby(["brand", "model", "gender", "color"], dropna=True)
 # --- Поиск фото ---
 def find_image(img_name):
     img_name = img_name.strip()
-    extensions = ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+    extensions = ["png", "jpg", "jpeg", "webp"]
     for ext in extensions:
-        files = glob.glob(f"data/images/**/*{img_name}*", recursive=True)
-        for file in files:
-            if file.lower().endswith(ext[1:]):
-                return file
+        files = glob.glob(f"data/images/**/*{img_name}*.{ext}", recursive=True)
+        if files:
+            return files[0]
     return None
 
 # --- Фильтры ---
@@ -74,6 +73,10 @@ filtered_groups = filtered_df.groupby(["brand", "model", "gender", "color"], dro
 cols = st.columns(4)
 i = 0
 
+# Храним состояние кнопок
+if "show_card" not in st.session_state:
+    st.session_state.show_card = None
+
 for (brand, model, gender, color), group in filtered_groups:
     first_row = group.iloc[0]
     images = []
@@ -87,10 +90,8 @@ for (brand, model, gender, color), group in filtered_groups:
     if not images:
         continue  # если фото нет, пропускаем карточку
 
-    # Основное фото карточки
     img_main = images[0]
 
-    # --- Карточка товара ---
     with cols[i]:
         with st.container(border=True):
             st.image(img_main, use_container_width=True)
@@ -103,25 +104,43 @@ for (brand, model, gender, color), group in filtered_groups:
                 """,
                 unsafe_allow_html=True,
             )
+
             if st.button("Подробнее", key=f"btn_{brand}_{model}_{color}"):
-                with st.modal(f"{brand} {model} ({color})"):
-                    st.image(images, width=200)
-                    st.markdown(f"### {brand} {model}")
-                    st.markdown(f"**Цвет:** {color}")
-                    st.markdown(f"**Пол:** {gender}")
-
-                    sizes_us = sorted(group["size US"].dropna().astype(str).unique())
-                    sizes_eu = sorted(group["size EU"].dropna().astype(str).unique())
-                    st.markdown(f"**Размеры (US):** {', '.join(sizes_us)}")
-                    st.markdown(f"**Размеры (EU):** {', '.join(sizes_eu)}")
-
-                    st.markdown(f"**Описание:** {first_row['description'] if pd.notna(first_row['description']) else '—'}")
-
-                    in_stock = group["in stock"].dropna().unique()
-                    if len(in_stock) > 0:
-                        stock_text = "В наличии ✅" if "yes" in [x.lower() for x in in_stock] else "Нет в наличии ❌"
-                    else:
-                        stock_text = "Нет данных"
-                    st.markdown(f"**Наличие:** {stock_text}")
+                st.session_state.show_card = f"{brand}_{model}_{color}"
 
     i = (i + 1) % 4
+
+# --- POPUP через expander ---
+if st.session_state.show_card:
+    brand, model, color = st.session_state.show_card.split("_", 2)
+    st.markdown("---")
+    st.markdown(f"### {brand} {model} ({color})")
+
+    group = df[(df["brand"] == brand) & (df["model"] == model) & (df["color"] == color)]
+    first_row = group.iloc[0]
+    images = []
+    if pd.notna(first_row["image"]):
+        for img_name in str(first_row["image"]).split():
+            img_path = find_image(img_name)
+            if img_path:
+                images.append(img_path)
+
+    if images:
+        st.image(images, width=200)
+
+    sizes_us = sorted(group["size US"].dropna().astype(str).unique())
+    sizes_eu = sorted(group["size EU"].dropna().astype(str).unique())
+    st.markdown(f"**Размеры (US):** {', '.join(sizes_us)}")
+    st.markdown(f"**Размеры (EU):** {', '.join(sizes_eu)}")
+
+    st.markdown(f"**Описание:** {first_row['description'] if pd.notna(first_row['description']) else '—'}")
+
+    in_stock = group["in stock"].dropna().unique()
+    if len(in_stock) > 0:
+        stock_text = "В наличии ✅" if "yes" in [x.lower() for x in in_stock] else "Нет в наличии ❌"
+    else:
+        stock_text = "Нет данных"
+    st.markdown(f"**Наличие:** {stock_text}")
+
+    if st.button("Закрыть"):
+        st.session_state.show_card = None
