@@ -1,213 +1,141 @@
 import streamlit as st
 import pandas as pd
 import os
-import base64
 from PIL import Image
 
-# --- Настройки страницы ---
-st.set_page_config(page_title="JMD Store", layout="wide")
+# ==============================
+# 🌟 Настройки страницы
+# ==============================
+st.set_page_config(page_title="DENE Store", layout="wide")
 
-# --- Стили ---
-st.markdown("""
-<style>
-body {
-    background-color: #f8f9fa;
-}
-.card {
-    border-radius: 16px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    padding: 10px;
-    transition: all 0.3s ease;
-    background: white;
-    cursor: pointer;
-    text-align: center;
-}
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
-.card img {
-    border-radius: 12px;
-    object-fit: cover;
-}
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.65);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-}
-.modal-content {
-    background-color: #fff;
-    border-radius: 16px;
-    padding: 25px;
-    width: 80%;
-    max-width: 900px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-}
-.modal img {
-    border-radius: 10px;
-    max-height: 400px;
-    object-fit: cover;
-}
-.close-btn {
-    background-color: #333;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 14px;
-    cursor: pointer;
-    float: right;
-}
-.close-btn:hover {
-    background-color: #555;
-}
-.thumb {
-    border-radius: 8px;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-.thumb:hover {
-    transform: scale(1.05);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# --- Обложка ---
-if os.path.exists("jmd_store/data/banner.jpg"):
-    st.image("jmd_store/data/banner.jpg", use_container_width=True)
+# ==============================
+# 🌄 Баннер
+# ==============================
+banner_path = "data/images/banner.jpg"
+if os.path.exists(banner_path):
+    st.image(banner_path, use_container_width=True)
 else:
-    st.warning("⚠️ Не найден файл banner.jpg в jmd_store/data/")
+    st.warning("⚠️ Не найден файл banner.jpg в data/images/")
 
-# --- Загрузка Excel ---
-excel_path = "jmd_store/data/catalog.xlsx"
+st.markdown(
+    "<h1 style='text-align:center; white-space: nowrap;'>DENE Store</h1>",
+    unsafe_allow_html=True
+)
+
+# ==============================
+# 📊 Загрузка Excel каталога
+# ==============================
+excel_path = "data/catalog.xlsx"
 if not os.path.exists(excel_path):
-    st.error("Файл каталога не найден. Убедись, что он загружен в jmd_store/data/catalog.xlsx")
+    st.error("❌ Файл каталога не найден. Убедись, что он загружен в data/catalog.xlsx")
     st.stop()
 
-df = pd.read_excel(excel_path)
-df.fillna("", inplace=True)
+# Считываем все листы
+xls = pd.ExcelFile(excel_path)
+all_data = []
 
-# --- Функция поиска изображения ---
+for sheet_name in xls.sheet_names:
+    df = pd.read_excel(xls, sheet_name=sheet_name)
+    df["brand"] = sheet_name  # подставляем имя листа как бренд, если нужно
+    all_data.append(df)
+
+df = pd.concat(all_data, ignore_index=True)
+
+# Убираем лишние пробелы в названиях колонок
+df.columns = df.columns.str.strip()
+
+# ==============================
+# 🔍 Функции
+# ==============================
 def find_image(name):
-    for ext in [".jpg", ".png", ".jpeg", ".webp"]:
-        path = f"jmd_store/data/images/{name}{ext}"
+    """Ищет первую найденную картинку в data/images/ по SKU или названию."""
+    for ext in [".jpg", ".jpeg", ".png", ".webp"]:
+        path = f"data/images/{name}{ext}"
         if os.path.exists(path):
             return path
-    return None
+    return "data/images/no_image.jpg"
 
-# --- Кодирование картинки ---
-def image_to_base64(img_path):
-    try:
-        with open(img_path, "rb") as f:
-            return "data:image/png;base64," + base64.b64encode(f.read()).decode()
-    except:
-        return None
+def get_first_image(image_str):
+    if pd.isna(image_str) or not image_str:
+        return "data/images/no_image.jpg"
+    first_name = str(image_str).split()[0]
+    return find_image(first_name)
 
-# --- Группировка ---
-grouped = df.groupby(["brand", "model", "gender", "color"], dropna=False)
-
-# --- Фильтры ---
+# ==============================
+# 🎛 Фильтры
+# ==============================
 brands = sorted(df["brand"].dropna().unique())
 models = sorted(df["model"].dropna().unique())
 genders = sorted(df["gender"].dropna().unique())
-colors = sorted(df["color"].dropna().unique())
+sizes = sorted(df["size US"].dropna().unique())
 
-st.sidebar.header("Фильтр товаров")
-brand_filter = st.sidebar.multiselect("Бренд", brands)
-model_filter = st.sidebar.multiselect("Модель", models)
-gender_filter = st.sidebar.multiselect("Пол", genders)
-color_filter = st.sidebar.multiselect("Цвет", colors)
+col1, col2, col3, col4 = st.columns(4)
+brand_filter = col1.multiselect("Бренд", brands)
+model_filter = col2.multiselect("Модель", models)
+gender_filter = col3.multiselect("Пол", genders)
+size_filter = col4.multiselect("Размер US", sizes)
 
-def apply_filters(grouped):
-    filtered = []
-    for key, group in grouped:
-        brand, model, gender, color = key
-        if (not brand_filter or brand in brand_filter) and \
-           (not model_filter or model in model_filter) and \
-           (not gender_filter or gender in gender_filter) and \
-           (not color_filter or color in color_filter):
-            filtered.append((key, group))
-    return filtered
+filtered_df = df.copy()
+if brand_filter:
+    filtered_df = filtered_df[filtered_df["brand"].isin(brand_filter)]
+if model_filter:
+    filtered_df = filtered_df[filtered_df["model"].isin(model_filter)]
+if gender_filter:
+    filtered_df = filtered_df[filtered_df["gender"].isin(gender_filter)]
+if size_filter:
+    filtered_df = filtered_df[filtered_df["size US"].isin(size_filter)]
 
-filtered_groups = apply_filters(grouped)
+# ==============================
+# 🧩 Группировка по цветам
+# ==============================
+grouped = (
+    filtered_df.groupby(["brand", "model", "gender", "color"], dropna=False)
+    .agg({
+        "image": "first",
+        "description": "first",
+        "price": "first",
+        "in stock": "first",
+        "preorder": "first",
+        "size US": lambda x: sorted(x.dropna().astype(str).unique()),
+        "size EU": lambda x: sorted(x.dropna().astype(str).unique()),
+    })
+    .reset_index()
+)
 
-# --- Отрисовка карточек ---
+# ==============================
+# 💳 Отображение карточек
+# ==============================
+st.markdown("---")
+st.subheader("Каталог товаров")
+
 cols = st.columns(4)
-i = 0
 
-for (brand, model, gender, color), group in filtered_groups:
-    first_row = group.iloc[0]
-    img_names = str(first_row["image"]).split()
-    images = [find_image(name) for name in img_names if find_image(name)]
-    if not images:
-        continue
+for i, (_, row) in enumerate(grouped.iterrows()):
+    with cols[i % 4]:
+        image_path = get_first_image(row["image"])
+        brand = row["brand"]
+        model = row["model"]
+        color = row["color"]
+        price = int(row["price"]) if pd.notna(row["price"]) else "—"
+        stock = str(row.get("in stock", "")).strip().lower()
+        available = "✅ В наличии" if stock == "yes" else "❌ Нет в наличии"
 
-    img_main = image_to_base64(images[0])
-    if not img_main:
-        continue
+        # Карточка
+        with st.container(border=True):
+            st.image(image_path, use_container_width=True)
+            st.markdown(f"**{brand} {model}**<br><small>{color}</small>", unsafe_allow_html=True)
+            st.markdown(f"💸 <b>{price} ₸</b>", unsafe_allow_html=True)
+            st.caption(available)
 
-    price = int(first_row["price"]) if str(first_row["price"]).isdigit() else first_row["price"]
+            # Popup окно
+            if st.button("Подробнее", key=f"btn_{i}"):
+                with st.expander(f"{brand} {model} — {color}", expanded=True):
+                    st.image(image_path, use_container_width=True)
+                    st.markdown(f"**Описание:** {row.get('description', '—')}")
+                    st.markdown(f"**Размеры US:** {', '.join(row['size US']) if row['size US'] else '—'}")
+                    st.markdown(f"**Размеры EU:** {', '.join(row['size EU']) if row['size EU'] else '—'}")
+                    st.markdown(f"**Предзаказ:** {row.get('preorder', '—')}")
+                    st.markdown(f"**Наличие:** {available}")
 
-    with cols[i]:
-        button_key = f"{brand}_{model}_{color}"
-        if st.button("", key=f"btn_{button_key}"):
-            st.session_state["popup"] = (brand, model, gender, color)
-        st.markdown(f"""
-            <div class='card'>
-                <img src='{img_main}' width='100%' height='220'>
-                <h4>{brand}</h4>
-                <p style='margin:0;'>{model}</p>
-                <p style='color:gray'>{color} / {gender}</p>
-                <p style='font-weight:600;'>Цена: {price} ₸</p>
-            </div>
-        """, unsafe_allow_html=True)
-    i = (i + 1) % 4
-
-# --- Popup (модалка) ---
-if "popup" in st.session_state:
-    brand, model, gender, color = st.session_state["popup"]
-    _, group = next(((k, g) for k, g in filtered_groups if k == (brand, model, gender, color)), (None, None))
-    if group is not None:
-        first_row = group.iloc[0]
-        img_names = str(first_row["image"]).split()
-        images = [find_image(name) for name in img_names if find_image(name)]
-        sizes_us = ", ".join(str(s) for s in group["size US"].unique() if s)
-        sizes_eu = ", ".join(str(s) for s in group["size EU"].unique() if s)
-        price = int(first_row["price"]) if str(first_row["price"]).isdigit() else first_row["price"]
-        desc = first_row["description"] or "Описание отсутствует"
-
-        thumbs_html = "".join([
-            f"<img src='{image_to_base64(img)}' width='70' class='thumb' style='margin:5px;'>"
-            for img in images
-        ])
-
-        modal_html = f"""
-        <div class="modal">
-            <div class="modal-content">
-                <button class="close-btn" onclick="window.location.reload()">Закрыть</button>
-                <h2>{brand} {model} ({color})</h2>
-                <div style="display:flex; gap:20px;">
-                    <div style="flex:1;">
-                        <img src="{image_to_base64(images[0])}" width="100%">
-                        <div style="display:flex; justify-content:center; margin-top:10px;">{thumbs_html}</div>
-                    </div>
-                    <div style="flex:1;">
-                        <p><b>Пол:</b> {gender}</p>
-                        <p><b>Цвет:</b> {color}</p>
-                        <p><b>Размеры US:</b> {sizes_us}</p>
-                        <p><b>Размеры EU:</b> {sizes_eu}</p>
-                        <p><b>Цена:</b> {price} ₸</p>
-                        <p><b>Описание:</b> {desc}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-
-        st.markdown(modal_html, unsafe_allow_html=True)
+st.markdown("---")
+st.caption("© DENE Store — 2025")
