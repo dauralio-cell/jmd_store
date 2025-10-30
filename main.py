@@ -1,326 +1,213 @@
-# main.py
 import streamlit as st
 import pandas as pd
-import os
 import glob
+import os
 from PIL import Image
 
-# ----------------------
-# Настройки
-# ----------------------
-st.set_page_config(page_title="JMD Store", layout="wide")
-DATA_DIR = "data"
-IMAGE_DIR = os.path.join(DATA_DIR, "images")
-CATALOG_PATH = os.path.join(DATA_DIR, "catalog.xlsx")
-PLACEHOLDER = os.path.join(IMAGE_DIR, "no_image.jpg") if os.path.exists(os.path.join(IMAGE_DIR, "no_image.jpg")) else None
+# ======================
+# НАСТРОЙКИ СТРАНИЦЫ
+# ======================
+st.set_page_config(page_title="DENE Store", layout="wide")
 
-# ----------------------
-# Вспомогательные функции
-# ----------------------
-def scan_images(image_dir):
-    """Сканируем все файлы картинок и возвращаем dict: base_name_lower -> full_path"""
-    patterns = ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif"]
-    files = []
-    for pat in patterns:
-        files.extend(glob.glob(os.path.join(image_dir, "**", pat), recursive=True))
-    image_map = {}
-    for p in files:
-        key = os.path.splitext(os.path.basename(p))[0].strip().lower()
-        # если несколько файлов с одинаковым именем — оставим первый встретившийся
-        if key not in image_map:
-            image_map[key] = p
-    return image_map
+# ======================
+# БАННЕР
+# ======================
+banner_path = "data/images/banner.jpg"
+if os.path.exists(banner_path):
+    st.markdown(
+        f"""
+        <div style="
+            position: relative;
+            height: 320px;
+            background-image: url('{banner_path}');
+            background-size: cover;
+            background-position: center;
+            border-radius: 20px;
+            margin-bottom: 40px;">
+            <div style="
+                position: absolute;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.35);
+                border-radius: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;">
+                <h1 style="color: white; font-size: 60px; font-weight: 700; text-shadow: 0 4px 15px rgba(0,0,0,0.7);">
+                    DENE Store
+                </h1>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-def first_existing_image(names_str, image_map):
-    """names_str - строка типа '100001_1 100001_2' -> возвращаем список найденных путей (в порядке)"""
-    if not names_str or str(names_str).strip() == "":
-        return []
-    out = []
-    for nm in str(names_str).split():
-        key = nm.strip().lower()
-        if key in image_map:
-            out.append(image_map[key])
-    return out
+# ======================
+# ЧТЕНИЕ КАТАЛОГА
+# ======================
+catalog_path = "data/catalog.xlsx"
+all_sheets = pd.read_excel(catalog_path, sheet_name=None)
+df = pd.concat(all_sheets.values(), ignore_index=True)
+df.columns = [c.strip().lower() for c in df.columns]
 
-def normalize_and_forward_fill(df):
-    """Заполняем пустые ячейки предыдущими значениями для нужных столбцов"""
-    cols_to_ffill = ["brand", "model", "gender", "color", "image", "price", "preorder", "in stock", "description"]
-    # убедимся что все колонки есть
-    for col in cols_to_ffill:
-        if col not in df.columns:
-            df[col] = ""
-    # iterate rows and forward-fill by last seen
-    last = {c: "" for c in cols_to_ffill}
-    rows = []
-    for _, r in df.iterrows():
-        r = r.fillna("")  # ensure no NaN
-        new = r.to_dict()
-        for c in cols_to_ffill:
-            val = str(new.get(c, "")).strip()
-            if val == "":
-                new[c] = last[c]
-            else:
-                new[c] = val
-                last[c] = val
-        rows.append(new)
-    new_df = pd.DataFrame(rows)
-    return new_df
+# Очистим пробелы
+df = df.fillna("")
+df["model"] = df["model"].astype(str).str.strip()
+df["color"] = df["color"].astype(str).str.strip()
 
-# ----------------------
-# Загрузка данных
-# ----------------------
-if not os.path.exists(CATALOG_PATH):
-    st.error(f"Не найден файл {CATALOG_PATH}")
-    st.stop()
+# ======================
+# ПОИСК ВСЕХ ИЗОБРАЖЕНИЙ
+# ======================
+image_files = glob.glob("data/images/**/*.*", recursive=True)
+image_map = {os.path.splitext(os.path.basename(p))[0]: p for p in image_files}
 
-# Load all sheets (each sheet -> brand)
-xls = pd.ExcelFile(CATALOG_PATH)
-dfs = []
-for sheet_name in xls.sheet_names:
-    sheet_df = pd.read_excel(xls, sheet_name=sheet_name, dtype=str)
-    # Если в листе нет колонки brand, проставим имя листа
-    if "brand" not in sheet_df.columns.str.lower():
-        sheet_df["brand"] = sheet_name
-    dfs.append(sheet_df)
+def find_image_paths(image_string):
+    images = []
+    for img in str(image_string).split():
+        img = img.strip()
+        if img in image_map:
+            images.append(image_map[img])
+    return images
 
-raw_df = pd.concat(dfs, ignore_index=True)
-# Нормализуем заголовки
-raw_df.columns = raw_df.columns.str.strip().str.lower()
-raw_df = raw_df.fillna("")
-
-# Приведём к ожидаемым колонкам и forward-fill по блокам
-df_prepared = normalize_and_forward_fill(raw_df)
-
-# Если size columns имеют другие имена, пробуем варианты:
-if "size us" not in df_prepared.columns and "size" in df_prepared.columns:
-    df_prepared["size us"] = df_prepared["size"]
-
-# Сканируем картинки
-image_map = scan_images(IMAGE_DIR)
-
-# ----------------------
-# Построение карточек: группировка по (brand, model, color)
-# ----------------------
-grouped_rows = []
-group_cols = ["brand", "model", "gender", "color"]
-if not all(c in df_prepared.columns for c in group_cols):
-    st.error("В таблице отсутствуют обязательные колонки: brand / model / gender / color")
-    st.stop()
-
-for (brand, model, gender, color), group in df_prepared.groupby(group_cols, sort=False):
-    # Собираем все уникальные image-строки в этой группе (обычно первая строка цвета содержит image)
-    images_field = " ".join([str(x).strip() for x in group["image"].unique() if str(x).strip() != ""])
-    # Собираем все размеры (US / EU) в списки
-    sizes_us = [s for s in group["size us"].astype(str).tolist() if str(s).strip() != "" and str(s).strip() != "nan"]
-    sizes_eu = [s for s in group.get("size eu", pd.Series([""] * len(group))).astype(str).tolist() if str(s).strip() != "" and str(s).strip() != "nan"]
-    # price / preorder / in stock / description берем из первой строки в группе (она содержит их)
-    first = group.iloc[0]
-    price = first.get("price", "")
-    preorder = first.get("preorder", "")
-    in_stock = first.get("in stock", "")
-    description = first.get("description", "")
-    # соберём SKU-list (полезно)
-    skus = group.get("sku", pd.Series([""] * len(group))).astype(str).tolist()
-    grouped_rows.append({
+# ======================
+# ГРУППИРОВКА МОДЕЛЕЙ
+# ======================
+models = []
+for (brand, model), group in df.groupby(["brand", "model"], sort=False):
+    colors = []
+    for color, color_group in group.groupby("color", sort=False):
+        if not color:
+            continue
+        images = find_image_paths(color_group.iloc[0]["image"])
+        sizes_us = [s for s in color_group["size us"].tolist() if s]
+        sizes_eu = [s for s in color_group["size eu"].tolist() if s]
+        description = color_group.iloc[0]["description"]
+        price = color_group.iloc[0]["price"]
+        preorder = color_group.iloc[0]["preorder"]
+        instock = color_group.iloc[0]["in stock"]
+        colors.append({
+            "color": color,
+            "images": images,
+            "sizes_us": sizes_us,
+            "sizes_eu": sizes_eu,
+            "description": description,
+            "price": price,
+            "preorder": preorder,
+            "instock": instock
+        })
+    models.append({
         "brand": brand,
         "model": model,
-        "gender": gender,
-        "color": color,
-        "images_field": images_field,
-        "sizes_us": sorted(list(dict.fromkeys([s for s in sizes_us if s]))),
-        "sizes_eu": sorted(list(dict.fromkeys([s for s in sizes_eu if s]))),
-        "price": price,
-        "preorder": preorder,
-        "in_stock": in_stock,
-        "description": description,
-        "skus": skus
+        "colors": colors
     })
 
-cards_df = pd.DataFrame(grouped_rows)
+# ======================
+# СТИЛЬ КАРТОЧЕК
+# ======================
+st.markdown("""
+    <style>
+    .card {
+        border-radius: 18px;
+        background-color: #111;
+        color: #eee;
+        box-shadow: 0 0 12px rgba(255,255,255,0.05);
+        padding: 15px;
+        transition: 0.3s;
+        text-align: center;
+    }
+    .card:hover {
+        box-shadow: 0 0 25px rgba(255,255,255,0.15);
+        transform: translateY(-5px);
+    }
+    .card img {
+        border-radius: 14px;
+        height: 240px;
+        width: 100%;
+        object-fit: cover;
+    }
+    .brand {
+        font-size: 16px;
+        color: #aaa;
+        margin-top: 8px;
+    }
+    .model {
+        font-size: 18px;
+        font-weight: 600;
+        color: #fff;
+    }
+    .price {
+        font-size: 16px;
+        color: #6bf56b;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# ----------------------
-# Фильтры / Поиск
-# ----------------------
-st.markdown("")  # spacer
-search_text = st.text_input("🔎 Поиск по бренду/модели/цвету").strip().lower()
+# ======================
+# ФИЛЬТРЫ
+# ======================
+st.sidebar.header("Фильтры 🔍")
+brands = sorted(df["brand"].unique())
+genders = sorted(df["gender"].unique())
+selected_brand = st.sidebar.multiselect("Бренд", brands)
+selected_gender = st.sidebar.multiselect("Пол", genders)
 
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    brands = ["Все"] + sorted(cards_df["brand"].dropna().unique().tolist())
-    brand_sel = st.selectbox("Бренд", brands)
-with col2:
-    models = ["Все"] + sorted(cards_df["model"].dropna().unique().tolist())
-    model_sel = st.selectbox("Модель", models)
-with col3:
-    genders = ["Все"] + sorted(cards_df["gender"].dropna().unique().tolist())
-    gender_sel = st.selectbox("Пол", genders)
-with col4:
-    all_sizes = sorted({s for lst in cards_df["sizes_us"] for s in lst if s})
-    sizes = ["Все"] + all_sizes
-    size_sel = st.selectbox("Размер (US)", sizes)
+# ======================
+# ОТОБРАЖЕНИЕ КАТАЛОГА
+# ======================
+cols = st.columns(4)
+col_index = 0
 
-# Применяем фильтры
-filtered = cards_df.copy()
-if brand_sel != "Все":
-    filtered = filtered[filtered["brand"] == brand_sel]
-if model_sel != "Все":
-    filtered = filtered[filtered["model"] == model_sel]
-if gender_sel != "Все":
-    filtered = filtered[filtered["gender"] == gender_sel]
-if size_sel != "Все":
-    filtered = filtered[filtered["sizes_us"].apply(lambda lst: size_sel in lst)]
-
-if search_text:
-    filtered = filtered[filtered.apply(lambda r:
-        search_text in str(r["brand"]).lower()
-        or search_text in str(r["model"]).lower()
-        or search_text in str(r["color"]).lower()
-    , axis=1)]
-
-st.markdown("---")
-
-# ----------------------
-# Карточки: сетка 4 на ряд
-# ----------------------
-if filtered.empty:
-    st.info("По текущим фильтрам товары не найдены.")
-else:
-    cols = st.columns(4)
-    for idx, r in filtered.reset_index(drop=True).iterrows():
-        col = cols[idx % 4]
+for model in models:
+    if selected_brand and model["brand"] not in selected_brand:
+        continue
+    for color_info in model["colors"]:
+        first_img = color_info["images"][0] if color_info["images"] else "data/images/no_image.jpg"
+        col = cols[col_index]
         with col:
-            # получаем список существующих путей для images_field
-            image_paths = first_existing_image(r["images_field"], image_map)
-            if image_paths:
-                # отображаем первую картинку
-                try:
-                    st.image(image_paths[0], use_container_width=True)
-                except:
-                    if PLACEHOLDER:
-                        st.image(PLACEHOLDER, use_container_width=True)
-                    else:
-                        st.write("No image")
-            else:
-                if PLACEHOLDER:
-                    st.image(PLACEHOLDER, use_container_width=True)
-                else:
-                    st.write("No image")
-
-            st.markdown(f"**{r['brand']} — {r['model']}**")
-            st.markdown(f"*Цвет:* {r['color']}")
-            st.markdown(f"*Пол:* {r['gender']}")
-            try:
-                price_disp = int(float(r['price']))
-            except:
-                price_disp = r['price']
-            st.markdown(f"**{price_disp} ₸**")
-
-            in_stock_flag = str(r.get("in_stock", "")).strip().lower()
-            if in_stock_flag in ["yes", "да", "в наличии", "true", "1"]:
-                st.markdown("<p style='color:green;'>В наличии</p>", unsafe_allow_html=True)
-            elif str(r.get("preorder", "")).strip().lower() in ["yes", "да", "true", "1"]:
-                st.markdown("<p style='color:orange;'>Предзаказ</p>", unsafe_allow_html=True)
-            else:
-                st.markdown("<p style='color:red;'>Нет в наличии</p>", unsafe_allow_html=True)
-
-            # Кнопка "Подробнее" — открываем модальное окно через session_state
-            if st.button("Подробнее", key=f"more_{idx}"):
-                st.session_state["modal_target"] = {
-                    "brand": r["brand"],
-                    "model": r["model"],
-                    "color": r["color"]
+            if st.button(f"{model['brand']} {model['model']} ({color_info['color']})", key=f"btn_{model['model']}_{color_info['color']}"):
+                st.session_state["selected"] = {
+                    "brand": model["brand"],
+                    "model": model["model"],
+                    "color_info": color_info,
+                    "all_colors": model["colors"]
                 }
-                st.experimental_rerun()
+            st.markdown(f"""
+                <div class="card">
+                    <img src="{first_img}">
+                    <div class="brand">{model['brand']}</div>
+                    <div class="model">{model['model']} ({color_info['color']})</div>
+                    <div class="price">{int(color_info['price']) if color_info['price'] else ''} ₸</div>
+                </div>
+            """, unsafe_allow_html=True)
+        col_index = (col_index + 1) % 4
 
-# ----------------------
-# Если открыт modal_target — показываем модальное окно
-# ----------------------
-if "modal_target" in st.session_state and st.session_state["modal_target"]:
-    target = st.session_state["modal_target"]
-    # найдём индекс соответствующей записи в filtered (по brand+model+color)
-    match_idx = None
-    filtered_list = filtered.reset_index(drop=True)
-    for i, rr in filtered_list.iterrows():
-        if (rr["brand"] == target["brand"] and rr["model"] == target["model"]
-                and rr["color"] == target["color"]):
-            match_idx = i
-            break
+# ======================
+# POPUP ОКНО
+# ======================
+if "selected" in st.session_state:
+    selected = st.session_state["selected"]
+    color_info = selected["color_info"]
+    all_colors = selected["all_colors"]
 
-    if match_idx is not None:
-        prod = filtered_list.loc[match_idx]
+    with st.modal(f"{selected['brand']} {selected['model']} ({color_info['color']})"):
+        st.markdown(f"### {selected['brand']} {selected['model']} ({color_info['color']})")
+        st.image(color_info["images"], use_container_width=True)
+        st.write(f"**Цена:** {color_info['price']} ₸")
+        st.write(f"**Описание:** {color_info['description']}")
+        st.write(f"**Размеры US:** {', '.join(color_info['sizes_us'])}")
+        st.write(f"**Размеры EU:** {', '.join(color_info['sizes_eu'])}")
+        st.write(f"**Наличие:** {'✅ В наличии' if str(color_info['instock']).lower() == 'yes' else '❌ Нет в наличии'}")
+        st.divider()
+        st.markdown("**Другие цвета этой модели:**")
+        cols_c = st.columns(len(all_colors))
+        for i, alt_color in enumerate(all_colors):
+            if alt_color["color"] == color_info["color"]:
+                continue
+            alt_img = alt_color["images"][0] if alt_color["images"] else "data/images/no_image.jpg"
+            with cols_c[i]:
+                if st.button(f"{alt_color['color']}", key=f"color_{alt_color['color']}"):
+                    st.session_state["selected"]["color_info"] = alt_color
+                    st.rerun()
 
-        # Открываем modal
-        with st.modal(f"{prod['brand']} — {prod['model']} ({prod['color']})"):
-            # Галерея
-            imgs = first_existing_image(prod["images_field"], image_map)
-            if imgs:
-                # показываем основную галерею (каждое изображение по очереди)
-                for p in imgs:
-                    try:
-                        st.image(p, use_column_width=True)
-                    except:
-                        if PLACEHOLDER:
-                            st.image(PLACEHOLDER, use_column_width=True)
-                        else:
-                            st.write("No image")
-            else:
-                if PLACEHOLDER:
-                    st.image(PLACEHOLDER, use_column_width=True)
-                else:
-                    st.write("No image")
-
-            # Информация и размеры
-            st.markdown(f"**Цена:** {int(float(prod['price'])) if str(prod['price']) else prod['price']} ₸")
-            in_stock_flag = str(prod.get("in_stock", "")).strip().lower()
-            if in_stock_flag in ["yes", "да", "в наличии", "true", "1"]:
-                st.markdown("<p style='color:green;'>В наличии</p>", unsafe_allow_html=True)
-            elif str(prod.get("preorder", "")).strip().lower() in ["yes", "да", "true", "1"]:
-                st.markdown("<p style='color:orange;'>Предзаказ</p>", unsafe_allow_html=True)
-            else:
-                st.markdown("<p style='color:red;'>Нет в наличии</p>", unsafe_allow_html=True)
-
-            # размеры
-            sizes_us = prod.get("sizes_us", [])
-            sizes_eu = prod.get("sizes_eu", [])
-            if sizes_us:
-                st.markdown("**Размеры (US):** " + ", ".join(map(str, sizes_us)))
-            if sizes_eu:
-                st.markdown("**Размеры (EU):** " + ", ".join(map(str, sizes_eu)))
-
-            # описание
-            if prod.get("description"):
-                st.markdown("**Описание:**")
-                st.write(prod.get("description"))
-
-            st.markdown("---")
-            # миниатюры других цветов той же модели
-            same_model = filtered_list[filtered_list["model"] == prod["model"]]
-            other_colors = same_model[same_model["color"] != prod["color"]]
-            if not other_colors.empty:
-                st.markdown("**Другие цвета:**")
-                cols_thumb = st.columns(max(1, min(6, len(other_colors))))
-                for i2, (_, rc) in enumerate(other_colors.iterrows()):
-                    with cols_thumb[i2 % len(cols_thumb)]:
-                        thumb_imgs = first_existing_image(rc["images_field"], image_map)
-                        if thumb_imgs:
-                            try:
-                                st.image(thumb_imgs[0], width=120)
-                            except:
-                                if PLACEHOLDER:
-                                    st.image(PLACEHOLDER, width=120)
-                        else:
-                            if PLACEHOLDER:
-                                st.image(PLACEHOLDER, width=120)
-
-                        # при нажатии миниатюры — открываем modal для этого цвета
-                        if st.button(f"Открыть: {rc['color']}", key=f"thumb_{i2}"):
-                            st.session_state["modal_target"] = {"brand": rc["brand"], "model": rc["model"], "color": rc["color"]}
-                            st.experimental_rerun()
-
-            # кнопка закрыть
-            if st.button("Закрыть модальное окно"):
-                st.session_state["modal_target"] = None
-                st.experimental_rerun()
-    else:
-        # не найдено — очистим
-        st.session_state["modal_target"] = None
+        if st.button("Закрыть"):
+            del st.session_state["selected"]
+            st.rerun()
