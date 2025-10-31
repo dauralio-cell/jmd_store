@@ -1,141 +1,123 @@
 import streamlit as st
 import pandas as pd
 import os
+import glob
 from PIL import Image
 
-# ==============================
-# 🌟 Настройки страницы
-# ==============================
-st.set_page_config(page_title="DENE Store", layout="wide")
+# --- Настройки страницы ---
+st.set_page_config(page_title="JMD Store", layout="wide")
 
-# ==============================
-# 🌄 Баннер
-# ==============================
-banner_path = "data/images/banner.jpg"
-if os.path.exists(banner_path):
-    st.image(banner_path, use_container_width=True)
+# --- Пути ---
+DATA_DIR = "jmd_store/data"
+IMG_DIR = os.path.join(DATA_DIR, "images")
+CATALOG_PATH = os.path.join(DATA_DIR, "catalog.xlsx")
+BANNER_PATH = os.path.join(IMG_DIR, "banner.jpg")
+
+# --- Обложка ---
+if os.path.exists(BANNER_PATH):
+    st.image(BANNER_PATH, use_container_width=True)
 else:
-    st.warning("⚠️ Не найден файл banner.jpg в data/images/")
+    st.warning(f"❌ Баннер не найден: {BANNER_PATH}")
 
-st.markdown(
-    "<h1 style='text-align:center; white-space: nowrap;'>DENE Store</h1>",
-    unsafe_allow_html=True
-)
+st.markdown("<h1 style='text-align:center; font-size:40px;'>JMD Store</h1>", unsafe_allow_html=True)
 
-# ==============================
-# 📊 Загрузка Excel каталога
-# ==============================
-excel_path = "data/catalog.xlsx"
-if not os.path.exists(excel_path):
-    st.error("❌ Файл каталога не найден. Убедись, что он загружен в data/catalog.xlsx")
+# --- Проверка файла каталога ---
+if not os.path.exists(CATALOG_PATH):
+    st.error(f"❌ Файл каталога не найден: {CATALOG_PATH}")
     st.stop()
 
-# Считываем все листы
-xls = pd.ExcelFile(excel_path)
-all_data = []
+# --- Чтение Excel (все листы) ---
+xls = pd.ExcelFile(CATALOG_PATH)
+dfs = []
+for sheet in xls.sheet_names:
+    df = pd.read_excel(xls, sheet_name=sheet)
+    df["brand"] = sheet  # подстраховка, если не указано в данных
+    dfs.append(df)
+data = pd.concat(dfs, ignore_index=True)
 
-for sheet_name in xls.sheet_names:
-    df = pd.read_excel(xls, sheet_name=sheet_name)
-    df["brand"] = sheet_name  # подставляем имя листа как бренд, если нужно
-    all_data.append(df)
+# --- Очистка данных ---
+data = data.fillna("")
+data = data[data["model"] != ""]
 
-df = pd.concat(all_data, ignore_index=True)
-
-# Убираем лишние пробелы в названиях колонок
-df.columns = df.columns.str.strip()
-
-# ==============================
-# 🔍 Функции
-# ==============================
-def find_image(name):
-    """Ищет первую найденную картинку в data/images/ по SKU или названию."""
-    for ext in [".jpg", ".jpeg", ".png", ".webp"]:
-        path = f"data/images/{name}{ext}"
-        if os.path.exists(path):
-            return path
-    return "data/images/no_image.jpg"
-
-def get_first_image(image_str):
-    if pd.isna(image_str) or not image_str:
-        return "data/images/no_image.jpg"
-    first_name = str(image_str).split()[0]
-    return find_image(first_name)
-
-# ==============================
-# 🎛 Фильтры
-# ==============================
-brands = sorted(df["brand"].dropna().unique())
-models = sorted(df["model"].dropna().unique())
-genders = sorted(df["gender"].dropna().unique())
-sizes = sorted(df["size US"].dropna().unique())
+# --- Фильтры ---
+brands = sorted(data["brand"].unique())
+models = sorted(data["model"].unique())
+genders = sorted(data["gender"].unique())
+colors = sorted(data["color"].unique())
 
 col1, col2, col3, col4 = st.columns(4)
 brand_filter = col1.multiselect("Бренд", brands)
 model_filter = col2.multiselect("Модель", models)
 gender_filter = col3.multiselect("Пол", genders)
-size_filter = col4.multiselect("Размер US", sizes)
+color_filter = col4.multiselect("Цвет", colors)
 
-filtered_df = df.copy()
+filtered = data.copy()
 if brand_filter:
-    filtered_df = filtered_df[filtered_df["brand"].isin(brand_filter)]
+    filtered = filtered[filtered["brand"].isin(brand_filter)]
 if model_filter:
-    filtered_df = filtered_df[filtered_df["model"].isin(model_filter)]
+    filtered = filtered[filtered["model"].isin(model_filter)]
 if gender_filter:
-    filtered_df = filtered_df[filtered_df["gender"].isin(gender_filter)]
-if size_filter:
-    filtered_df = filtered_df[filtered_df["size US"].isin(size_filter)]
+    filtered = filtered[filtered["gender"].isin(gender_filter)]
+if color_filter:
+    filtered = filtered[filtered["color"].isin(color_filter)]
 
-# ==============================
-# 🧩 Группировка по цветам
-# ==============================
-grouped = (
-    filtered_df.groupby(["brand", "model", "gender", "color"], dropna=False)
-    .agg({
-        "image": "first",
-        "description": "first",
-        "price": "first",
-        "in stock": "first",
-        "preorder": "first",
-        "size US": lambda x: sorted(x.dropna().astype(str).unique()),
-        "size EU": lambda x: sorted(x.dropna().astype(str).unique()),
-    })
-    .reset_index()
-)
+# --- Группировка по модели и цвету ---
+grouped = filtered.groupby(["brand", "model", "color"], dropna=False)
 
-# ==============================
-# 💳 Отображение карточек
-# ==============================
-st.markdown("---")
-st.subheader("Каталог товаров")
+# --- Функция для поиска изображений ---
+def find_image_paths(image_names):
+    found = []
+    for name in str(image_names).split():
+        pattern = os.path.join(IMG_DIR, "**", f"{name}.*")
+        matches = glob.glob(pattern, recursive=True)
+        if matches:
+            found.extend(matches)
+    return found
 
-cols = st.columns(4)
+# --- Сетка карточек ---
+for (brand, model, color), group in grouped:
+    sku = group["sku"].iloc[0]
+    images = find_image_paths(group["image"].iloc[0])
+    sizes_us = [str(s) for s in group["size US"] if s]
+    sizes_eu = [str(s) for s in group["size EU"] if s]
+    price = group["price"].iloc[0]
+    desc = group["description"].iloc[0]
+    in_stock = group["in stock"].iloc[0]
+    preorder = group["preorder"].iloc[0]
 
-for i, (_, row) in enumerate(grouped.iterrows()):
-    with cols[i % 4]:
-        image_path = get_first_image(row["image"])
-        brand = row["brand"]
-        model = row["model"]
-        color = row["color"]
-        price = int(row["price"]) if pd.notna(row["price"]) else "—"
-        stock = str(row.get("in stock", "")).strip().lower()
-        available = "✅ В наличии" if stock == "yes" else "❌ Нет в наличии"
+    if images:
+        main_img = images[0]
+    else:
+        main_img = os.path.join(IMG_DIR, "no_image.jpg")
 
-        # Карточка
-        with st.container(border=True):
-            st.image(image_path, use_container_width=True)
-            st.markdown(f"**{brand} {model}**<br><small>{color}</small>", unsafe_allow_html=True)
-            st.markdown(f"💸 <b>{price} ₸</b>", unsafe_allow_html=True)
-            st.caption(available)
+    col = st.container()
+    with col:
+        c1, c2 = st.columns([1, 3])
+        with c1:
+            try:
+                st.image(main_img, use_container_width=True)
+            except:
+                st.warning("Ошибка при загрузке изображения")
+        with c2:
+            st.markdown(f"### {brand} — {model}")
+            st.write(f"**Цвет:** {color}")
+            st.write(f"**Цена:** {price} ₸")
+            if in_stock.lower() == "yes":
+                st.success("✅ В наличии")
+            elif preorder.lower() == "yes":
+                st.info("🕓 Предзаказ")
+            else:
+                st.error("❌ Нет в наличии")
 
-            # Popup окно
-            if st.button("Подробнее", key=f"btn_{i}"):
-                with st.expander(f"{brand} {model} — {color}", expanded=True):
-                    st.image(image_path, use_container_width=True)
-                    st.markdown(f"**Описание:** {row.get('description', '—')}")
-                    st.markdown(f"**Размеры US:** {', '.join(row['size US']) if row['size US'] else '—'}")
-                    st.markdown(f"**Размеры EU:** {', '.join(row['size EU']) if row['size EU'] else '—'}")
-                    st.markdown(f"**Предзаказ:** {row.get('preorder', '—')}")
-                    st.markdown(f"**Наличие:** {available}")
+            if st.button(f"Подробнее — {brand} {model} ({color})"):
+                with st.expander(f"Подробнее о {brand} {model} ({color})", expanded=True):
+                    if len(images) > 1:
+                        cols = st.columns(min(len(images), 5))
+                        for i, img in enumerate(images[:5]):
+                            with cols[i]:
+                                st.image(img, use_container_width=True)
+                    st.write(f"**Размеры (US):** {', '.join(sizes_us)}")
+                    st.write(f"**Размеры (EU):** {', '.join(sizes_eu)}")
+                    st.write(f"**Описание:** {desc if desc else '—'}")
 
-st.markdown("---")
-st.caption("© DENE Store — 2025")
+    st.divider()
