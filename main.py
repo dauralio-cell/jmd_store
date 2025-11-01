@@ -25,7 +25,7 @@ size_conversion = {
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
 # --- Функция для безопасной загрузки фото ---
-def get_image_path(sku):
+def get_image_path(image):
     """Ищет изображение по SKU во всех подпапках, возвращает путь или no_image.jpg"""
     pattern_jpg = os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg")
     pattern_webp = os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp")
