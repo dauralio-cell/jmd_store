@@ -53,6 +53,30 @@ def get_image_path(image_names):
     # Если файл не найден, возвращаем no_image
     return os.path.join(IMAGES_PATH, "no_image.jpg")
 
+def get_all_images_for_product(image_names):
+    """Возвращает все изображения для товара"""
+    if not image_names or pd.isna(image_names) or str(image_names).strip() == "":
+        return [os.path.join(IMAGES_PATH, "no_image.jpg")]
+    
+    image_names_list = str(image_names).strip().split()
+    all_images = []
+    
+    for image_name in image_names_list:
+        found = False
+        for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+            pattern = os.path.join(IMAGES_PATH, "**", f"{image_name}{ext}")
+            image_files = glob.glob(pattern, recursive=True)
+            if image_files:
+                all_images.append(image_files[0])
+                found = True
+                break
+        
+        if not found:
+            # Если не нашли конкретное изображение, добавляем no_image
+            all_images.append(os.path.join(IMAGES_PATH, "no_image.jpg"))
+    
+    return all_images if all_images else [os.path.join(IMAGES_PATH, "no_image.jpg")]
+
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
     try:
@@ -62,6 +86,15 @@ def get_image_base64(image_path):
         fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
         with open(fallback, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode("utf-8")
+
+def get_similar_products(df, current_product):
+    """Находит товары той же модели но других цветов"""
+    similar = df[
+        (df["model_clean"] == current_product["model_clean"]) &
+        (df["brand"] == current_product["brand"]) &
+        (df["sku"] != current_product["sku"])
+    ]
+    return similar
 
 # --- Загрузка данных ---
 @st.cache_data(show_spinner=False)
@@ -119,45 +152,36 @@ def load_data():
 # --- ЗАГРУЗКА ДАННЫХ ---
 df = load_data()
 
+# --- Инициализация состояния для модальных окон ---
+if 'selected_product' not in st.session_state:
+    st.session_state.selected_product = None
+if 'current_image_index' not in st.session_state:
+    st.session_state.current_image_index = 0
+
+# --- Функции для работы с модальными окнами ---
+def open_product_modal(product):
+    st.session_state.selected_product = product
+    st.session_state.current_image_index = 0
+
+def close_modal():
+    st.session_state.selected_product = None
+    st.session_state.current_image_index = 0
+
+def next_image():
+    if st.session_state.selected_product:
+        all_images = get_all_images_for_product(st.session_state.selected_product["image"])
+        st.session_state.current_image_index = (st.session_state.current_image_index + 1) % len(all_images)
+
+def prev_image():
+    if st.session_state.selected_product:
+        all_images = get_all_images_for_product(st.session_state.selected_product["image"])
+        st.session_state.current_image_index = (st.session_state.current_image_index - 1) % len(all_images)
+
 # --- ДИАГНОСТИКА ---
 st.sidebar.write("🔍 ДИАГНОСТИКА:")
 st.sidebar.write("Всего товаров после объединения:", len(df))
 st.sidebar.write("Уникальные бренды:", df["brand"].nunique())
 st.sidebar.write("Уникальные модели:", df["model_clean"].nunique())
-
-if "image" in df.columns:
-    # Тестируем поиск для первых 3 товаров
-    st.sidebar.write("🔎 ТЕСТ ПОИСКА ФАЙЛОВ:")
-    for i, (_, row) in enumerate(df.head(3).iterrows()):
-        image_names = row["image"]
-        st.sidebar.write(f"Товар {i+1}: '{image_names}'")
-        
-        if image_names and str(image_names).strip():
-            # Разбиваем на отдельные имена
-            names_list = str(image_names).strip().split()
-            first_name = names_list[0] if names_list else ""
-            
-            st.sidebar.write(f"  Первое изображение: '{first_name}'")
-            
-            # Ищем файл
-            found_files = []
-            for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-                pattern = os.path.join(IMAGES_PATH, "**", f"{first_name}{ext}")
-                files = glob.glob(pattern, recursive=True)
-                found_files.extend(files)
-                
-                pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_name}*{ext}")
-                files_start = glob.glob(pattern_start, recursive=True)
-                found_files.extend(files_start)
-            
-            if found_files:
-                st.sidebar.write(f"  ✅ Найдены файлы:")
-                for f in found_files:
-                    st.sidebar.write(f"    - {os.path.basename(f)}")
-            else:
-                st.sidebar.write(f"  ❌ Файлы не найдены")
-        else:
-            st.sidebar.write(f"  ⚠️ Пустое значение")
 
 # --- Фильтры ---
 st.divider()
@@ -217,6 +241,7 @@ else:
                 image_path = get_image_path(row["image"])
                 image_base64 = get_image_base64(image_path)
 
+                # Создаем карточку товара с кликом
                 st.markdown(
                     f"""
                     <div style="
@@ -227,6 +252,10 @@ else:
                         background-color:#fff;
                         box-shadow:0 2px 10px rgba(0,0,0,0.05);
                         transition:transform 0.2s ease-in-out;
+                        cursor:pointer;
+                    " onclick="
+                        const event = new CustomEvent('productClick', {{detail: {row.to_dict()}}});
+                        window.parent.document.dispatchEvent(event);
                     " onmouseover="this.style.transform='scale(1.02)';"
                       onmouseout="this.style.transform='scale(1)';">
                         <img src="data:image/jpeg;base64,{image_base64}" 
@@ -235,12 +264,177 @@ else:
                         <p style="color:gray; font-size:13px; margin:0;">
                             US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
                         </p>
-                        <p style="font-size:14px; color:#555;">{row['description']}</p>
+                        <p style="font-size:14px; color:#555;">{row['description'][:100]}{'...' if len(row['description']) > 100 else ''}</p>
                         <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
+
+                # Кнопка для открытия модального окна
+                if st.button("👀 Подробнее", key=f"btn_{row['sku']}", use_container_width=True):
+                    open_product_modal(row.to_dict())
+
+# --- Модальное окно товара ---
+if st.session_state.selected_product:
+    product = st.session_state.selected_product
+    all_images = get_all_images_for_product(product["image"])
+    similar_products = get_similar_products(df, product)
+    
+    # Создаем модальное окно
+    st.markdown(
+        """
+        <style>
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        .modal-content {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            z-index: 1000;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Фон модального окна
+    st.markdown('<div class="modal-backdrop" onclick="window.parent.document.dispatchEvent(new CustomEvent(\'closeModal\'))"></div>', unsafe_allow_html=True)
+    
+    # Содержимое модального окна
+    with st.container():
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            # Галерея изображений
+            st.markdown("### 📷 Галерея")
+            current_image = all_images[st.session_state.current_image_index]
+            current_image_base64 = get_image_base64(current_image)
+            
+            st.markdown(
+                f"""
+                <div style="text-align: center;">
+                    <img src="data:image/jpeg;base64,{current_image_base64}" 
+                         style='width:100%; border-radius:12px; max-height:400px; object-fit:contain;'>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            
+            # Навигация по изображениям
+            if len(all_images) > 1:
+                col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
+                with col_nav1:
+                    if st.button("⬅️ Назад", use_container_width=True):
+                        prev_image()
+                with col_nav2:
+                    st.markdown(f"<div style='text-align: center; padding: 10px;'>{st.session_state.current_image_index + 1} / {len(all_images)}</div>", unsafe_allow_html=True)
+                with col_nav3:
+                    if st.button("Вперед ➡️", use_container_width=True):
+                        next_image()
+                
+                # Миниатюры
+                st.markdown("#### Миниатюры:")
+                thumb_cols = st.columns(min(5, len(all_images)))
+                for idx, (thumb_col, img_path) in enumerate(zip(thumb_cols, all_images)):
+                    with thumb_col:
+                        thumb_base64 = get_image_base64(img_path)
+                        st.markdown(
+                            f"""
+                            <div style="border: {'2px solid #007bff' if idx == st.session_state.current_image_index else '1px solid #ddd'}; 
+                                        border-radius:8px; padding:2px; cursor:pointer;"
+                                 onclick="window.parent.document.dispatchEvent(new CustomEvent('changeImage', {{detail: {idx}}}))">
+                                <img src="data:image/jpeg;base64,{thumb_base64}" 
+                                     style='width:100%; border-radius:6px; height:60px; object-fit:cover;'>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        if st.button("Выбрать", key=f"thumb_{idx}", use_container_width=True):
+                            st.session_state.current_image_index = idx
+        
+        with col2:
+            # Информация о товаре
+            st.markdown("### 📋 Информация о товаре")
+            st.markdown(f"**Бренд:** {product['brand']}")
+            st.markdown(f"**Модель:** {product['model_clean']}")
+            st.markdown(f"**Цвет:** {product['color']}")
+            st.markdown(f"**Размер US:** {product['size_us'] or '-'}")
+            st.markdown(f"**Размер EU:** {product['size_eu'] or '-'}")
+            st.markdown(f"**Пол:** {product['gender']}")
+            st.markdown(f"**Описание:** {product['description']}")
+            st.markdown(f"**Цена:** **{int(product['price'])} ₸**")
+            
+            # Другие цвета
+            if not similar_products.empty:
+                st.markdown("### 🎨 Другие цвета")
+                for _, similar in similar_products.iterrows():
+                    similar_image = get_image_path(similar["image"])
+                    similar_base64 = get_image_base64(similar_image)
+                    
+                    col_sim1, col_sim2 = st.columns([1, 3])
+                    with col_sim1:
+                        st.markdown(
+                            f"""
+                            <img src="data:image/jpeg;base64,{similar_base64}" 
+                                 style='width:100%; border-radius:8px; height:60px; object-fit:cover;'>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    with col_sim2:
+                        st.markdown(f"**Цвет:** {similar['color']}")
+                        st.markdown(f"**Цена:** {int(similar['price'])} ₸")
+                        if st.button("Выбрать", key=f"similar_{similar['sku']}", use_container_width=True):
+                            open_product_modal(similar.to_dict())
+        
+        # Кнопка закрытия
+        st.markdown("---")
+        if st.button("✖️ Закрыть", use_container_width=True):
+            close_modal()
+
+# --- JavaScript для обработки кликов ---
+st.markdown(
+    """
+    <script>
+    window.addEventListener('load', function() {
+        // Обработка клика по карточке товара
+        window.parent.document.addEventListener('productClick', function(e) {
+            const product = e.detail;
+            // Здесь можно отправить данные в Streamlit
+            console.log('Product clicked:', product);
+        });
+        
+        // Обработка закрытия модального окна
+        window.parent.document.addEventListener('closeModal', function() {
+            // Здесь можно вызвать функцию закрытия в Streamlit
+            console.log('Close modal');
+        });
+        
+        // Обработка смены изображения
+        window.parent.document.addEventListener('changeImage', function(e) {
+            const index = e.detail;
+            // Здесь можно обновить индекс изображения
+            console.log('Change image to:', index);
+        });
+    });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
 
 st.divider()
 st.caption("© DENE Store 2025")
