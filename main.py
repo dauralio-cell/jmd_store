@@ -25,15 +25,23 @@ size_conversion = {
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
 # --- Функция для безопасной загрузки фото ---
-def get_image_path(image):
-    """Ищет изображение по SKU во всех подпапках, возвращает путь или no_image.jpg"""
-    pattern_jpg = os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg")
-    pattern_webp = os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp")
-    image_files = glob.glob(pattern_jpg, recursive=True) + glob.glob(pattern_webp, recursive=True)
-    if image_files:
-        return image_files[0]
-    else:
+def get_image_path(image_filename):
+    """Ищет изображение по имени файла в папках, возвращает путь или no_image.jpg"""
+    if not image_filename or pd.isna(image_filename) or str(image_filename).strip() == "":
         return os.path.join(IMAGES_PATH, "no_image.jpg")
+    
+    # Убираем возможные пути и оставляем только имя файла
+    filename = os.path.basename(str(image_filename))
+    
+    # Ищем файл с разными расширениями
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern = os.path.join(IMAGES_PATH, "**", f"{filename}{ext}")
+        image_files = glob.glob(pattern, recursive=True)
+        if image_files:
+            return image_files[0]
+    
+    # Если файл не найден, возвращаем no_image
+    return os.path.join(IMAGES_PATH, "no_image.jpg")
 
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
@@ -90,6 +98,18 @@ def load_data():
 
 df = load_data()
 
+# --- Диагностика ---
+st.sidebar.write("🔍 Диагностика:")
+st.sidebar.write("Доступные столбцы:", df.columns.tolist())
+st.sidebar.write("Всего товаров:", len(df))
+
+# Проверяем наличие колонки image
+if "image" not in df.columns:
+    st.error("❌ В данных отсутствует колонка 'image'!")
+    st.write("Существующие колонки:", df.columns.tolist())
+else:
+    st.sidebar.write("Товары с изображениями:", df["image"].notna().sum())
+
 # --- Фильтры ---
 st.divider()
 st.markdown("### 🔎 Фильтр каталога")
@@ -132,40 +152,44 @@ st.divider()
 # --- Сетка карточек товаров ---
 st.markdown("## 👟 Каталог товаров")
 
-num_cols = 4
-rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
+if len(filtered_df) == 0:
+    st.warning("🚫 Товары по выбранным фильтрам не найдены")
+else:
+    num_cols = 4
+    rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
 
-for row_df in rows:
-    cols = st.columns(num_cols)
-    for col, (_, row) in zip(cols, row_df.iterrows()):
-        with col:
-            image_path = get_image_path(row["SKU"])
-            image_base64 = get_image_base64(image_path)
+    for row_df in rows:
+        cols = st.columns(num_cols)
+        for col, (_, row) in zip(cols, row_df.iterrows()):
+            with col:
+                # ИСПРАВЛЕННАЯ СТРОКА - используем колонку 'image'
+                image_path = get_image_path(row["image"])
+                image_base64 = get_image_base64(image_path)
 
-            st.markdown(
-                f"""
-                <div style="
-                    border:1px solid #eee;
-                    border-radius:16px;
-                    padding:12px;
-                    margin-bottom:16px;
-                    background-color:#fff;
-                    box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                    transition:transform 0.2s ease-in-out;
-                " onmouseover="this.style.transform='scale(1.02)';"
-                  onmouseout="this.style.transform='scale(1)';">
-                    <img src="data:image/jpeg;base64,{image_base64}" 
-                         style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
-                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                    <p style="color:gray; font-size:13px; margin:0;">
-                        US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
-                    </p>
-                    <p style="font-size:14px; color:#555;">{row['description']}</p>
-                    <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                st.markdown(
+                    f"""
+                    <div style="
+                        border:1px solid #eee;
+                        border-radius:16px;
+                        padding:12px;
+                        margin-bottom:16px;
+                        background-color:#fff;
+                        box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                        transition:transform 0.2s ease-in-out;
+                    " onmouseover="this.style.transform='scale(1.02)';"
+                      onmouseout="this.style.transform='scale(1)';">
+                        <img src="data:image/jpeg;base64,{image_base64}" 
+                             style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                        <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                        <p style="color:gray; font-size:13px; margin:0;">
+                            US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
+                        </p>
+                        <p style="font-size:14px; color:#555;">{row['description']}</p>
+                        <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
 st.divider()
 st.caption("© DENE Store 2025")
