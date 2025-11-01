@@ -35,8 +35,22 @@ def get_image_path(image_filename):
     
     # Ищем файл с разными расширениями
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        pattern = os.path.join(IMAGES_PATH, "**", f"{filename}{ext}")
+        # Пробуем найти файл как есть
+        pattern = os.path.join(IMAGES_PATH, "**", f"{filename}")
         image_files = glob.glob(pattern, recursive=True)
+        if image_files:
+            return image_files[0]
+        
+        # Пробуем найти файл с расширением
+        pattern_with_ext = os.path.join(IMAGES_PATH, "**", f"{filename}{ext}")
+        image_files = glob.glob(pattern_with_ext, recursive=True)
+        if image_files:
+            return image_files[0]
+        
+        # Пробуем найти файл без расширения + расширение
+        name_without_ext = os.path.splitext(filename)[0]
+        pattern_name_ext = os.path.join(IMAGES_PATH, "**", f"{name_without_ext}{ext}")
+        image_files = glob.glob(pattern_name_ext, recursive=True)
         if image_files:
             return image_files[0]
     
@@ -103,12 +117,10 @@ st.sidebar.write("🔍 Диагностика:")
 st.sidebar.write("Доступные столбцы:", df.columns.tolist())
 st.sidebar.write("Всего товаров:", len(df))
 
-# Проверяем наличие колонки image
-if "image" not in df.columns:
-    st.error("❌ В данных отсутствует колонка 'image'!")
-    st.write("Существующие колонки:", df.columns.tolist())
-else:
-    st.sidebar.write("Товары с изображениями:", df["image"].notna().sum())
+# Показываем пример названий изображений
+if "image" in df.columns:
+    st.sidebar.write("Примеры названий изображений:")
+    st.sidebar.write(df["image"].head(3).tolist())
 
 # --- Фильтры ---
 st.divider()
