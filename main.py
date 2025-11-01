@@ -25,32 +25,24 @@ size_conversion = {
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
 # --- Функция для безопасной загрузки фото ---
-def get_image_path(image_filename):
-    """Ищет изображение по имени файла в папках, возвращает путь или no_image.jpg"""
-    if not image_filename or pd.isna(image_filename) or str(image_filename).strip() == "":
+def get_image_path(image_name):
+    """Ищет изображение по имени из колонки image"""
+    if not image_name or pd.isna(image_name) or str(image_name).strip() == "":
         return os.path.join(IMAGES_PATH, "no_image.jpg")
     
-    # Убираем возможные пути и оставляем только имя файла
-    filename = os.path.basename(str(image_filename))
+    # Преобразуем в строку и убираем лишние пробелы
+    image_name = str(image_name).strip()
     
     # Ищем файл с разными расширениями
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        # Пробуем найти файл как есть
-        pattern = os.path.join(IMAGES_PATH, "**", f"{filename}")
+        pattern = os.path.join(IMAGES_PATH, "**", f"{image_name}{ext}")
         image_files = glob.glob(pattern, recursive=True)
         if image_files:
             return image_files[0]
         
-        # Пробуем найти файл с расширением
-        pattern_with_ext = os.path.join(IMAGES_PATH, "**", f"{filename}{ext}")
-        image_files = glob.glob(pattern_with_ext, recursive=True)
-        if image_files:
-            return image_files[0]
-        
-        # Пробуем найти файл без расширения + расширение
-        name_without_ext = os.path.splitext(filename)[0]
-        pattern_name_ext = os.path.join(IMAGES_PATH, "**", f"{name_without_ext}{ext}")
-        image_files = glob.glob(pattern_name_ext, recursive=True)
+        # Также ищем файлы, которые начинаются с этого имени
+        pattern_start = os.path.join(IMAGES_PATH, "**", f"{image_name}*{ext}")
+        image_files = glob.glob(pattern_start, recursive=True)
         if image_files:
             return image_files[0]
     
@@ -120,7 +112,15 @@ st.sidebar.write("Всего товаров:", len(df))
 # Показываем пример названий изображений
 if "image" in df.columns:
     st.sidebar.write("Примеры названий изображений:")
-    st.sidebar.write(df["image"].head(3).tolist())
+    st.sidebar.write(df["image"].head(5).tolist())
+    
+    # Проверяем найдутся ли файлы
+    st.sidebar.write("Поиск файлов:")
+    for img_name in df["image"].head(3):
+        if img_name and str(img_name).strip():
+            path = get_image_path(img_name)
+            found = "✅ Найден" if path != os.path.join(IMAGES_PATH, "no_image.jpg") else "❌ Не найден"
+            st.sidebar.write(f"{img_name}: {found}")
 
 # --- Фильтры ---
 st.divider()
@@ -174,7 +174,7 @@ else:
         cols = st.columns(num_cols)
         for col, (_, row) in zip(cols, row_df.iterrows()):
             with col:
-                # ИСПРАВЛЕННАЯ СТРОКА - используем колонку 'image'
+                # Используем колонку 'image' с именами файлов
                 image_path = get_image_path(row["image"])
                 image_base64 = get_image_base64(image_path)
 
