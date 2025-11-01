@@ -1,0 +1,157 @@
+[
+  {
+    "brand": "Mizuno",
+    "model": "Crosswild II (D1GH241003)",
+    "gender": "men",
+    "color": "white green",
+    "price": 60000.0,
+    "description": "",
+    "images": [
+      "data/images/Mizuno/Mizuno Crosswild II WhiteGreen/500201_1.webp",
+      "data/images/Mizuno/Mizuno Crosswild II WhiteGreen/500201_2.webp",
+      "data/images/Mizuno/Mizuno Crosswild II WhiteGreen/500201_3.webp"
+    ],
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0",
+        "8.0"
+      ],
+      "EU": []
+    },
+    "in_stock": "yes"
+  },
+  {
+    "brand": "Mizuno",
+    "model": "LG 60S (D1GH242103)",
+    "gender": "men",
+    "color": "white grey",
+    "price": 60000.0,
+    "description": "",
+    "images": [
+      "data/images/Mizuno/LG 60s 2k beige silver/500100_1.jpg",
+      "data/images/Mizuno/LG 60s 2k beige silver/500100_2.jpg",
+      "data/images/Mizuno/LG 60s 2k beige silver/500100_3.jpg"
+    ],
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0",
+        "8.0",
+        "9.0"
+      ],
+      "EU": []
+    },
+    "in_stock": "yes"
+  },
+  {
+    "brand": "Mizuno",
+    "model": "Racer S (D1GH223524)",
+    "gender": "men",
+    "color": "grey",
+    "price": 60000.0,
+    "description": "",
+    "images": [
+      "data/images/Mizuno/Mizuno racer s silver grey/500001_1.jpg",
+      "data/images/Mizuno/Mizuno racer s silver grey/500001_2.jpg",
+      "data/images/Mizuno/Mizuno racer s silver grey/500001_3.jpg"
+    ],
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "in_stock": "yes"
+  },
+  {
+    "brand": "Mizuno",
+    "model": "Racer S (D1GH223524)",
+    "gender": "men",
+    "color": "white",
+    "price": 60000.0,
+    "description": "",
+    "images": [
+      "data/images/Mizuno/Mizuno racer s white/500008_1.webp",
+      "data/images/Mizuno/Mizuno racer s white/500008_2.webp",
+      "data/images/Mizuno/Mizuno racer s white/500008_3.webp"
+    ],
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "in_stock": "yes"
+  },
+  {
+    "brand": "Nike",
+    "model": " Air Force 1 Low 07 (CW2288-111)",
+    "gender": "men",
+    "color": "green",
+    "price": 50000.0,
+    "description": "",
+    "images": [],
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "in_stock": "yes"
+  },
+  {
+    "brand": "Nike",
+    "model": " Air Force 1 Low 07 (CW2288-111)",
+    "gender": "men",
+    "color": "white",
+    "price": 50000.0,
+    "description": "",
+    "images": [
+      "data/images/Nike/Nike Air Force 1 Low 07 CW2288-111 white/100001_1.webp",
+      "data/images/Nike/Nike Air Force 1 Low 07 CW2288-111 white/100001_2.webp",
+      "data/images/Nike/Nike Air Force 1 Low 07 CW2288-111 white/100001_3.webp"
+    ],
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "in_stock": "yes"
+  }
+]
