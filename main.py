@@ -1,171 +1,146 @@
 import streamlit as st
 import pandas as pd
 import os
-from PIL import Image
 import glob
+from PIL import Image
 
-# ----------------------------
-# 🧭 Настройка путей
-# ----------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-IMG_DIR = os.path.join(DATA_DIR, "images")
-CATALOG_PATH = os.path.join(DATA_DIR, "catalog.xlsx")
-BANNER_PATH = os.path.join(IMG_DIR, "banner.jpg")
+# --- Настройки страницы ---
+st.set_page_config(page_title="DENE Store", layout="wide")
 
-# ----------------------------
-# 🚨 Проверка файлов
-# ----------------------------
-if not os.path.exists(CATALOG_PATH):
-    st.error(f"❌ Файл каталога не найден: {CATALOG_PATH}")
-    st.stop()
+# --- Обложка ---
+banner_path = "data/images/banner.jpg"
+if os.path.exists(banner_path):
+    st.image(banner_path, use_container_width=True)
+st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store</h1>", unsafe_allow_html=True)
 
-if not os.path.exists(BANNER_PATH):
-    st.warning(f"⚠️ Баннер не найден: {BANNER_PATH}")
+# --- Загрузка каталога ---
+catalog_path = "data/catalog.xlsx"
+xls = pd.ExcelFile(catalog_path)
 
-# ----------------------------
-# 📊 Загрузка каталога
-# ----------------------------
-def load_catalog(path):
-    xls = pd.ExcelFile(path)
-    dfs = []
-    for sheet in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name=sheet)
-        df["sheet"] = sheet
-        dfs.append(df)
-    catalog = pd.concat(dfs, ignore_index=True)
+# Объединяем все листы в один DataFrame
+df_list = []
+for sheet_name in xls.sheet_names:
+    sheet_df = pd.read_excel(xls, sheet_name=sheet_name)
+    sheet_df["brand_sheet"] = sheet_name
+    df_list.append(sheet_df)
+df = pd.concat(df_list, ignore_index=True)
 
-    # Чистим пробелы, приводим к строкам
-    catalog = catalog.fillna("")
-    catalog.columns = [c.strip() for c in catalog.columns]
-    return catalog
+# Заполняем пустые ячейки сверху вниз (для модели, бренда, цвета и т.д.)
+df["brand"].ffill(inplace=True)
+df["model"].ffill(inplace=True)
+df["gender"].ffill(inplace=True)
+df["color"].ffill(inplace=True)
+df["description"].ffill(inplace=True)
 
-catalog = load_catalog(CATALOG_PATH)
+# --- Группировка по модели и цвету ---
+grouped = df.groupby(["brand", "model", "gender", "color"], dropna=True)
 
-# ----------------------------
-# 🖼️ Загрузка баннера
-# ----------------------------
-if os.path.exists(BANNER_PATH):
-    st.image(BANNER_PATH, use_container_width=True)
+# --- Поиск фото ---
+def find_image(img_name):
+    img_name = img_name.strip()
+    extensions = ["png", "jpg", "jpeg", "webp"]
+    for ext in extensions:
+        files = glob.glob(f"data/images/**/*{img_name}*.{ext}", recursive=True)
+        if files:
+            return files[0]
+    return None
 
-st.markdown(
-    "<h1 style='text-align:center; margin-top:-20px;'>👟 DENE Store — Каталог кроссовок</h1>",
-    unsafe_allow_html=True
-)
+# --- Фильтры ---
+st.sidebar.header("Фильтры")
+brands = sorted(df["brand"].dropna().unique())
+models = sorted(df["model"].dropna().unique())
+genders = sorted(df["gender"].dropna().unique())
+colors = sorted(df["color"].dropna().unique())
 
-# ----------------------------
-# 🔍 Фильтры
-# ----------------------------
-brands = sorted([b for b in catalog["brand"].unique() if b])
-models = sorted([m for m in catalog["model"].unique() if m])
-genders = sorted([g for g in catalog["gender"].unique() if g])
-sizes = sorted([s for s in catalog["size US"].unique() if s])
+selected_brand = st.sidebar.multiselect("Бренд", brands)
+selected_model = st.sidebar.multiselect("Модель", models)
+selected_gender = st.sidebar.multiselect("Пол", genders)
+selected_color = st.sidebar.multiselect("Цвет", colors)
 
-col1, col2, col3, col4 = st.columns(4)
-brand_filter = col1.multiselect("Бренд", brands)
-model_filter = col2.multiselect("Модель", models)
-gender_filter = col3.multiselect("Пол", genders)
-size_filter = col4.multiselect("Размер US", sizes)
+filtered_df = df.copy()
+if selected_brand:
+    filtered_df = filtered_df[filtered_df["brand"].isin(selected_brand)]
+if selected_model:
+    filtered_df = filtered_df[filtered_df["model"].isin(selected_model)]
+if selected_gender:
+    filtered_df = filtered_df[filtered_df["gender"].isin(selected_gender)]
+if selected_color:
+    filtered_df = filtered_df[filtered_df["color"].isin(selected_color)]
 
-filtered = catalog.copy()
+filtered_groups = filtered_df.groupby(["brand", "model", "gender", "color"], dropna=True)
 
-if brand_filter:
-    filtered = filtered[filtered["brand"].isin(brand_filter)]
-if model_filter:
-    filtered = filtered[filtered["model"].isin(model_filter)]
-if gender_filter:
-    filtered = filtered[filtered["gender"].isin(gender_filter)]
-if size_filter:
-    filtered = filtered[filtered["size US"].isin(size_filter)]
+# --- Сетка карточек ---
+cols = st.columns(4)
+i = 0
 
-# ----------------------------
-# 🖼️ Поиск фото
-# ----------------------------
-def find_image_files(image_names):
-    files = []
-    for name in image_names:
-        pattern = os.path.join(IMG_DIR, "**", f"{name}.*")
-        found = glob.glob(pattern, recursive=True)
-        if found:
-            files.append(found[0])
-    return files
+# Храним состояние кнопок
+if "show_card" not in st.session_state:
+    st.session_state.show_card = None
 
-# ----------------------------
-# 💎 Отображение карточек
-# ----------------------------
-st.markdown("<hr>", unsafe_allow_html=True)
+for (brand, model, gender, color), group in filtered_groups:
+    first_row = group.iloc[0]
+    images = []
+    if pd.notna(first_row["image"]):
+        img_names = str(first_row["image"]).split()
+        for img_name in img_names:
+            img_path = find_image(img_name)
+            if img_path:
+                images.append(img_path)
 
-if filtered.empty:
-    st.info("Не найдено товаров по выбранным фильтрам 😔")
-else:
-    cols = st.columns(4)
+    if not images:
+        continue  # если фото нет, пропускаем карточку
 
-    for i, (_, row) in enumerate(filtered.iterrows()):
-        color = row["color"]
-        brand = row["brand"]
-        model = row["model"]
-        price = row["price"]
-        desc = row["description"]
-        in_stock = str(row.get("in stock", "")).strip().lower() == "yes"
-        preorder = str(row.get("preorder", "")).strip().lower() == "yes"
-        size_us = str(row["size US"])
-        size_eu = str(row["size EU"])
-        images = str(row["image"]).split()
+    img_main = images[0]
 
-        image_files = find_image_files(images)
-        main_image = image_files[0] if image_files else None
+    with cols[i]:
+        with st.container(border=True):
+            st.image(img_main, use_container_width=True)
+            st.markdown(
+                f"""
+                <h4 style='margin:0; font-weight:600;'>{brand}</h4>
+                <p style='margin:0; font-size:15px;'>{model}</p>
+                <p style='margin:0; color:gray; font-size:13px;'>{color} / {gender}</p>
+                <p style='margin:0; color:#333; font-size:15px;'>Цена: {int(first_row['price'])} ₸</p>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        with cols[i % 4]:
-            with st.container(border=True):
-                if main_image:
-                    st.image(main_image, use_container_width=True)
-                else:
-                    st.image("https://via.placeholder.com/300x200?text=No+Image")
+            if st.button("Подробнее", key=f"btn_{brand}_{model}_{color}"):
+                st.session_state.show_card = f"{brand}_{model}_{color}"
 
-                st.markdown(
-                    f"""
-                    <h4 style='text-align:center'>{brand} {model}</h4>
-                    <p style='text-align:center; color:gray'>{color}</p>
-                    <p style='text-align:center; font-weight:bold; font-size:16px;'>{int(price):,} ₸</p>
-                    <p style='text-align:center; color:{'green' if in_stock else 'red'}'>
-                        {'В наличии' if in_stock else 'Нет в наличии'}
-                    </p>
-                    """,
-                    unsafe_allow_html=True
-                )
+    i = (i + 1) % 4
 
-                if st.button(f"Подробнее", key=f"btn_{i}"):
-                    st.session_state["selected_product"] = row
+# --- POPUP через expander ---
+if st.session_state.show_card:
+    brand, model, color = st.session_state.show_card.split("_", 2)
+    st.markdown("---")
+    st.markdown(f"### {brand} {model} ({color})")
 
-# ----------------------------
-# 🪟 Popup товара
-# ----------------------------
-if "selected_product" in st.session_state:
-    row = st.session_state["selected_product"]
+    group = df[(df["brand"] == brand) & (df["model"] == model) & (df["color"] == color)]
+    first_row = group.iloc[0]
+    images = []
+    if pd.notna(first_row["image"]):
+        for img_name in str(first_row["image"]).split():
+            img_path = find_image(img_name)
+            if img_path:
+                images.append(img_path)
 
-    st.markdown("<hr>", unsafe_allow_html=True)
-    st.markdown(
-        f"<h2 style='text-align:center'>{row['brand']} {row['model']}</h2>",
-        unsafe_allow_html=True
-    )
-    st.markdown(f"<p style='text-align:center; color:gray'>{row['color']}</p>", unsafe_allow_html=True)
+    if images:
+        st.image(images, width=200)
 
-    images = str(row["image"]).split()
-    image_files = find_image_files(images)
+    sizes_us = sorted(group["size US"].dropna().astype(str).unique())
+    sizes_eu = sorted(group["size EU"].dropna().astype(str).unique())
+    st.markdown(f"**Размеры (US):** {', '.join(sizes_us)}")
+    st.markdown(f"**Размеры (EU):** {', '.join(sizes_eu)}")
 
-    img_cols = st.columns(len(image_files) if image_files else 1)
-    for j, img in enumerate(image_files):
-        with img_cols[j]:
-            st.image(img, use_container_width=True)
+    st.markdown(f"**Описание:** {first_row['description'] if pd.notna(first_row['description']) else '—'}")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(f"**Описание:** {row['description']}")
-    st.markdown(f"**Размеры US/EU:** {row['size US']} / {row['size EU']}")
-    st.markdown(f"**Цена:** {int(row['price']):,} ₸")
+    in_stock = group["in stock"].dropna().unique()
+    if len(in_stock) > 0:
+        stock_text = "В наличии ✅" if "yes" in [x.lower() for x in in_stock] else "Нет в наличии ❌"
+    else:
+        stock_text = "Нет данных"
+    st.markdown(f"**Наличие:** {stock_text}")
 
-    if str(row.get("preorder", "")).strip().lower() == "yes":
-        st.markdown("🕓 *Доступен предзаказ*")
-
-    st.markdown("<hr>", unsafe_allow_html=True)
     if st.button("Закрыть"):
-        del st.session_state["selected_product"]
+        st.session_state.show_card = None

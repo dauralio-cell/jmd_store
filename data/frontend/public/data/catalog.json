@@ -1,0 +1,137 @@
+[
+  {
+    "brand": "Mizuno",
+    "model": "Crosswild II (D1GH241003)",
+    "gender": "men",
+    "color": "white green",
+    "price": 60000,
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0",
+        "8.0"
+      ],
+      "EU": []
+    },
+    "description": NaN,
+    "image": null,
+    "in_stock": true
+  },
+  {
+    "brand": "Mizuno",
+    "model": "LG 60S (D1GH242103)",
+    "gender": "men",
+    "color": "white grey",
+    "price": 60000,
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0",
+        "8.0",
+        "9.0"
+      ],
+      "EU": []
+    },
+    "description": NaN,
+    "image": null,
+    "in_stock": true
+  },
+  {
+    "brand": "Mizuno",
+    "model": "Racer S (D1GH223524)",
+    "gender": "men",
+    "color": "grey",
+    "price": 60000,
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "description": NaN,
+    "image": null,
+    "in_stock": true
+  },
+  {
+    "brand": "Mizuno",
+    "model": "Racer S (D1GH223524)",
+    "gender": "men",
+    "color": "white",
+    "price": 60000,
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "description": NaN,
+    "image": null,
+    "in_stock": true
+  },
+  {
+    "brand": "Nike",
+    "model": " Air Force 1 Low 07 (CW2288-111)",
+    "gender": "men",
+    "color": "green",
+    "price": 50000,
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "description": NaN,
+    "image": null,
+    "in_stock": true
+  },
+  {
+    "brand": "Nike",
+    "model": " Air Force 1 Low 07 (CW2288-111)",
+    "gender": "men",
+    "color": "white",
+    "price": 50000,
+    "sizes": {
+      "US": [
+        "1.0",
+        "2.0",
+        "3.0",
+        "4.0",
+        "5.0",
+        "6.0",
+        "7.0"
+      ],
+      "EU": []
+    },
+    "description": NaN,
+    "image": null,
+    "in_stock": true
+  }
+]
