@@ -66,7 +66,17 @@ def get_image_base64(image_path):
 # --- Загрузка данных ---
 @st.cache_data(show_spinner=False)
 def load_data():
-    df = pd.read_excel(CATALOG_PATH)
+    # Читаем все листы Excel файла
+    all_sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
+    
+    # Объединяем все листы в один DataFrame
+    df_list = []
+    for sheet_name, sheet_data in all_sheets.items():
+        st.sidebar.write(f"📋 Лист '{sheet_name}': {len(sheet_data)} товаров")
+        df_list.append(sheet_data)
+    
+    # Объединяем все данные
+    df = pd.concat(df_list, ignore_index=True)
     df = df.fillna("")
 
     # Обработка модели
@@ -111,7 +121,9 @@ df = load_data()
 
 # --- ДИАГНОСТИКА ---
 st.sidebar.write("🔍 ДИАГНОСТИКА:")
-st.sidebar.write("Всего товаров:", len(df))
+st.sidebar.write("Всего товаров после объединения:", len(df))
+st.sidebar.write("Уникальные бренды:", df["brand"].nunique())
+st.sidebar.write("Уникальные модели:", df["model_clean"].nunique())
 
 if "image" in df.columns:
     # Тестируем поиск для первых 3 товаров
@@ -192,6 +204,8 @@ st.markdown("## 👟 Каталог товаров")
 if len(filtered_df) == 0:
     st.warning("🚫 Товары по выбранным фильтрам не найдены")
 else:
+    st.write(f"**Найдено товаров: {len(filtered_df)}**")
+    
     num_cols = 4
     rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
 
