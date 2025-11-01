@@ -25,15 +25,33 @@ size_conversion = {
 reverse_conversion = {v: k for k, v in size_conversion.items()}
 
 # --- Функция для безопасной загрузки фото ---
-def get_image_path(sku):
-    """Ищет изображение по SKU во всех подпапках, возвращает путь или no_image.jpg"""
-    pattern_jpg = os.path.join(IMAGES_PATH, "**", f"{sku}_*.jpg")
-    pattern_webp = os.path.join(IMAGES_PATH, "**", f"{sku}_*.webp")
-    image_files = glob.glob(pattern_jpg, recursive=True) + glob.glob(pattern_webp, recursive=True)
-    if image_files:
-        return image_files[0]
-    else:
+def get_image_path(image_names):
+    """Ищет изображение по имени из колонки image (берет первое изображение из списка)"""
+    if not image_names or pd.isna(image_names) or str(image_names).strip() == "":
         return os.path.join(IMAGES_PATH, "no_image.jpg")
+    
+    # Разбиваем строку на отдельные имена файлов и берем первое
+    image_names_list = str(image_names).strip().split()
+    if not image_names_list:
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
+    
+    first_image_name = image_names_list[0]  # Берем первое изображение
+    
+    # Ищем файл с разными расширениями
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
+        image_files = glob.glob(pattern, recursive=True)
+        if image_files:
+            return image_files[0]
+        
+        # Также ищем файлы, которые начинаются с этого имени
+        pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
+        image_files = glob.glob(pattern_start, recursive=True)
+        if image_files:
+            return image_files[0]
+    
+    # Если файл не найден, возвращаем no_image
+    return os.path.join(IMAGES_PATH, "no_image.jpg")
 
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
@@ -88,7 +106,46 @@ def load_data():
 
     return df
 
+# --- ЗАГРУЗКА ДАННЫХ ---
 df = load_data()
+
+# --- ДИАГНОСТИКА ---
+st.sidebar.write("🔍 ДИАГНОСТИКА:")
+st.sidebar.write("Всего товаров:", len(df))
+
+if "image" in df.columns:
+    # Тестируем поиск для первых 3 товаров
+    st.sidebar.write("🔎 ТЕСТ ПОИСКА ФАЙЛОВ:")
+    for i, (_, row) in enumerate(df.head(3).iterrows()):
+        image_names = row["image"]
+        st.sidebar.write(f"Товар {i+1}: '{image_names}'")
+        
+        if image_names and str(image_names).strip():
+            # Разбиваем на отдельные имена
+            names_list = str(image_names).strip().split()
+            first_name = names_list[0] if names_list else ""
+            
+            st.sidebar.write(f"  Первое изображение: '{first_name}'")
+            
+            # Ищем файл
+            found_files = []
+            for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+                pattern = os.path.join(IMAGES_PATH, "**", f"{first_name}{ext}")
+                files = glob.glob(pattern, recursive=True)
+                found_files.extend(files)
+                
+                pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_name}*{ext}")
+                files_start = glob.glob(pattern_start, recursive=True)
+                found_files.extend(files_start)
+            
+            if found_files:
+                st.sidebar.write(f"  ✅ Найдены файлы:")
+                for f in found_files:
+                    st.sidebar.write(f"    - {os.path.basename(f)}")
+            else:
+                st.sidebar.write(f"  ❌ Файлы не найдены")
+        else:
+            st.sidebar.write(f"  ⚠️ Пустое значение")
 
 # --- Фильтры ---
 st.divider()
@@ -132,40 +189,44 @@ st.divider()
 # --- Сетка карточек товаров ---
 st.markdown("## 👟 Каталог товаров")
 
-num_cols = 4
-rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
+if len(filtered_df) == 0:
+    st.warning("🚫 Товары по выбранным фильтрам не найдены")
+else:
+    num_cols = 4
+    rows = [filtered_df.iloc[i:i+num_cols] for i in range(0, len(filtered_df), num_cols)]
 
-for row_df in rows:
-    cols = st.columns(num_cols)
-    for col, (_, row) in zip(cols, row_df.iterrows()):
-        with col:
-            image_path = get_image_path(row["SKU"])
-            image_base64 = get_image_base64(image_path)
+    for row_df in rows:
+        cols = st.columns(num_cols)
+        for col, (_, row) in zip(cols, row_df.iterrows()):
+            with col:
+                # Используем колонку 'image' с именами файлов
+                image_path = get_image_path(row["image"])
+                image_base64 = get_image_base64(image_path)
 
-            st.markdown(
-                f"""
-                <div style="
-                    border:1px solid #eee;
-                    border-radius:16px;
-                    padding:12px;
-                    margin-bottom:16px;
-                    background-color:#fff;
-                    box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                    transition:transform 0.2s ease-in-out;
-                " onmouseover="this.style.transform='scale(1.02)';"
-                  onmouseout="this.style.transform='scale(1)';">
-                    <img src="data:image/jpeg;base64,{image_base64}" 
-                         style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
-                    <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                    <p style="color:gray; font-size:13px; margin:0;">
-                        US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
-                    </p>
-                    <p style="font-size:14px; color:#555;">{row['description']}</p>
-                    <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                st.markdown(
+                    f"""
+                    <div style="
+                        border:1px solid #eee;
+                        border-radius:16px;
+                        padding:12px;
+                        margin-bottom:16px;
+                        background-color:#fff;
+                        box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                        transition:transform 0.2s ease-in-out;
+                    " onmouseover="this.style.transform='scale(1.02)';"
+                      onmouseout="this.style.transform='scale(1)';">
+                        <img src="data:image/jpeg;base64,{image_base64}" 
+                             style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                        <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                        <p style="color:gray; font-size:13px; margin:0;">
+                            US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
+                        </p>
+                        <p style="font-size:14px; color:#555;">{row['description']}</p>
+                        <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
 st.divider()
 st.caption("© DENE Store 2025")
