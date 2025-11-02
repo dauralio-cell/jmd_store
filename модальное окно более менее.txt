@@ -12,7 +12,7 @@ if 'view_details' not in st.session_state:
     st.session_state.view_details = None
 
 # --- Обложка ---
-st.image("data/images/banner.jpg", width="stretch")
+st.image("data/images/banner.jpg", use_container_width=True)
 st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
 # --- Пути и константы ---
@@ -211,7 +211,7 @@ if st.session_state.view_details is not None:
             
             # Показываем текущее изображение
             current_image_index = st.session_state.get('current_image_index', 0)
-            st.image(all_images[current_image_index], use_column_width=True)
+            st.image(all_images[current_image_index], use_container_width=True)
             
             # Навигация по изображениям
             if len(all_images) > 1:
@@ -301,7 +301,7 @@ else:
                     image_path = get_image_path(row["image"])
                     
                     # Карточка товара
-                    st.image(image_path, use_column_width=True)
+                    st.image(image_path, use_container_width=True)
                     st.markdown(f"**{row['brand']} {row['model_clean']}**")
                     st.markdown(f"US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}")
                     st.markdown(f"{row['description'][:100]}{'...' if len(row['description']) > 100 else ''}")
