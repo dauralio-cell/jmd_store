@@ -1,0 +1,346 @@
+import streamlit as st
+import pandas as pd
+import glob
+import os
+import re
+import base64
+
+# --- Настройки страницы ---
+st.set_page_config(page_title="DENE Store", layout="wide")
+
+# --- Обложка ---
+st.image("data/images/banner.jpg", width="stretch")
+st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
+
+# --- Пути и константы ---
+CATALOG_PATH = "data/catalog.xlsx"
+IMAGES_PATH = "data/images"
+
+# --- Функции для работы с изображениями ---
+def get_image_path(image_names):
+    """Ищет изображение по имени из колонки image (берет первое изображение из списка)"""
+    if not image_names or pd.isna(image_names) or str(image_names).strip() == "":
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
+    
+    # Разбиваем строку на отдельные имена файлов и берем первое
+    image_names_list = str(image_names).strip().split()
+    if not image_names_list:
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
+    
+    first_image_name = image_names_list[0]  # Берем первое изображение
+    
+    # Ищем файл с разными расширениями
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
+        image_files = glob.glob(pattern, recursive=True)
+        if image_files:
+            return image_files[0]
+        
+        # Также ищем файлы, которые начинаются с этого имени
+        pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
+        image_files = glob.glob(pattern_start, recursive=True)
+        if image_files:
+            return image_files[0]
+    
+    # Если файл не найден, возвращаем no_image
+    return os.path.join(IMAGES_PATH, "no_image.jpg")
+
+def get_image_base64(image_path):
+    """Возвращает изображение в base64 для вставки в HTML"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
+    except Exception:
+        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+        with open(fallback, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
+
+# --- Таблица конверсии размеров US ↔ EU ---
+size_conversion = {
+    "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
+    "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
+    "10": "44", "10.5": "44.5", "11": "45", "11.5": "46", "12": "46.5"
+}
+reverse_conversion = {v: k for k, v in size_conversion.items()}
+
+# --- Загрузка данных ---
+@st.cache_data(show_spinner=False)
+def load_data():
+    # Читаем все листы Excel файла
+    all_sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
+    
+    # Объединяем все листы в один DataFrame
+    df_list = []
+    for sheet_name, sheet_data in all_sheets.items():
+        st.sidebar.write(f"📋 Лист '{sheet_name}': {len(sheet_data)} товаров")
+        df_list.append(sheet_data)
+    
+    # Объединяем все данные
+    df = pd.concat(df_list, ignore_index=True)
+    df = df.fillna("")
+
+    # Обработка модели
+    df["model_clean"] = (
+        df["model"]
+        .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
+        .str.strip()
+    )
+
+    # Извлекаем размеры
+    df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
+    df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
+    df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
+    df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
+
+    # Автозаполнение при отсутствии одного из размеров
+    df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
+    df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
+
+    # Пол и цвет
+    df["gender"] = df["model"].apply(
+        lambda x: "men" if "men" in x.lower() else (
+            "women" if "women" in x.lower() else "unisex"
+        )
+    )
+    df["color"] = df["model"].str.extract(
+        r"(white|black|blue|red|green|pink|gray|brown)", expand=False
+    ).fillna("other")
+
+    # Описание
+    if "description" not in df.columns:
+        df["description"] = "Описание временно недоступно."
+
+    # Исключаем товары без цены или модели
+    df = df[df["price"].astype(str).str.strip() != ""]
+    df = df[df["model_clean"].astype(str).str.strip() != ""]
+
+    return df
+
+# --- ЗАГРУЗКА ДАННЫХ ---
+df = load_data()
+
+# --- ДИАГНОСТИКА ---
+st.sidebar.write("🔍 ДИАГНОСТИКА:")
+st.sidebar.write("Всего товаров после объединения:", len(df))
+st.sidebar.write("Уникальные бренды:", df["brand"].nunique())
+st.sidebar.write("Уникальные модели:", df["model_clean"].nunique())
+
+# --- Фильтры ---
+st.divider()
+st.markdown("### 🔎 Фильтр каталога")
+
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
+filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
+
+models = sorted(filtered_df["model_clean"].unique().tolist())
+model_filter = col2.selectbox("Модель", ["Все"] + models)
+
+size_us_filter = col3.selectbox("Размер (US)", ["Все"] + sorted(df["size_us"].dropna().unique().tolist()))
+size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()))
+gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
+color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+
+# --- Применяем фильтры ---
+filtered_df = df.copy()
+if brand_filter != "Все":
+    filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
+if model_filter != "Все":
+    filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
+if size_us_filter != "Все":
+    eu_equiv = size_conversion.get(size_us_filter, "")
+    filtered_df = filtered_df[
+        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
+    ]
+if size_eu_filter != "Все":
+    us_equiv = reverse_conversion.get(size_eu_filter, "")
+    filtered_df = filtered_df[
+        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
+    ]
+if gender_filter != "Все":
+    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
+if color_filter != "Все":
+    filtered_df = filtered_df[filtered_df["color"] == color_filter]
+
+st.divider()
+
+# --- Состояние для модального окна ---
+if "selected_product" not in st.session_state:
+    st.session_state.selected_product = None
+
+# --- Сетка карточек товаров ---
+st.markdown("## 👟 Каталог товаров")
+
+if len(filtered_df) == 0:
+    st.warning("🚫 Товары по выбранным фильтрам не найдены")
+else:
+    st.write(f"**Найдено товаров: {len(filtered_df)}**")
+
+    num_cols = 4
+    rows = [filtered_df.iloc[i:i + num_cols] for i in range(0, len(filtered_df), num_cols)]
+
+    for row_df in rows:
+        cols = st.columns(num_cols)
+        for col, (_, row) in zip(cols, row_df.iterrows()):
+            with col:
+                image_path = get_image_path(row["image"])
+                image_base64 = get_image_base64(image_path)
+
+                # --- Карточка товара ---
+                st.markdown(
+                    f"""
+                    <div style="
+                        border:1px solid #eee;
+                        border-radius:16px;
+                        padding:12px;
+                        margin-bottom:16px;
+                        background-color:#fff;
+                        box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                    ">
+                        <img src="data:image/jpeg;base64,{image_base64}" 
+                             style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                        <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                        <p style="color:gray; font-size:13px; margin:0;">
+                            US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
+                        </p>
+                        <p style="font-size:14px; color:#555;">{row['description']}</p>
+                        <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                # --- Кнопка Подробнее ---
+                if st.button(f"Подробнее 🧐", key=f"details_{row.name}_{row['brand']}_{row['model_clean']}"):
+                    st.session_state.selected_product = row
+
+# --- Состояние для модального окна ---
+if "selected_product" not in st.session_state:
+    st.session_state.selected_product = None
+
+# --- Сетка карточек товаров ---
+st.markdown("## 👟 Каталог товаров")
+
+if len(filtered_df) == 0:
+    st.warning("🚫 Товары по выбранным фильтрам не найдены")
+else:
+    st.write(f"**Найдено товаров: {len(filtered_df)}**")
+
+    num_cols = 4
+    rows = [filtered_df.iloc[i:i + num_cols] for i in range(0, len(filtered_df), num_cols)]
+
+    for row_df in rows:
+        cols = st.columns(num_cols)
+        for col, (_, row) in zip(cols, row_df.iterrows()):
+            with col:
+                image_path = get_image_path(row["image"])
+                image_base64 = get_image_base64(image_path)
+
+                st.markdown(
+                    f"""
+                    <div style="
+                        border:1px solid #eee;
+                        border-radius:16px;
+                        padding:12px;
+                        margin-bottom:16px;
+                        background-color:#fff;
+                        box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                    ">
+                        <img src="data:image/jpeg;base64,{image_base64}" 
+                             style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
+                        <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
+                        <p style="color:gray; font-size:13px; margin:0;">
+                            US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
+                        </p>
+                        <p style="font-size:14px; color:#555;">{row['description']}</p>
+                        <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                if st.button(f"Подробнее 🧐", key=f"details_{row.name}"):
+                    st.session_state.selected_product = row
+
+# --- Всплывающее окно поверх ---
+if st.session_state.selected_product is not None:
+    row = st.session_state.selected_product
+
+    # Все фото этой модели
+    all_images = []
+    if row["image"]:
+        image_names_list = str(row["image"]).strip().split()
+        for img_name in image_names_list:
+            for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+                pattern = os.path.join(IMAGES_PATH, "**", f"{img_name}*{ext}")
+                files = glob.glob(pattern, recursive=True)
+                all_images.extend(files)
+    if not all_images:
+        all_images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
+
+    # HTML модальное окно поверх
+    modal_html = f"""
+    <div id="overlay" style="
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    ">
+      <div style="
+          background: white;
+          border-radius: 16px;
+          padding: 20px;
+          width: 90%;
+          max-width: 800px;
+          max-height: 90%;
+          overflow-y: auto;
+          box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+          position: relative;
+      ">
+        <button onclick="document.getElementById('overlay').remove()" style="
+            position: absolute;
+            top: 10px; right: 10px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+        ">✖</button>
+        <h2>{row['brand']} {row['model_clean']}</h2>
+        <p><b>Цена:</b> {int(row['price'])} ₸</p>
+        <p><b>Размеры:</b> US {row['size_us']} | EU {row['size_eu']}</p>
+        <p><b>Пол:</b> {row['gender']} | <b>Цвет:</b> {row['color']}</p>
+        <p><b>Описание:</b> {row['description']}</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+    """
+
+    for img_path in all_images:
+        with open(img_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+            modal_html += f"<img src='data:image/jpeg;base64,{b64}' style='width:180px; border-radius:12px;'>"
+
+    # Цветовые варианты
+    color_variants = df[df["model_clean"] == row["model_clean"]].drop_duplicates("color")
+    if len(color_variants) > 1:
+        modal_html += "<h3>🎨 Варианты цвета:</h3><div style='display:flex; gap:8px; flex-wrap:wrap;'>"
+        for _, variant in color_variants.iterrows():
+            img_path = get_image_path(variant["image"])
+            with open(img_path, "rb") as f:
+                b64v = base64.b64encode(f.read()).decode()
+            modal_html += f"""
+            <div style='text-align:center;'>
+                <img src='data:image/jpeg;base64,{b64v}' style='width:100px; border-radius:8px;'>
+                <p style='margin-top:4px; font-size:13px;'>{variant['color']}</p>
+            </div>
+            """
+        modal_html += "</div>"
+
+    modal_html += "</div></div>"
+
+    st.markdown(modal_html, unsafe_allow_html=True)
+
+st.divider()
+st.caption("© DENE Store 2025")
