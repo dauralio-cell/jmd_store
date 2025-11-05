@@ -54,6 +54,40 @@ size_conversion = {
     "11": "44", "12": "45", "13": "46"
 }
 
+# --- Функция для получения EU размеров ---
+def get_eu_sizes(us_sizes_str):
+    """Конвертирует US размеры в EU размеры"""
+    if not us_sizes_str or us_sizes_str == "":
+        return ""
+    
+    us_sizes = [size.strip() for size in us_sizes_str.split(",")]
+    eu_sizes = []
+    
+    for us_size in us_sizes:
+        eu_size = size_conversion.get(us_size, "")
+        if eu_size:
+            eu_sizes.append(eu_size)
+    
+    return ", ".join(eu_sizes)
+
+# --- Функция сортировки размеров ---
+def sort_sizes(size_list):
+    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
+    numeric_sizes = []
+    string_sizes = []
+    
+    for size in size_list:
+        clean_size = str(size).strip()
+        if clean_size.replace('.', '').isdigit():
+            numeric_sizes.append(float(clean_size))
+        else:
+            string_sizes.append(clean_size)
+    
+    numeric_sizes.sort()
+    string_sizes.sort()
+    
+    return [str(int(x) if x.is_integer() else x) for x in numeric_sizes] + string_sizes
+
 # --- Загрузка данных (согласованная с главной страницей) ---
 @st.cache_data(show_spinner=False)
 def load_data():
@@ -78,11 +112,6 @@ def load_data():
             # Преобразуем размеры в строки и убираем лишние пробелы
             sheet_data['size US'] = sheet_data['size US'].astype(str).str.strip()
             
-            # Добавляем EU размеры на основе US
-            sheet_data['size_eu'] = sheet_data['size US'].apply(
-                lambda x: size_conversion.get(x, "")
-            )
-            
             # Очищаем название модели (убираем артикулы в скобках)
             sheet_data["model_clean"] = sheet_data["model"].apply(
                 lambda x: re.sub(r'\([^)]*\)', '', str(x)).strip() if pd.notna(x) else ""
@@ -101,23 +130,6 @@ def load_data():
     except Exception as e:
         st.error(f"Ошибка загрузки данных: {e}")
         return pd.DataFrame()
-
-# --- Функция сортировки размеров ---
-def sort_sizes(size_list):
-    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
-    numeric_sizes = []
-    string_sizes = []
-    
-    for size in size_list:
-        if size.replace('.', '').isdigit():
-            numeric_sizes.append(float(size))
-        else:
-            string_sizes.append(size)
-    
-    numeric_sizes.sort()
-    string_sizes.sort()
-    
-    return [str(x) for x in numeric_sizes] + string_sizes
 
 # --- Основная функция ---
 def main():
@@ -147,12 +159,14 @@ def main():
 
     # Группируем по цветам (как в главной странице)
     grouped_by_color = same_model_df.groupby(['brand', 'model_clean', 'color', 'image']).agg({
-        'size US': lambda x: ', '.join(sort_sizes(set(str(i) for i in x))),
-        'size_eu': lambda x: ', '.join(sort_sizes(set(str(i) for i in x))),
+        'size US': lambda x: ', '.join(sort_sizes(set(str(i).strip() for i in x if str(i).strip()))),
         'price': 'first',
         'gender': 'first',
         'description': 'first'
     }).reset_index()
+
+    # Добавляем EU размеры после группировки
+    grouped_by_color['size_eu'] = grouped_by_color['size US'].apply(get_eu_sizes)
 
     # Текущий выбранный цвет
     current_color = product_data["color"]
@@ -202,13 +216,14 @@ def main():
         
         if current_item["size US"]:
             # Создаем красивую таблицу размеров
-            us_sizes = current_item["size US"].split(", ")
-            eu_sizes = current_item["size_eu"].split(", ")
+            us_sizes = [size.strip() for size in current_item["size US"].split(",")]
+            eu_sizes = [size.strip() for size in current_item["size_eu"].split(",")] if current_item["size_eu"] else []
             
             # Показываем размеры в виде красивых карточек
             cols = st.columns(4)
-            for idx, (us_size, eu_size) in enumerate(zip(us_sizes, eu_sizes)):
+            for idx, us_size in enumerate(us_sizes):
                 with cols[idx % 4]:
+                    eu_size = eu_sizes[idx] if idx < len(eu_sizes) else ""
                     st.markdown(
                         f"""
                         <div style="
