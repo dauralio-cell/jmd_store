@@ -46,40 +46,54 @@ def get_image_base64(image_path):
         with open(fallback, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode("utf-8")
 
-# --- Загрузка данных ---
+# --- Таблица конверсии размеров US ↔ EU ---
+size_conversion = {
+    "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
+    "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
+    "11": "44", "12": "45", "13": "46"
+}
+
+# --- Загрузка данных (согласованная с главной страницей) ---
 @st.cache_data(show_spinner=False)
 def load_data():
     try:
+        # Читаем все листы Excel файла
         all_sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
-        df = pd.concat(all_sheets.values(), ignore_index=True).fillna("")
         
-        # Определяем колонки с размерами
-        size_us_col = next((c for c in df.columns if "size" in c.lower() and "us" in c.lower()), None)
-        size_eu_col = next((c for c in df.columns if "size" in c.lower() and "eu" in c.lower()), None)
+        # Обрабатываем каждый лист и объединяем
+        processed_dfs = []
         
-        df["size_us"] = df[size_us_col] if size_us_col else ""
-        df["size_eu"] = df[size_eu_col] if size_eu_col else ""
-
-        df["model_clean"] = (
-            df["model"].astype(str)
-            .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
-            .str.strip()
-        )
-
-        # Группируем все размеры и цвета для одной модели
-        grouped = (
-            df.groupby(["brand", "model_clean", "color"], as_index=False)
-            .agg({
-                "price": "first",
-                "description": "first",
-                "size_us": lambda x: ", ".join(sorted(set(str(i) for i in x if i))),
-                "size_eu": lambda x: ", ".join(sorted(set(str(i) for i in x if i))),
-                "image": "first",
-                "gender": "first",
-            })
-        )
-
-        return grouped
+        for sheet_name, sheet_data in all_sheets.items():
+            # Заполняем пропущенные значения в ключевых колонках
+            sheet_data = sheet_data.fillna("")
+            
+            # Заполняем бренд, модель, цвет и изображение для всех строк
+            sheet_data['brand'] = sheet_data['brand'].replace('', pd.NA).ffill()
+            sheet_data['model'] = sheet_data['model'].replace('', pd.NA).ffill()
+            sheet_data['color'] = sheet_data['color'].replace('', pd.NA).ffill()
+            sheet_data['image'] = sheet_data['image'].replace('', pd.NA).ffill()
+            sheet_data['gender'] = sheet_data['gender'].replace('', pd.NA).ffill()
+            
+            # Добавляем EU размеры на основе US
+            sheet_data['size_eu'] = sheet_data['size US'].astype(str).apply(
+                lambda x: size_conversion.get(x.strip(), "")
+            )
+            
+            # Очищаем название модели (убираем артикулы в скобках)
+            sheet_data["model_clean"] = sheet_data["model"].apply(
+                lambda x: re.sub(r'\([^)]*\)', '', str(x)).strip() if pd.notna(x) else ""
+            )
+            
+            processed_dfs.append(sheet_data)
+        
+        # Объединяем все листы
+        df = pd.concat(processed_dfs, ignore_index=True)
+        
+        # Убираем строки без модели или бренда
+        df = df[(df['brand'] != '') & (df['model_clean'] != '')]
+        
+        return df
+        
     except Exception as e:
         st.error(f"Ошибка загрузки данных: {e}")
         return pd.DataFrame()
@@ -97,22 +111,38 @@ def main():
         st.error("❌ Товар не найден. Вернитесь в каталог и выберите товар.")
         return
 
-    row = st.session_state.product_data
+    product_data = st.session_state.product_data
     df = load_data()
 
-    # Отбираем все варианты той же модели
-    same_model_df = df[df["model_clean"] == row["model_clean"]]
+    # Получаем все варианты той же модели
+    same_model_df = df[
+        (df["model_clean"] == product_data["model_clean"]) & 
+        (df["brand"] == product_data["brand"])
+    ]
 
-    # Выбираем текущий цвет
-    current_color = row["color"]
-    current_item = same_model_df[same_model_df["color"] == current_color].iloc[0]
+    if same_model_df.empty:
+        st.error("❌ Данные о товаре не найдены в каталоге")
+        return
 
-    st.markdown(f"## {row['brand']} {row['model_clean']} — {current_color.capitalize()}")
+    # Группируем по цветам (как в главной странице)
+    grouped_by_color = same_model_df.groupby(['brand', 'model_clean', 'color', 'image']).agg({
+        'size US': lambda x: ', '.join(sorted(set(str(i) for i in x))),
+        'size_eu': lambda x: ', '.join(sorted(set(str(i) for i in x))),
+        'price': 'first',
+        'gender': 'first',
+        'description': 'first'
+    }).reset_index()
+
+    # Текущий выбранный цвет
+    current_color = product_data["color"]
+    current_item = grouped_by_color[grouped_by_color["color"] == current_color].iloc[0]
+
+    st.markdown(f"## {current_item['brand']} {current_item['model_clean']} — {current_color.capitalize()}")
 
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        # Показываем изображения
+        # Показываем все изображения товара
         all_images = []
         if current_item["image"]:
             image_names_list = str(current_item["image"]).strip().split()
@@ -126,7 +156,8 @@ def main():
         if not all_images:
             all_images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
 
-        for img_path in all_images:
+        # Показываем все изображения товара
+        for i, img_path in enumerate(all_images):
             image_base64 = get_image_base64(img_path)
             st.markdown(
                 f'<img src="data:image/jpeg;base64,{image_base64}" '
@@ -135,37 +166,102 @@ def main():
             )
 
     with col2:
-        st.markdown(f"**Цена:** {int(current_item['price'])} ₸")
-        st.markdown(f"**Пол:** {current_item['gender']}")
-        st.markdown(f"**Цвет:** {current_item['color']}")
-        st.markdown(f"**Описание:** {current_item['description']}")
+        st.markdown(f"**💰 Цена:** {int(current_item['price'])} ₸")
+        st.markdown(f"**👤 Пол:** {current_item['gender']}")
+        st.markdown(f"**🎨 Цвет:** {current_item['color'].capitalize()}")
+        
+        if current_item["description"] and str(current_item["description"]).strip():
+            st.markdown(f"**📝 Описание:** {current_item['description']}")
+        else:
+            st.markdown("**📝 Описание:** Описание временно недоступно")
 
-        # Показываем размеры
+        # --- Доступные размеры ---
         st.markdown("---")
         st.markdown("### 📏 Доступные размеры")
-        if current_item["size_us"]:
-            st.markdown(f"**US:** {current_item['size_us']}")
-            st.markdown(f"**EU:** {current_item['size_eu']}")
+        
+        if current_item["size US"]:
+            # Создаем красивую таблицу размеров
+            us_sizes = current_item["size US"].split(", ")
+            eu_sizes = current_item["size_eu"].split(", ")
+            
+            # Показываем размеры в виде красивых карточек
+            cols = st.columns(4)
+            for idx, (us_size, eu_size) in enumerate(zip(us_sizes, eu_sizes)):
+                with cols[idx % 4]:
+                    st.markdown(
+                        f"""
+                        <div style="
+                            border: 2px solid #4CAF50;
+                            border-radius: 8px;
+                            padding: 10px;
+                            text-align: center;
+                            margin: 5px;
+                            background-color: #f8fff8;
+                        ">
+                            <div style="font-weight: bold; font-size: 16px;">US {us_size}</div>
+                            <div style="font-size: 14px; color: #666;">EU {eu_size}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
         else:
-            st.info("Размеры для этого цвета не указаны.")
+            st.info("📭 Размеры для этого цвета не указаны")
 
-        # Другие цвета
-        other_colors = same_model_df[same_model_df["color"] != current_color]
+        # --- Другие цвета этой модели ---
+        other_colors = grouped_by_color[grouped_by_color["color"] != current_color]
         if not other_colors.empty:
             st.markdown("---")
-            st.markdown("### 🎨 Другие цвета:")
+            st.markdown("### 🎨 Другие цвета этой модели:")
 
             cols = st.columns(min(4, len(other_colors)))
             for col, (_, variant) in zip(cols, other_colors.iterrows()):
                 with col:
+                    # Показываем первое изображение для каждого цвета
                     img_path = get_image_path(variant["image"])
                     image_base64 = get_image_base64(img_path)
+                    
+                    # Карточка цвета
                     st.markdown(
-                        f'<img src="data:image/jpeg;base64,{image_base64}" '
-                        f'style="width:100%; border-radius:8px; border:1px solid #ddd;">',
+                        f"""
+                        <div style="
+                            border: 1px solid #ddd;
+                            border-radius: 8px;
+                            padding: 8px;
+                            text-align: center;
+                            margin-bottom: 8px;
+                            background-color: white;
+                            cursor: pointer;
+                        " onclick="location.href='#'">
+                            <img src="data:image/jpeg;base64,{image_base64}" 
+                                 style="width:100%; border-radius:6px; height:120px; object-fit:cover;">
+                            <div style="margin-top:8px; font-weight:bold;">{variant['color'].capitalize()}</div>
+                            <div style="font-size:12px; color:#666;">{int(variant['price'])} ₸</div>
+                        </div>
+                        """,
                         unsafe_allow_html=True
                     )
-                    st.markdown(f"**{variant['color']}**")
+                    
+                    # Кнопка переключения на этот цвет
+                    if st.button(f"Выбрать {variant['color']}", key=f"color_{variant['color']}", use_container_width=True):
+                        st.session_state.product_data = dict(variant)
+                        st.rerun()
+
+    # --- Информация о доставке и возврате ---
+    st.markdown("---")
+    st.markdown("### 📦 Информация о доставке")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("**🚚 Доставка**")
+        st.markdown("По городу: 2-3 дня")
+        st.markdown("По стране: 5-7 дней")
+    with col2:
+        st.markdown("**↩️ Возврат**")
+        st.markdown("14 дней с момента получения")
+        st.markdown("Товар в оригинальном состоянии")
+    with col3:
+        st.markdown("**📞 Контакты**")
+        st.markdown("+7 777 123 45 67")
+        st.markdown("info@denestore.kz")
 
 if __name__ == "__main__":
     main()
