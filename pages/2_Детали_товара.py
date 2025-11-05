@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import glob
 import os
+import re
 import base64
 
 # --- Настройки страницы ---
@@ -74,9 +75,12 @@ def load_data():
             sheet_data['image'] = sheet_data['image'].replace('', pd.NA).ffill()
             sheet_data['gender'] = sheet_data['gender'].replace('', pd.NA).ffill()
             
+            # Преобразуем размеры в строки и убираем лишние пробелы
+            sheet_data['size US'] = sheet_data['size US'].astype(str).str.strip()
+            
             # Добавляем EU размеры на основе US
-            sheet_data['size_eu'] = sheet_data['size US'].astype(str).apply(
-                lambda x: size_conversion.get(x.strip(), "")
+            sheet_data['size_eu'] = sheet_data['size US'].apply(
+                lambda x: size_conversion.get(x, "")
             )
             
             # Очищаем название модели (убираем артикулы в скобках)
@@ -97,6 +101,23 @@ def load_data():
     except Exception as e:
         st.error(f"Ошибка загрузки данных: {e}")
         return pd.DataFrame()
+
+# --- Функция сортировки размеров ---
+def sort_sizes(size_list):
+    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
+    numeric_sizes = []
+    string_sizes = []
+    
+    for size in size_list:
+        if size.replace('.', '').isdigit():
+            numeric_sizes.append(float(size))
+        else:
+            string_sizes.append(size)
+    
+    numeric_sizes.sort()
+    string_sizes.sort()
+    
+    return [str(x) for x in numeric_sizes] + string_sizes
 
 # --- Основная функция ---
 def main():
@@ -126,8 +147,8 @@ def main():
 
     # Группируем по цветам (как в главной странице)
     grouped_by_color = same_model_df.groupby(['brand', 'model_clean', 'color', 'image']).agg({
-        'size US': lambda x: ', '.join(sorted(set(str(i) for i in x))),
-        'size_eu': lambda x: ', '.join(sorted(set(str(i) for i in x))),
+        'size US': lambda x: ', '.join(sort_sizes(set(str(i) for i in x))),
+        'size_eu': lambda x: ', '.join(sort_sizes(set(str(i) for i in x))),
         'price': 'first',
         'gender': 'first',
         'description': 'first'
@@ -230,8 +251,7 @@ def main():
                             text-align: center;
                             margin-bottom: 8px;
                             background-color: white;
-                            cursor: pointer;
-                        " onclick="location.href='#'">
+                        ">
                             <img src="data:image/jpeg;base64,{image_base64}" 
                                  style="width:100%; border-radius:6px; height:120px; object-fit:cover;">
                             <div style="margin-top:8px; font-weight:bold;">{variant['color'].capitalize()}</div>
