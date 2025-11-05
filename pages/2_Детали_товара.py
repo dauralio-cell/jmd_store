@@ -57,6 +57,21 @@ def load_data():
         df = pd.concat(df_list, ignore_index=True)
         df = df.fillna("")
         
+        # --- ДОБАВЛЕНО: обработка структуры модели и цветов ---
+        df["model"] = df["model"].ffill()
+        df["color"] = df["color"].ffill()
+
+        # --- Группируем по модели и цвету ---
+        group_cols = ["brand", "model", "color", "gender", "price", "description", "image"]
+        df = (
+            df.groupby(group_cols, dropna=False)
+              .agg({
+                  "size_us": lambda x: ", ".join(sorted(set(str(i) for i in x if i))),
+                  "size_eu": lambda x: ", ".join(sorted(set(str(i) for i in x if i))),
+              })
+              .reset_index()
+        )
+
         # Та же обработка данных что и в основном файле
         df["model_clean"] = (
             df["model"]
@@ -145,6 +160,7 @@ def main():
                                     unsafe_allow_html=True
                                 )
                                 st.markdown(f"**{variant['color']}**")
+                                st.markdown(f"<span style='font-size:13px;color:gray;'>US {variant['size_us']}</span>", unsafe_allow_html=True)
                             except Exception:
                                 st.error("Ошибка загрузки изображения")
 
