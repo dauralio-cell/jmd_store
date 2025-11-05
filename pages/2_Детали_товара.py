@@ -1,99 +1,156 @@
 import streamlit as st
 import pandas as pd
-from PIL import Image
+import glob
 import os
+import base64
 
 # --- Настройки страницы ---
-st.set_page_config(page_title="DENE Store — Детали", layout="wide")
+st.set_page_config(page_title="Детали товара - DENE Store", layout="wide")
+
+# --- Пути ---
+CATALOG_PATH = "data/catalog.xlsx"
+IMAGES_PATH = "data/images"
+
+# --- Функции для работы с изображениями ---
+def get_image_path(image_names, images_path="data/images"):
+    """Ищет изображение по имени из колонки image"""
+    if not image_names or pd.isna(image_names) or str(image_names).strip() == "":
+        return os.path.join(images_path, "no_image.jpg")
+    
+    image_names_list = str(image_names).strip().split()
+    if not image_names_list:
+        return os.path.join(images_path, "no_image.jpg")
+    
+    first_image_name = image_names_list[0]
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern = os.path.join(images_path, "**", f"{first_image_name}{ext}")
+        image_files = glob.glob(pattern, recursive=True)
+        if image_files:
+            return image_files[0]
+        pattern_start = os.path.join(images_path, "**", f"{first_image_name}*{ext}")
+        image_files = glob.glob(pattern_start, recursive=True)
+        if image_files:
+            return image_files[0]
+    return os.path.join(images_path, "no_image.jpg")
+
+def get_image_base64(image_path):
+    """Возвращает изображение в base64 для вставки в HTML"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
+    except Exception:
+        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+        with open(fallback, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
 
 # --- Загрузка данных ---
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_data():
     try:
-        df = pd.read_excel("data/catalog.xlsx")
-        df.columns = df.columns.str.strip().str.lower()
+        all_sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
+        df = pd.concat(all_sheets.values(), ignore_index=True)
+        df = df.fillna("")
+        df.columns = [c.strip().lower() for c in df.columns]
+
+        # Убедимся, что есть колонки для размеров
+        if "size us" in df.columns:
+            df.rename(columns={"size us": "size_us"}, inplace=True)
+        if "size eu" in df.columns:
+            df.rename(columns={"size eu": "size_eu"}, inplace=True)
+
+        # Модель без размеров
+        df["model_clean"] = (
+            df["model"]
+            .astype(str)
+            .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
+            .str.strip()
+        )
+
         return df
     except Exception as e:
         st.error(f"Ошибка загрузки данных: {e}")
         return pd.DataFrame()
 
-df = load_data()
+# --- Основная логика ---
+def main():
+    # Кнопка "Назад"
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        if st.button("← Назад к каталогу", use_container_width=True):
+            st.switch_page("main.py")
 
-if df.empty:
-    st.stop()
+    # Проверяем, выбран ли товар
+    if "product_data" not in st.session_state:
+        st.error("Товар не найден. Вернитесь в каталог и выберите товар.")
+        return
 
-# --- Заполняем пустые значения модели и цвета ---
-df["model"] = df["model"].ffill()
-df["color"] = df["color"].ffill()
+    row = st.session_state.product_data
 
-# --- Определяем реальные имена колонок размеров ---
-size_us_col = next((c for c in df.columns if "size" in c.lower() and "us" in c.lower()), None)
-size_eu_col = next((c for c in df.columns if "size" in c.lower() and "eu" in c.lower()), None)
+    # Заголовок товара
+    st.markdown(f"## {row['brand']} {row['model_clean']}")
 
-# --- Группировка модели + цвета ---
-group_cols = [c for c in ["brand", "model", "color", "gender", "price", "description", "image"] if c in df.columns]
-agg_dict = {}
-if size_us_col:
-    agg_dict[size_us_col] = lambda x: ", ".join(sorted(set(str(i) for i in x if pd.notna(i))))
-if size_eu_col:
-    agg_dict[size_eu_col] = lambda x: ", ".join(sorted(set(str(i) for i in x if pd.notna(i))))
+    df = load_data()
+    if df.empty:
+        st.warning("Не удалось загрузить данные о товаре.")
+        return
 
-df_grouped = df.groupby(group_cols, dropna=False).agg(agg_dict).reset_index()
+    # Фильтруем по выбранной модели и бренду
+    model_variants = df[
+        (df["model_clean"] == row["model_clean"]) &
+        (df["brand"] == row["brand"])
+    ]
 
-# --- Если выбрана модель через session_state ---
-if "selected_product" not in st.session_state:
-    st.warning("Выберите товар из каталога.")
-    st.stop()
+    # --- Основной блок: изображение + описание ---
+    col1, col2 = st.columns([1, 2])
 
-product = st.session_state.selected_product
-product_row = df_grouped[
-    (df_grouped["brand"] == product["brand"]) &
-    (df_grouped["model"] == product["model"]) &
-    (df_grouped["color"] == product["color"])
-]
+    with col1:
+        image_path = get_image_path(row.get("image", ""))
+        image_base64 = get_image_base64(image_path)
+        st.markdown(
+            f"""
+            <img src="data:image/jpeg;base64,{image_base64}" 
+                 style="width:100%; border-radius:12px; border:1px solid #eee; margin-bottom:10px;">
+            """,
+            unsafe_allow_html=True
+        )
 
-if product_row.empty:
-    st.error("Товар не найден.")
-    st.stop()
+    with col2:
+        st.markdown(f"**Цена:** {int(row['price'])} ₸")
+        st.markdown(f"**Пол:** {row.get('gender', '-')}")
+        st.markdown(f"**Цвет:** {row.get('color', '-')}")
+        st.markdown(f"**Описание:** {row.get('description', 'Описание отсутствует.')}")
+        st.divider()
 
-row = product_row.iloc[0]
+        # --- Доступные размеры для этого цвета ---
+        color_df = model_variants[model_variants["color"] == row["color"]]
+        sizes_us = sorted(set(color_df["size_us"].dropna().astype(str).tolist()))
+        sizes_eu = sorted(set(color_df["size_eu"].dropna().astype(str).tolist()))
 
-# --- Отображение информации ---
-st.markdown(f"## {row['brand']} {row['model']}")
-st.markdown(f"**Цвет:** {row['color']}  |  **Цена:** {row['price']}")
+        if sizes_us or sizes_eu:
+            st.markdown("### Доступные размеры:")
+            size_str = ", ".join([f"US {us} / EU {eu}" for us, eu in zip(sizes_us, sizes_eu)]) or "-"
+            st.markdown(size_str)
+        else:
+            st.info("Размеры для этого цвета не указаны.")
 
-size_us = row.get(size_us_col, "")
-size_eu = row.get(size_eu_col, "")
-if size_us or size_eu:
-    st.markdown(
-        f"<p style='color:gray; font-size:13px; margin:0;'>"
-        f"<b>Размеры:</b> "
-        f"{'US ' + size_us if size_us else ''}"
-        f"{' | ' if size_us and size_eu else ''}"
-        f"{'EU ' + size_eu if size_eu else ''}"
-        f"</p>",
-        unsafe_allow_html=True
-    )
+        # --- Другие цвета этой модели ---
+        st.divider()
+        color_variants = model_variants.drop_duplicates(subset=["color"])
+        if len(color_variants) > 1:
+            st.markdown("### Другие цвета:")
+            cols = st.columns(4)
+            for i, (_, variant) in enumerate(color_variants.iterrows()):
+                with cols[i % 4]:
+                    img_path = get_image_path(variant.get("image", ""))
+                    img_b64 = get_image_base64(img_path)
+                    st.markdown(
+                        f"""
+                        <img src="data:image/jpeg;base64,{img_b64}" 
+                             style="width:100%; border-radius:8px; border:1px solid #ddd; margin-bottom:4px;">
+                        <p style="text-align:center; font-weight:500;">{variant['color']}</p>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
-st.markdown(f"<p>{row.get('description', '')}</p>", unsafe_allow_html=True)
-
-image_path = row.get("image", "")
-if image_path and os.path.exists(image_path):
-    st.image(image_path, use_container_width=True)
-else:
-    st.image("data/images/no-image.jpg", use_container_width=True)
-
-# --- Похожие товары (другие цвета той же модели) ---
-similar = df_grouped[(df_grouped["model"] == row["model"]) & (df_grouped["color"] != row["color"])]
-if not similar.empty:
-    st.markdown("### Другие цвета:")
-    cols = st.columns(4)
-    for i, (_, sim) in enumerate(similar.iterrows()):
-        col = cols[i % 4]
-        with col:
-            img = sim.get("image", "")
-            if img and os.path.exists(img):
-                st.image(img, use_container_width=True)
-            else:
-                st.image("data/images/no-image.jpg", use_container_width=True)
-            st.markdown(sim["color"])
+if __name__ == "__main__":
+    main()
