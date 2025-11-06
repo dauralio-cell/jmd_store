@@ -269,45 +269,39 @@ def main():
         st.markdown("### Доступные размеры")
         
         if current_item["size US"]:
-            # Создаем красивую таблицу размеров
             us_sizes = [size.strip() for size in current_item["size US"].split(",")]
             eu_sizes = [size.strip() for size in current_item["size_eu"].split(",")] if current_item["size_eu"] else []
             
-            # Выбор размера для добавления в корзину
-            selected_size = st.selectbox(
-                "Выберите размер",
-                options=us_sizes,
-                key="size_selector"
-            )
+            # Инициализируем выбранный размер в session_state
+            if 'selected_size' not in st.session_state:
+                st.session_state.selected_size = None
             
-            # Кнопка добавления в корзину
-            if st.button("Добавить в корзину", type="primary", use_container_width=True):
-                add_to_cart(current_item, selected_size)
+            # Сетка размеров 3 колонки с возможностью выбора
+            cols = st.columns(3)
+            selected_size = st.session_state.selected_size
+            
+            for idx, (us_size, eu_size) in enumerate(zip(us_sizes, eu_sizes)):
+                with cols[idx % 3]:
+                    is_selected = selected_size == us_size
+                    border_color = "#FF4B4B" if is_selected else "#ddd"
+                    background_color = "#fff0f0" if is_selected else "#f8f9fa"
+                    
+                    if st.button(f"US {us_size}\nEU {eu_size}", 
+                                key=f"size_{us_size}",
+                                use_container_width=True,
+                                type="primary" if is_selected else "secondary"):
+                        st.session_state.selected_size = us_size
+                        st.rerun()
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Сетка размеров 3 колонки
-            cols = st.columns(3)
-            for idx, us_size in enumerate(us_sizes):
-                with cols[idx % 3]:
-                    eu_size = eu_sizes[idx] if idx < len(eu_sizes) else ""
-                    st.markdown(
-                        f"""
-                        <div style="
-                            border: 1px solid #ddd;
-                            border-radius: 6px;
-                            padding: 8px;
-                            text-align: center;
-                            margin: 4px;
-                            background-color: #f8f9fa;
-                            font-size: 12px;
-                        ">
-                            <div style="font-weight: bold;">US {us_size}</div>
-                            <div style="color: #666;">EU {eu_size}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+            # Кнопка добавления в корзину
+            if st.session_state.selected_size:
+                if st.button("Добавить в корзину", type="primary", use_container_width=True):
+                    add_to_cart(current_item, st.session_state.selected_size)
+            else:
+                st.button("Выберите размер", disabled=True, use_container_width=True)
+                
         else:
             st.info("Размеры для этого цвета не указаны")
             if st.button("Добавить в корзину", type="primary", use_container_width=True):
@@ -348,6 +342,7 @@ def main():
                     
                     # Кнопка переключения на этот цвет
                     if st.button(f"Выбрать", key=f"color_{variant['color']}", use_container_width=True):
+                        st.session_state.selected_size = None  # Сбрасываем выбранный размер
                         st.session_state.product_data = dict(variant)
                         st.rerun()
 
