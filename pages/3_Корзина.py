@@ -39,7 +39,7 @@ with col1:
     if st.button("← Назад в каталог", use_container_width=True):
         st.switch_page("main.py")
 
-st.title("🛒 Корзина")
+st.markdown("<h2 style='text-align: center;'>Корзина</h2>", unsafe_allow_html=True)
 
 if 'cart' not in st.session_state or len(st.session_state.cart) == 0:
     st.info("Ваша корзина пуста")
@@ -50,45 +50,96 @@ else:
         col1, col2, col3, col4 = st.columns([1, 3, 1, 1])
         
         with col1:
-            # Показываем изображение товара
+            # Показываем изображение товара с рамкой
             image_path = get_image_path(item['image'])
             try:
-                st.image(image_path, width=100)
+                st.markdown(
+                    f"""
+                    <div style="border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center;">
+                        <img src="{image_path}" style="width: 100%; border-radius: 4px;">
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
             except:
-                st.image("data/images/no_image.jpg", width=100)
+                st.markdown(
+                    f"""
+                    <div style="border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center;">
+                        <img src="data/images/no_image.jpg" style="width: 100%; border-radius: 4px;">
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
         
         with col2:
             st.write(f"**{item['brand']} {item['model']}**")
-            st.write(f"Цвет: {item['color']}")
-            st.write(f"Размер: {item['size']}")
-            st.write(f"Цена: {int(item['price'])} ₸")
+            st.write(f"**Цвет:** {item['color']}")
+            st.write(f"**Размер:** {item['size']}")
+            st.write(f"**Цена:** {int(item['price'])} ₸")
         
         with col3:
-            if st.button("🗑️ Удалить", key=f"remove_{i}", use_container_width=True, type="secondary"):
+            # Аккуратная кнопка удаления
+            if st.button("Удалить", key=f"remove_{i}", use_container_width=True, type="secondary"):
                 st.session_state.cart.pop(i)
                 st.rerun()
         
         with col4:
-            st.write("Кол-во: 1")
+            # Симметрично кнопке удаления
+            st.markdown(
+                f"""
+                <div style="text-align: center; padding: 8px;">
+                    <p style="margin: 0; font-size: 14px; color: #666;">Кол-во: 1</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
         
         total += item['price']
         st.divider()
     
+    # Итого и кнопки
     st.markdown(f"### Итого: {int(total)} ₸")
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Продолжить покупки", use_container_width=True):
+        if st.button("← Продолжить покупки", use_container_width=True):
             st.switch_page("main.py")
     with col2:
-        if st.button("Оформить заказ", type="primary", use_container_width=True):
+        if st.button("Оформить заказ →", type="primary", use_container_width=True):
             st.info("Функция оформления заказа в разработке. Скоро вы сможете оплачивать заказы онлайн!")
 
 # --- Информация о доставке ---
 st.markdown("---")
 st.markdown("### Информация о доставке")
-st.markdown("**Курьерская служба:** 10-21 день")
-st.markdown("**Возврат:** 14 дней с момента получения")
-st.markdown("**Контакты:** +7 747 555 48 69 • jmd.dene@gmail.com")
-st.markdown("[Instagram @jmd.dene](https://instagram.com/jmd.dene)")
-st.markdown("[Публичная оферта](#)")
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown("**Доставка**")
+    st.markdown("Курьерская служба")
+    st.markdown("10-21 день")
+with col2:
+    st.markdown("**Возврат**")
+    st.markdown("14 дней с момента получения")
+with col3:
+    st.markdown("**Контакты**")
+    st.markdown("+7 747 555 48 69")
+    st.markdown("jmd.dene@gmail.com")
+    st.markdown("[Instagram @jmd.dene](https://instagram.com/jmd.dene)")
+
+# --- Футер ---
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align: center; color: #666; font-size: 14px; line-height: 1.5;">
+        <p><strong>© DENE Store 2025</strong></p>
+        <p>+7 747 555 48 69</p>
+        <p>jmd.dene@gmail.com</p>
+        <p><a href="https://instagram.com/jmd.dene" target="_blank" style="color: #666; text-decoration: none;">Instagram @jmd.dene</a></p>
+        <p style="margin-top: 10px;">
+            <a href="#" style="color: #666; text-decoration: none; margin: 0 10px;">Публичная оферта</a> • 
+            <a href="#" style="color: #666; text-decoration: none; margin: 0 10px;">Политика конфиденциальности</a> • 
+            <a href="#" style="color: #666; text-decoration: none; margin: 0 10px;">Условия возврата</a>
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
