@@ -12,10 +12,12 @@ st.title("📞 Контакты")
 
 col1, col2 = st.columns(2)
 
+# В блоке контактов:
 with col1:
     st.markdown("### Наши контакты")
-    st.markdown("**Телефон:** +7 747 555 48 69")
+    st.markdown("**Телефон:** +7 747 555 48 69")  # ← Обновленный номер
     st.markdown("**Email:** jmd.dene@gmail.com")
+    # ... остальное без изменений
     st.markdown("**Instagram:** [@jmd.dene](https://instagram.com/jmd.dene)")
     
     st.markdown("### График работы")

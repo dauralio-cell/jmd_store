@@ -63,10 +63,13 @@ else:
             st.write(f"Размер: {item['size']}")
             st.write(f"Цена: {int(item['price'])} ₸")
         
+        # В цикле отображения товаров в корзине замените блок с кнопкой удаления:
+
         with col3:
-            if st.button("❌ Удалить", key=f"remove_{i}", use_container_width=True):
-                st.session_state.cart.pop(i)
-                st.rerun()
+        if st.button("🗑️ Удалить", key=f"remove_{i}", use_container_width=True, 
+                 type="secondary"):
+        st.session_state.cart.pop(i)
+        st.rerun()
         
         with col4:
             st.write("Кол-во: 1")
