@@ -22,27 +22,23 @@ def get_image_path(image_names):
     if not image_names or pd.isna(image_names) or str(image_names).strip() == "":
         return os.path.join(IMAGES_PATH, "no_image.jpg")
     
-    # Разбиваем строку на отдельные имена файлов и берем первое
     image_names_list = str(image_names).strip().split()
     if not image_names_list:
         return os.path.join(IMAGES_PATH, "no_image.jpg")
     
-    first_image_name = image_names_list[0]  # Берем первое изображение
+    first_image_name = image_names_list[0]
     
-    # Ищем файл с разными расширениями
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
         pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
         image_files = glob.glob(pattern, recursive=True)
         if image_files:
             return image_files[0]
         
-        # Также ищем файлы, которые начинаются с этого имени
         pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
         image_files = glob.glob(pattern_start, recursive=True)
         if image_files:
             return image_files[0]
     
-    # Если файл не найден, возвращаем no_image
     return os.path.join(IMAGES_PATH, "no_image.jpg")
 
 def get_image_base64(image_path):
@@ -57,92 +53,122 @@ def get_image_base64(image_path):
 
 # --- Таблица конверсии размеров US ↔ EU ---
 size_conversion = {
-    "6": "39", "6.5": "39.5", "7": "40", "7.5": "40.5",
-    "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
-    "10": "44", "10.5": "44.5", "11": "45", "11.5": "46", "12": "46.5"
+    "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
+    "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
+    "11": "44", "12": "45", "13": "46"
 }
-reverse_conversion = {v: k for k, v in size_conversion.items()}
 
-# --- Загрузка данных ---
+# --- Загрузка и обработка данных ---
 @st.cache_data(show_spinner=False)
 def load_data():
-    # Читаем все листы Excel файла
-    all_sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
+    try:
+        # Читаем все листы Excel файла
+        all_sheets = pd.read_excel(CATALOG_PATH, sheet_name=None)
+        
+        # Обрабатываем каждый лист и объединяем
+        processed_dfs = []
+        
+        for sheet_name, sheet_data in all_sheets.items():
+            # Заполняем пропущенные значения в ключевых колонках
+            sheet_data = sheet_data.fillna("")
+            
+            # Заполняем бренд, модель, цвет и изображение для всех строк
+            sheet_data['brand'] = sheet_data['brand'].replace('', pd.NA).ffill()
+            sheet_data['model'] = sheet_data['model'].replace('', pd.NA).ffill()
+            sheet_data['color'] = sheet_data['color'].replace('', pd.NA).ffill()
+            sheet_data['image'] = sheet_data['image'].replace('', pd.NA).ffill()
+            sheet_data['gender'] = sheet_data['gender'].replace('', pd.NA).ffill()
+            
+            # Преобразуем размеры в строки и убираем лишние пробелы
+            sheet_data['size US'] = sheet_data['size US'].astype(str).str.strip()
+            
+            # Очищаем название модели (убираем артикулы в скобках)
+            sheet_data["model_clean"] = sheet_data["model"].apply(
+                lambda x: re.sub(r'\([^)]*\)', '', str(x)).strip() if pd.notna(x) else ""
+            )
+            
+            processed_dfs.append(sheet_data)
+        
+        # Объединяем все листы
+        df = pd.concat(processed_dfs, ignore_index=True)
+        
+        # Убираем строки без модели или бренда
+        df = df[(df['brand'] != '') & (df['model_clean'] != '')]
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {e}")
+        return pd.DataFrame()
+
+# --- Функция для получения EU размеров ---
+def get_eu_sizes(us_sizes_str):
+    """Конвертирует US размеры в EU размеры"""
+    if not us_sizes_str or us_sizes_str == "":
+        return ""
     
-    # Объединяем все листы в один DataFrame
-    df_list = []
-    for sheet_name, sheet_data in all_sheets.items():
-        st.sidebar.write(f"Лист '{sheet_name}': {len(sheet_data)} товаров")
-        df_list.append(sheet_data)
+    us_sizes = [size.strip() for size in us_sizes_str.split(",")]
+    eu_sizes = []
     
-    # Объединяем все данные
-    df = pd.concat(df_list, ignore_index=True)
-    df = df.fillna("")
+    for us_size in us_sizes:
+        eu_size = size_conversion.get(us_size, "")
+        if eu_size:
+            eu_sizes.append(eu_size)
+    
+    return ", ".join(eu_sizes)
 
-    # Обработка модели
-    df["model_clean"] = (
-        df["model"]
-        .str.replace(r"\d{1,2}(\.\d)?(US|EU)", "", regex=True)
-        .str.strip()
-    )
-
-    # Извлекаем размеры
-    df["size_us"] = df["model"].apply(lambda x: re.search(r"(\d{1,2}(\.\d)?)(?=US)", x))
-    df["size_us"] = df["size_us"].apply(lambda m: m.group(1) if m else "")
-    df["size_eu"] = df["model"].apply(lambda x: re.search(r"(\d{2}(\.\d)?)(?=EU)", x))
-    df["size_eu"] = df["size_eu"].apply(lambda m: m.group(1) if m else "")
-
-    # Автозаполнение при отсутствии одного из размеров
-    df["size_eu"] = df.apply(lambda r: size_conversion.get(r["size_us"], r["size_eu"]), axis=1)
-    df["size_us"] = df.apply(lambda r: reverse_conversion.get(r["size_eu"], r["size_us"]), axis=1)
-
-    # Пол и цвет
-    df["gender"] = df["model"].apply(
-        lambda x: "men" if "men" in x.lower() else (
-            "women" if "women" in x.lower() else "unisex"
-        )
-    )
-    df["color"] = df["model"].str.extract(
-        r"(white|black|blue|red|green|pink|gray|brown)", expand=False
-    ).fillna("other")
-
-    # Описание
-    if "description" not in df.columns:
-        df["description"] = "Описание временно недоступно."
-
-    # Исключаем товары без цены или модели
-    df = df[df["price"].astype(str).str.strip() != ""]
-    df = df[df["model_clean"].astype(str).str.strip() != ""]
-
-    # УДАЛЯЕМ ДУБЛИКАТЫ
-    df = df.drop_duplicates(subset=['brand', 'model_clean', 'size_us', 'size_eu', 'color'], keep='first')
-
-    return df
+# --- Функция сортировки размеров ---
+def sort_sizes(size_list):
+    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
+    numeric_sizes = []
+    string_sizes = []
+    
+    for size in size_list:
+        clean_size = str(size).strip()
+        if clean_size.replace('.', '').isdigit():
+            numeric_sizes.append(float(clean_size))
+        else:
+            string_sizes.append(clean_size)
+    
+    numeric_sizes.sort()
+    string_sizes.sort()
+    
+    return [str(int(x) if x.is_integer() else x) for x in numeric_sizes] + string_sizes
 
 # --- ЗАГРУЗКА ДАННЫХ ---
 df = load_data()
 
 # --- ДИАГНОСТИКА ---
 st.sidebar.write("ДИАГНОСТИКА:")
-st.sidebar.write("Всего товаров после объединения:", len(df))
+st.sidebar.write("Всего товаров:", len(df))
 st.sidebar.write("Уникальные бренды:", df["brand"].nunique())
 st.sidebar.write("Уникальные модели:", df["model_clean"].nunique())
 
-# --- Фильтры ---
+# --- Улучшенные фильтры ---
 st.divider()
 st.markdown("### Фильтр каталога")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5 = st.columns(5)
+
+# Бренд
 brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
-filtered_df = df if brand_filter == "Все" else df[df["brand"] == brand_filter]
 
-models = sorted(filtered_df["model_clean"].unique().tolist())
-model_filter = col2.selectbox("Модель", ["Все"] + models)
+# Модель (зависит от бренда)
+if brand_filter != "Все":
+    brand_models = sorted(df[df["brand"] == brand_filter]["model_clean"].unique().tolist())
+else:
+    brand_models = sorted(df["model_clean"].unique().tolist())
+model_filter = col2.selectbox("Модель", ["Все"] + brand_models)
 
-size_us_filter = col3.selectbox("Размер (US)", ["Все"] + sorted(df["size_us"].dropna().unique().tolist()))
-size_eu_filter = col4.selectbox("Размер (EU)", ["Все"] + sorted(df["size_eu"].dropna().unique().tolist()))
-gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+# Размеры
+available_sizes = sort_sizes(df["size US"].dropna().unique().tolist())
+size_filter = col3.selectbox("Размер (US)", ["Все"] + available_sizes)
+
+# Пол
+gender_filter = col4.selectbox("Пол", ["Все", "men", "women", "unisex"])
+
+# Цвет
+color_filter = col5.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
 
 # --- Применяем фильтры ---
 filtered_df = df.copy()
@@ -150,16 +176,8 @@ if brand_filter != "Все":
     filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
 if model_filter != "Все":
     filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_us_filter != "Все":
-    eu_equiv = size_conversion.get(size_us_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_us"] == size_us_filter) | (filtered_df["size_eu"] == eu_equiv)
-    ]
-if size_eu_filter != "Все":
-    us_equiv = reverse_conversion.get(size_eu_filter, "")
-    filtered_df = filtered_df[
-        (filtered_df["size_eu"] == size_eu_filter) | (filtered_df["size_us"] == us_equiv)
-    ]
+if size_filter != "Все":
+    filtered_df = filtered_df[filtered_df["size US"] == size_filter]
 if gender_filter != "Все":
     filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
 if color_filter != "Все":
@@ -167,7 +185,7 @@ if color_filter != "Все":
 
 st.divider()
 
-# --- Сетка карточек товаров ---
+# --- Улучшенная сетка карточек товаров ---
 st.markdown("## Каталог товаров")
 
 if len(filtered_df) == 0:
@@ -175,8 +193,19 @@ if len(filtered_df) == 0:
 else:
     st.write(f"**Найдено товаров: {len(filtered_df)}**")
 
+    # Группируем по модели и цвету для отображения
+    grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color', 'image']).agg({
+        'size US': lambda x: ', '.join(sort_sizes(set(str(i).strip() for i in x if str(i).strip()))),
+        'price': 'first',
+        'gender': 'first',
+        'description': 'first'
+    }).reset_index()
+
+    # Добавляем EU размеры после группировки
+    grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
+
     num_cols = 4
-    rows = [filtered_df.iloc[i:i + num_cols] for i in range(0, len(filtered_df), num_cols)]
+    rows = [grouped_df.iloc[i:i + num_cols] for i in range(0, len(grouped_df), num_cols)]
 
     for row_idx, row_df in enumerate(rows):
         cols = st.columns(num_cols)
@@ -195,23 +224,26 @@ else:
                         margin-bottom:16px;
                         background-color:#fff;
                         box-shadow:0 2px 10px rgba(0,0,0,0.05);
+                        height:100%;
                     ">
                         <img src="data:image/jpeg;base64,{image_base64}" 
                              style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
                         <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
                         <p style="color:gray; font-size:13px; margin:0;">
-                            US {row['size_us'] or '-'} | EU {row['size_eu'] or '-'} | {row['color']}
+                            Цвет: {row['color']} | {row['gender']}
                         </p>
-                        <p style="font-size:14px; color:#555;">{row['description']}</p>
+                        <p style="font-size:13px; margin:8px 0;">
+                            <strong>Размеры US:</strong> {row['size US']}<br>
+                            <strong>Размеры EU:</strong> {row['size_eu']}
+                        </p>
                         <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
+                    </div>
                     """,
                     unsafe_allow_html=True
                 )
 
-                # --- Кнопка Подробнее - переход на страницу деталей ---
-                product_id = f"{row['brand']}_{row['model_clean']}_{row['size_us']}_{row['size_eu']}_{row['color']}"
-                if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}_{row.name}"):
-                    st.session_state.product_id = product_id
+                # --- Кнопка Подробнее ---
+                if st.button("📦 Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
 
