@@ -15,7 +15,10 @@ IMAGES_PATH = "data/images"
 # --- Функции для изображений ---
 def get_image_path(image_names, images_path="data/images"):
     """Ищет изображение по имени из колонки image"""
-    if not image_names or pd.isna(image_names) or str(image_names).strip() == "":
+    if (image_names is pd.NA or 
+        pd.isna(image_names) or 
+        not image_names or 
+        str(image_names).strip() == ""):
         return os.path.join(images_path, "no_image.jpg")
     
     image_names_list = str(image_names).strip().split()
@@ -102,12 +105,16 @@ def load_data():
             # Заполняем пропущенные значения в ключевых колонках
             sheet_data = sheet_data.fillna("")
             
-            # Заполняем бренд, модель, цвет и изображение для всех строк
+            # Заполняем данные для бренда и модели
             sheet_data['brand'] = sheet_data['brand'].replace('', pd.NA).ffill()
             sheet_data['model'] = sheet_data['model'].replace('', pd.NA).ffill()
-            sheet_data['color'] = sheet_data['color'].replace('', pd.NA).ffill()
-            sheet_data['image'] = sheet_data['image'].replace('', pd.NA).ffill()
             sheet_data['gender'] = sheet_data['gender'].replace('', pd.NA).ffill()
+            
+            # Для цвета используем заполнение, но не для изображений
+            sheet_data['color'] = sheet_data['color'].replace('', pd.NA).ffill()
+            
+            # Изображения оставляем как есть - не заполняем!
+            sheet_data['image'] = sheet_data['image'].replace('', pd.NA)
             
             # Преобразуем размеры в строки и убираем лишние пробелы
             sheet_data['size US'] = sheet_data['size US'].astype(str).str.strip()
@@ -141,7 +148,7 @@ def main():
 
     # Проверяем, есть ли выбранный товар
     if "product_data" not in st.session_state:
-        st.error("❌ Товар не найден. Вернитесь в каталог и выберите товар.")
+        st.error("Товар не найден. Вернитесь в каталог и выберите товар.")
         return
 
     product_data = st.session_state.product_data
@@ -154,16 +161,21 @@ def main():
     ]
 
     if same_model_df.empty:
-        st.error("❌ Данные о товаре не найдены в каталоге")
+        st.error("Данные о товаре не найдены в каталоге")
         return
 
     # Группируем по цветам (как в главной странице)
-    grouped_by_color = same_model_df.groupby(['brand', 'model_clean', 'color', 'image']).agg({
-        'size US': lambda x: ', '.join(sort_sizes(set(str(i).strip() for i in x if str(i).strip()))),
-        'price': 'first',
-        'gender': 'first',
-        'description': 'first'
-    }).reset_index()
+    grouped_by_color = same_model_df.groupby(['brand', 'model_clean', 'color']).first().reset_index()
+    
+    # Группируем размеры отдельно
+    size_groups = same_model_df.groupby(['brand', 'model_clean', 'color'])['size US'].agg(
+        lambda x: ', '.join(sort_sizes(set(str(i).strip() for i in x if str(i).strip())))
+    ).reset_index()
+    
+    # Объединяем
+    grouped_by_color = grouped_by_color.merge(size_groups, on=['brand', 'model_clean', 'color'], suffixes=('', '_grouped'))
+    grouped_by_color['size US'] = grouped_by_color['size US_grouped']
+    grouped_by_color = grouped_by_color.drop('size US_grouped', axis=1)
 
     # Добавляем EU размеры после группировки
     grouped_by_color['size_eu'] = grouped_by_color['size US'].apply(get_eu_sizes)
@@ -172,87 +184,106 @@ def main():
     current_color = product_data["color"]
     current_item = grouped_by_color[grouped_by_color["color"] == current_color].iloc[0]
 
-    st.markdown(f"## {current_item['brand']} {current_item['model_clean']} — {current_color.capitalize()}")
+    # Заголовок
+    st.markdown(f"<h1 style='margin-bottom: 10px;'>{current_item['brand']} {current_item['model_clean']}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color: #666; margin-bottom: 30px;'>Цвет: {current_color.capitalize()}</h3>", unsafe_allow_html=True)
 
-    col1, col2 = st.columns([1, 2])
+    # --- Горизонтальная галерея изображений ---
+    all_images = []
+    if current_item["image"]:
+        image_names_list = str(current_item["image"]).strip().split()
+        for img_name in image_names_list:
+            for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+                pattern = os.path.join(IMAGES_PATH, "**", f"{img_name}*{ext}")
+                files = glob.glob(pattern, recursive=True)
+                all_images.extend(files)
 
-    with col1:
-        # Показываем все изображения товара
-        all_images = []
-        if current_item["image"]:
-            image_names_list = str(current_item["image"]).strip().split()
-            for img_name in image_names_list:
-                for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-                    pattern = os.path.join(IMAGES_PATH, "**", f"{img_name}*{ext}")
-                    files = glob.glob(pattern, recursive=True)
-                    all_images.extend(files)
+    all_images = list(dict.fromkeys(all_images))
+    if not all_images:
+        all_images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
 
-        all_images = list(dict.fromkeys(all_images))
-        if not all_images:
-            all_images = [os.path.join(IMAGES_PATH, "no_image.jpg")]
+    # Показываем изображения горизонтально
+    if len(all_images) > 0:
+        cols = st.columns(len(all_images))
+        for idx, (col, img_path) in enumerate(zip(cols, all_images)):
+            with col:
+                image_base64 = get_image_base64(img_path)
+                st.markdown(
+                    f'<img src="data:image/jpeg;base64,{image_base64}" '
+                    f'style="width:100%; border-radius:12px; border:1px solid #eee;">',
+                    unsafe_allow_html=True
+                )
 
-        # Показываем все изображения товара
-        for i, img_path in enumerate(all_images):
-            image_base64 = get_image_base64(img_path)
-            st.markdown(
-                f'<img src="data:image/jpeg;base64,{image_base64}" '
-                f'style="width:100%; border-radius:12px; margin-bottom:15px; border:1px solid #eee;">',
-                unsafe_allow_html=True
-            )
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    with col2:
-        st.markdown(f"**💰 Цена:** {int(current_item['price'])} ₸")
-        st.markdown(f"**👤 Пол:** {current_item['gender']}")
-        st.markdown(f"**🎨 Цвет:** {current_item['color'].capitalize()}")
+    # --- Основная информация и размеры ---
+    col_left, col_right = st.columns([2, 1])
+
+    with col_left:
+        # Информация о товаре
+        st.markdown("### Информация о товаре")
         
+        info_col1, info_col2 = st.columns(2)
+        
+        with info_col1:
+            st.markdown(f"**Бренд:** {current_item['brand']}")
+            st.markdown(f"**Модель:** {current_item['model_clean']}")
+            st.markdown(f"**Цвет:** {current_color.capitalize()}")
+            
+        with info_col2:
+            st.markdown(f"**Пол:** {current_item['gender']}")
+            st.markdown(f"**Цена:** {int(current_item['price'])} ₸")
+        
+        # Описание
+        st.markdown("### Описание")
         if current_item["description"] and str(current_item["description"]).strip():
-            st.markdown(f"**📝 Описание:** {current_item['description']}")
+            st.markdown(f"{current_item['description']}")
         else:
-            st.markdown("**📝 Описание:** Описание временно недоступно")
+            st.markdown("Описание временно недоступно")
 
+    with col_right:
         # --- Доступные размеры ---
-        st.markdown("---")
-        st.markdown("### 📏 Доступные размеры")
+        st.markdown("### Доступные размеры")
         
         if current_item["size US"]:
-            # Создаем красивую таблицу размеров
             us_sizes = [size.strip() for size in current_item["size US"].split(",")]
             eu_sizes = [size.strip() for size in current_item["size_eu"].split(",")] if current_item["size_eu"] else []
             
-            # Показываем размеры в виде красивых карточек
-            cols = st.columns(4)
+            # Сетка размеров 3 колонки
+            cols = st.columns(3)
             for idx, us_size in enumerate(us_sizes):
-                with cols[idx % 4]:
+                with cols[idx % 3]:
                     eu_size = eu_sizes[idx] if idx < len(eu_sizes) else ""
                     st.markdown(
                         f"""
                         <div style="
-                            border: 2px solid #4CAF50;
-                            border-radius: 8px;
-                            padding: 10px;
+                            border: 1px solid #ddd;
+                            border-radius: 6px;
+                            padding: 8px;
                             text-align: center;
-                            margin: 5px;
-                            background-color: #f8fff8;
+                            margin: 4px;
+                            background-color: #f8f9fa;
+                            font-size: 12px;
                         ">
-                            <div style="font-weight: bold; font-size: 16px;">US {us_size}</div>
-                            <div style="font-size: 14px; color: #666;">EU {eu_size}</div>
+                            <div style="font-weight: bold;">US {us_size}</div>
+                            <div style="color: #666;">EU {eu_size}</div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
         else:
-            st.info("📭 Размеры для этого цвета не указаны")
+            st.info("Размеры для этого цвета не указаны")
 
-        # --- Другие цвета этой модели ---
+        # --- Другие цвета ---
         other_colors = grouped_by_color[grouped_by_color["color"] != current_color]
         if not other_colors.empty:
-            st.markdown("---")
-            st.markdown("### 🎨 Другие цвета этой модели:")
-
-            cols = st.columns(min(4, len(other_colors)))
-            for col, (_, variant) in zip(cols, other_colors.iterrows()):
-                with col:
-                    # Показываем первое изображение для каждого цвета
+            st.markdown("### Другие цвета")
+            
+            # Сетка цветов 2 колонки
+            color_cols = st.columns(2)
+            for idx, (_, variant) in enumerate(other_colors.iterrows()):
+                with color_cols[idx % 2]:
+                    # Показываем уменьшенное изображение для цвета
                     img_path = get_image_path(variant["image"])
                     image_base64 = get_image_base64(img_path)
                     
@@ -262,39 +293,39 @@ def main():
                         <div style="
                             border: 1px solid #ddd;
                             border-radius: 8px;
-                            padding: 8px;
+                            padding: 6px;
                             text-align: center;
                             margin-bottom: 8px;
                             background-color: white;
                         ">
                             <img src="data:image/jpeg;base64,{image_base64}" 
-                                 style="width:100%; border-radius:6px; height:120px; object-fit:cover;">
-                            <div style="margin-top:8px; font-weight:bold;">{variant['color'].capitalize()}</div>
-                            <div style="font-size:12px; color:#666;">{int(variant['price'])} ₸</div>
+                                 style="width:100%; border-radius:4px; height:80px; object-fit:cover;">
+                            <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
+                            <div style="font-size:11px; color:#666;">{int(variant['price'])} ₸</div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
                     
                     # Кнопка переключения на этот цвет
-                    if st.button(f"Выбрать {variant['color']}", key=f"color_{variant['color']}", use_container_width=True):
+                    if st.button(f"Выбрать", key=f"color_{variant['color']}", use_container_width=True):
                         st.session_state.product_data = dict(variant)
                         st.rerun()
 
     # --- Информация о доставке и возврате ---
     st.markdown("---")
-    st.markdown("### 📦 Информация о доставке")
+    st.markdown("### Информация о доставке")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown("**🚚 Доставка**")
+        st.markdown("**Доставка**")
         st.markdown("По городу: 2-3 дня")
         st.markdown("По стране: 5-7 дней")
     with col2:
-        st.markdown("*↩️ Возврат**")
+        st.markdown("**Возврат**")
         st.markdown("14 дней с момента получения")
         st.markdown("Товар в оригинальном состоянии")
     with col3:
-        st.markdown("**📞 Контакты**")
+        st.markdown("**Контакты**")
         st.markdown("+7 777 123 45 67")
         st.markdown("info@denestore.kz")
 
