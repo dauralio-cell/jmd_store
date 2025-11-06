@@ -50,26 +50,28 @@ else:
         col1, col2, col3, col4 = st.columns([1, 3, 1, 1])
         
         with col1:
-            # Показываем изображение товара с рамкой
+            # Показываем изображение товара с рамкой - ИСПРАВЛЕННАЯ ЧАСТЬ
             image_path = get_image_path(item['image'])
             try:
+                # Используем st.image с контейнером для рамки
                 st.markdown(
-                    f"""
-                    <div style="border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center;">
-                        <img src="{image_path}" style="width: 100%; border-radius: 4px;">
-                    </div>
+                    """
+                    <div style="border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center; height: 120px; display: flex; align-items: center; justify-content: center;">
                     """,
                     unsafe_allow_html=True
                 )
-            except:
+                st.image(image_path, width=100, use_container_width=False)
+                st.markdown("</div>", unsafe_allow_html=True)
+            except Exception as e:
+                # Если ошибка, показываем no_image
                 st.markdown(
-                    f"""
-                    <div style="border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center;">
-                        <img src="data/images/no_image.jpg" style="width: 100%; border-radius: 4px;">
-                    </div>
+                    """
+                    <div style="border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center; height: 120px; display: flex; align-items: center; justify-content: center;">
                     """,
                     unsafe_allow_html=True
                 )
+                st.image("data/images/no_image.jpg", width=100, use_container_width=False)
+                st.markdown("</div>", unsafe_allow_html=True)
         
         with col2:
             st.write(f"**{item['brand']} {item['model']}**")
@@ -87,7 +89,7 @@ else:
             # Симметрично кнопке удаления
             st.markdown(
                 f"""
-                <div style="text-align: center; padding: 8px;">
+                <div style="text-align: center; padding: 8px; height: 120px; display: flex; align-items: center; justify-content: center;">
                     <p style="margin: 0; font-size: 14px; color: #666;">Кол-во: 1</p>
                 </div>
                 """,
