@@ -19,7 +19,11 @@ IMAGES_PATH = "data/images"
 # --- Функции для работы с изображениями ---
 def get_image_path(image_names):
     """Ищет изображение по имени из колонки image (берет первое изображение из списка)"""
-    if not image_names or pd.isna(image_names) or str(image_names).strip() == "":
+    # Правильная проверка на pd.NA и пустые значения
+    if (image_names is pd.NA or 
+        pd.isna(image_names) or 
+        not image_names or 
+        str(image_names).strip() == ""):
         return os.path.join(IMAGES_PATH, "no_image.jpg")
     
     image_names_list = str(image_names).strip().split()
@@ -72,12 +76,16 @@ def load_data():
             # Заполняем пропущенные значения в ключевых колонках
             sheet_data = sheet_data.fillna("")
             
-            # Заполняем бренд, модель, цвет и изображение для всех строк
+            # Заполняем данные для бренда и модели
             sheet_data['brand'] = sheet_data['brand'].replace('', pd.NA).ffill()
             sheet_data['model'] = sheet_data['model'].replace('', pd.NA).ffill()
-            sheet_data['color'] = sheet_data['color'].replace('', pd.NA).ffill()
-            sheet_data['image'] = sheet_data['image'].replace('', pd.NA).ffill()
             sheet_data['gender'] = sheet_data['gender'].replace('', pd.NA).ffill()
+            
+            # Для цвета используем заполнение, но не для изображений
+            sheet_data['color'] = sheet_data['color'].replace('', pd.NA).ffill()
+            
+            # Изображения оставляем как есть - не заполняем!
+            sheet_data['image'] = sheet_data['image'].replace('', pd.NA)
             
             # Преобразуем размеры в строки и убираем лишние пробелы
             sheet_data['size US'] = sheet_data['size US'].astype(str).str.strip()
@@ -194,12 +202,18 @@ else:
     st.write(f"**Найдено товаров: {len(filtered_df)}**")
 
     # Группируем по модели и цвету для отображения
-    grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color', 'image']).agg({
-        'size US': lambda x: ', '.join(sort_sizes(set(str(i).strip() for i in x if str(i).strip()))),
-        'price': 'first',
-        'gender': 'first',
-        'description': 'first'
-    }).reset_index()
+    # Берем первую строку для каждой комбинации модель+цвет
+    grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color']).first().reset_index()
+    
+    # Группируем размеры отдельно
+    size_groups = filtered_df.groupby(['brand', 'model_clean', 'color'])['size US'].agg(
+        lambda x: ', '.join(sort_sizes(set(str(i).strip() for i in x if str(i).strip())))
+    ).reset_index()
+    
+    # Объединяем с основной группировкой
+    grouped_df = grouped_df.merge(size_groups, on=['brand', 'model_clean', 'color'], suffixes=('', '_grouped'))
+    grouped_df['size US'] = grouped_df['size US_grouped']
+    grouped_df = grouped_df.drop('size US_grouped', axis=1)
 
     # Добавляем EU размеры после группировки
     grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
@@ -211,7 +225,9 @@ else:
         cols = st.columns(num_cols)
         for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
             with col:
-                image_path = get_image_path(row["image"])
+                # Безопасная обработка изображения
+                image_names = row["image"]
+                image_path = get_image_path(image_names)
                 image_base64 = get_image_base64(image_path)
 
                 # --- Карточка товара ---
