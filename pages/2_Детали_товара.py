@@ -138,13 +138,34 @@ def load_data():
         st.error(f"Ошибка загрузки данных: {e}")
         return pd.DataFrame()
 
+# --- Функция для добавления в корзину ---
+def add_to_cart(product_data, selected_size=None):
+    """Добавляет товар в корзину"""
+    if 'cart' not in st.session_state:
+        st.session_state.cart = []
+    
+    cart_item = {
+        'brand': product_data['brand'],
+        'model': product_data['model_clean'],
+        'color': product_data['color'],
+        'price': product_data['price'],
+        'size': selected_size,
+        'image': product_data['image']
+    }
+    
+    st.session_state.cart.append(cart_item)
+    st.success(f"Товар добавлен в корзину!")
+
 # --- Основная функция ---
 def main():
     # Кнопка назад
-    col1, col2 = st.columns([1, 5])
+    col1, col2, col3 = st.columns([1, 3, 1])
     with col1:
         if st.button("← Назад к каталогу", use_container_width=True):
             st.switch_page("main.py")
+    with col3:
+        if st.button("🛒 Корзина", use_container_width=True):
+            st.switch_page("pages/3_Корзина.py")
 
     # Проверяем, есть ли выбранный товар
     if "product_data" not in st.session_state:
@@ -249,6 +270,19 @@ def main():
             us_sizes = [size.strip() for size in current_item["size US"].split(",")]
             eu_sizes = [size.strip() for size in current_item["size_eu"].split(",")] if current_item["size_eu"] else []
             
+            # Выбор размера для добавления в корзину
+            selected_size = st.selectbox(
+                "Выберите размер",
+                options=us_sizes,
+                key="size_selector"
+            )
+            
+            # Кнопка добавления в корзину
+            if st.button("Добавить в корзину", type="primary", use_container_width=True):
+                add_to_cart(current_item, selected_size)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
             # Сетка размеров 3 колонки
             cols = st.columns(3)
             for idx, us_size in enumerate(us_sizes):
@@ -273,6 +307,8 @@ def main():
                     )
         else:
             st.info("Размеры для этого цвета не указаны")
+            if st.button("Добавить в корзину", type="primary", use_container_width=True):
+                add_to_cart(current_item)
 
         # --- Другие цвета ---
         other_colors = grouped_by_color[grouped_by_color["color"] != current_color]
@@ -318,16 +354,29 @@ def main():
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("**Доставка**")
-        st.markdown("По городу: 2-3 дня")
-        st.markdown("По стране: 5-7 дней")
+        st.markdown("Курьерская служба")
+        st.markdown("10-21 день")
     with col2:
         st.markdown("**Возврат**")
         st.markdown("14 дней с момента получения")
-        st.markdown("Товар в оригинальном состоянии")
     with col3:
         st.markdown("**Контакты**")
-        st.markdown("+7 777 123 45 67")
-        st.markdown("info@denestore.kz")
+        st.markdown("+7 747 555 48 69")
+        st.markdown("jmd.dene@gmail.com")
+        st.markdown("[Instagram @jmd.dene](https://instagram.com/jmd.dene)")
+
+    # --- Публичная оферта ---
+    st.markdown("---")
+    st.markdown("### Дополнительная информация")
+    st.markdown("[Публичная оферта](#) • [Условия возврата](#) • [Политика конфиденциальности](#)")
+
+    # --- Кнопка онлайн оплаты ---
+    st.markdown("---")
+    st.markdown("### Онлайн оплата")
+    st.info("Функция онлайн-оплаты находится в разработке. Скоро вы сможете оплачивать заказы картой онлайн.")
+    
+    if st.button("💳 Перейти к оплате", disabled=True, use_container_width=True):
+        st.info("Онлайн-оплата скоро будет доступна!")
 
 if __name__ == "__main__":
     main()

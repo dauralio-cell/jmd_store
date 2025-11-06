@@ -19,7 +19,6 @@ IMAGES_PATH = "data/images"
 # --- Функции для работы с изображениями ---
 def get_image_path(image_names):
     """Ищет изображение по имени из колонки image (берет первое изображение из списка)"""
-    # Правильная проверка на pd.NA и пустые значения
     if (image_names is pd.NA or 
         pd.isna(image_names) or 
         not image_names or 
@@ -230,36 +229,45 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = get_image_base64(image_path)
 
-                # --- Карточка товара ---
+                # --- Карточка товара с ФИКСИРОВАННОЙ ВЫСОТОЙ ---
                 st.markdown(
                     f"""
                     <div style="
-                        border:1px solid #eee;
-                        border-radius:16px;
-                        padding:12px;
-                        margin-bottom:16px;
-                        background-color:#fff;
-                        box-shadow:0 2px 10px rgba(0,0,0,0.05);
-                        height:100%;
+                        border: 1px solid #eee;
+                        border-radius: 16px;
+                        padding: 12px;
+                        margin-bottom: 16px;
+                        background-color: #fff;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                        height: 480px;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
                     ">
-                        <img src="data:image/jpeg;base64,{image_base64}" 
-                             style='width:100%; border-radius:12px; object-fit:cover; height:220px;'>
-                        <h4 style="margin:10px 0 4px 0;">{row['brand']} {row['model_clean']}</h4>
-                        <p style="color:gray; font-size:13px; margin:0;">
-                            Цвет: {row['color']} | {row['gender']}
-                        </p>
-                        <p style="font-size:13px; margin:8px 0;">
-                            <strong>Размеры US:</strong> {row['size US']}<br>
-                            <strong>Размеры EU:</strong> {row['size_eu']}
-                        </p>
-                        <p style="font-weight:bold; font-size:16px; margin-top:6px;">{int(row['price'])} ₸</p>
+                        <div>
+                            <img src="data:image/jpeg;base64,{image_base64}" 
+                                 style="width:100%; border-radius:12px; object-fit:cover; height:220px; margin-bottom:12px;">
+                            <h4 style="margin:0 0 8px 0; font-size:16px; line-height:1.3; min-height:42px; display:flex; align-items:center;">
+                                {row['brand']} {row['model_clean']}
+                            </h4>
+                            <p style="color:gray; font-size:12px; margin:0 0 8px 0; line-height:1.2;">
+                                Цвет: {row['color']} | {row['gender']}
+                            </p>
+                            <div style="font-size:12px; line-height:1.3; margin-bottom:12px;">
+                                <div><strong>Размеры US:</strong> {row['size US']}</div>
+                                <div><strong>Размеры EU:</strong> {row['size_eu']}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: auto;">
+                            <p style="font-weight:bold; font-size:16px; margin:0 0 12px 0;">{int(row['price'])} ₸</p>
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
                 # --- Кнопка Подробнее ---
-                if st.button("📦 Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
+                if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
 
