@@ -1,6 +1,53 @@
 import streamlit as st
+import glob
+import os
+import base64
 
 st.set_page_config(page_title="Корзина - DENE Store", layout="wide")
+
+# Пути
+IMAGES_PATH = "data/images"
+
+# --- Функции для изображений (копируем из деталей товара) ---
+def get_image_path(image_names, images_path="data/images"):
+    """Ищет изображение по имени из колонки image"""
+    if (image_names is None or 
+        not image_names or 
+        str(image_names).strip() == "" or
+        str(image_names).lower() == "nan"):
+        return os.path.join(images_path, "no_image.jpg")
+    
+    image_names_list = str(image_names).strip().split()
+    if not image_names_list:
+        return os.path.join(images_path, "no_image.jpg")
+    
+    first_image_name = image_names_list[0]
+    
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern = os.path.join(images_path, "**", f"{first_image_name}{ext}")
+        image_files = glob.glob(pattern, recursive=True)
+        if image_files:
+            return image_files[0]
+        
+        pattern_start = os.path.join(images_path, "**", f"{first_image_name}*{ext}")
+        image_files = glob.glob(pattern_start, recursive=True)
+        if image_files:
+            return image_files[0]
+    
+    return os.path.join(images_path, "no_image.jpg")
+
+def get_image_base64(image_path):
+    """Возвращает изображение в base64 для вставки в HTML"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode("utf-8")
+    except Exception:
+        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+        try:
+            with open(fallback, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode("utf-8")
+        except:
+            return ""
 
 # Кнопка назад
 col1, col2 = st.columns([1, 5])
@@ -38,21 +85,25 @@ else:
             # Показываем изображение товара
             if 'image' in item and item['image']:
                 try:
-                    from pages.2_Детали_товара import get_image_path, get_image_base64
                     image_path = get_image_path(item['image'])
                     image_base64 = get_image_base64(image_path)
-                    st.markdown(
-                        f'<img src="data:image/jpeg;base64,{image_base64}" style="width:100%; border-radius:8px;">',
-                        unsafe_allow_html=True
-                    )
-                except:
-                    st.image("https://via.placeholder.com/120x120/CCCCCC/666666?text=No+Image", width=120)
+                    if image_base64:
+                        st.markdown(
+                            f'<img src="data:image/jpeg;base64,{image_base64}" style="width:100%; border-radius:8px; max-width:150px;">',
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.image("https://via.placeholder.com/150x150/CCCCCC/666666?text=No+Image", width=120)
+                except Exception as e:
+                    st.image("https://via.placeholder.com/150x150/CCCCCC/666666?text=No+Image", width=120)
             else:
-                st.image("https://via.placeholder.com/120x120/CCCCCC/666666?text=No+Image", width=120)
+                st.image("https://via.placeholder.com/150x150/CCCCCC/666666?text=No+Image", width=120)
         
         with col2:
             # Информация о товаре
-            st.subheader(f"{item.get('brand', '')} {item.get('model', '')}")
+            brand = item.get('brand', '')
+            model = item.get('model', '')
+            st.subheader(f"{brand} {model}")
             st.write(f"**Цвет:** {item.get('color', 'Не указан')}")
             if item.get('size'):
                 st.write(f"**Размер:** {item.get('size')}")
@@ -67,7 +118,7 @@ else:
                 if st.button("➖", key=f"dec_{i}", use_container_width=True):
                     update_quantity(i, current_quantity - 1)
             with col_qty2:
-                st.markdown(f"<div style='text-align: center; padding: 8px;'>{current_quantity}</div>", 
+                st.markdown(f"<div style='text-align: center; padding: 8px; font-weight: bold;'>{current_quantity}</div>", 
                            unsafe_allow_html=True)
             with col_qty3:
                 if st.button("➕", key=f"inc_{i}", use_container_width=True):
