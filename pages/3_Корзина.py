@@ -1,68 +1,74 @@
 import streamlit as st
 
-def cart_item(name, color, size, price, quantity=1):
-    """Компонент товара в корзине"""
-    
-    # Используем columns для расположения как в вашем HTML
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        # Информация о товаре
-        st.markdown(f"""
-        <div style="padding: 0 20px;">
-            <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">
-                {name}
-            </div>
-            <div style="color: #666; font-size: 14px; margin-bottom: 4px;">
-                Цвет: {color}
-            </div>
-            <div style="color: #666; font-size: 14px; margin-bottom: 4px;">
-                Размер: {size}
-            </div>
-            <div style="font-weight: bold; font-size: 16px; color: #000;">
-                {price} ₸
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        # Количество и кнопка удаления
-        st.markdown(f"""
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
-            <div style="text-align: center;">
-                <span style="color: #666; font-size: 14px;">Кол-во: {quantity}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("🗑️ Удалить", key=f"remove_{name}", 
-                    use_container_width=True, type="secondary"):
-            st.warning(f"Товар {name} удален из корзины")
-            return False
-    return True
+st.set_page_config(page_title="Корзина", layout="wide")
 
-# Основной интерфейс
 st.title("🛒 Корзина")
 
-# Пример использования
-st.divider()
-if cart_item("Mizuno Racer S", "white", "1", "60 000"):
-    st.write("Товар в корзине")
+# Инициализация состояния корзины
+if 'cart_items' not in st.session_state:
+    st.session_state.cart_items = [{
+        'name': 'Mizuno Racer S',
+        'color': 'white', 
+        'size': '1',
+        'price': 60000,
+        'quantity': 1,
+        'image': 'https://via.placeholder.com/150x150/CCCCCC/666666?text=Mizuno'
+    }]
 
-# Можно добавить несколько товаров
-st.divider()
-if cart_item("Nike Air Max", "black", "42", "45 000", 2):
-    st.write("Товар в корзине")
+# Функция удаления товара
+def remove_item(index):
+    st.session_state.cart_items.pop(index)
+    st.rerun()
 
-# Итоговая сумма
-st.divider()
-st.subheader("Итого: 105 000 ₸")
+# Отображение товаров в корзине
+for i, item in enumerate(st.session_state.cart_items):
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col1:
+        st.image(item['image'], width=120)
+    
+    with col2:
+        st.subheader(item['name'])
+        st.write(f"**Цвет:** {item['color']}")
+        st.write(f"**Размер:** {item['size']}")
+        st.write(f"**Цена:** {item['price']:,} ₸".replace(",", " "))
+    
+    with col3:
+        quantity = st.number_input(
+            "Кол-во:", 
+            min_value=1, 
+            value=item['quantity'],
+            key=f"qty_{i}"
+        )
+        st.session_state.cart_items[i]['quantity'] = quantity
+        
+        if st.button("🗑️ Удалить", key=f"remove_{i}", type="secondary"):
+            remove_item(i)
+    
+    st.divider()
+
+# Расчет итогов
+total = sum(item['price'] * item['quantity'] for item in st.session_state.cart_items)
+
+# Футер с итогами и кнопками
+st.subheader(f"Итого: {total:,} ₸".replace(",", " "))
 
 col1, col2 = st.columns(2)
+
 with col1:
     if st.button("← Продолжить покупки", use_container_width=True):
         st.success("Переходим к каталогу...")
 
 with col2:
     if st.button("Оформить заказ →", type="primary", use_container_width=True):
-        st.success("Заказ успешно оформлен!")
+        if st.session_state.cart_items:
+            st.success("Заказ успешно оформлен!")
+            st.balloons()
+        else:
+            st.error("Корзина пуста!")
+
+# Сообщение если корзина пуста
+if not st.session_state.cart_items:
+    st.info("🛒 Ваша корзина пуста")
+    if st.button("Вернуться к покупкам"):
+        st.success("Переходим к каталогу...")
