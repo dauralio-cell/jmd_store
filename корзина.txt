@@ -163,7 +163,7 @@ st.markdown(
             <a href="#">Политика конфиденциальности</a> • 
             <a href="#">Условия возврата</a>
         </p>
-        <p>© 2025 DENE Store. Все права защищены.</p>
+        <p>© 2024 DENE Store. Все права защищены.</p>
     </div>
     """,
     unsafe_allow_html=True
