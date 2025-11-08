@@ -66,7 +66,7 @@ def documents_footer():
     
     st.markdown("---")
     
-    # Простой футер как на картинке
+    # Один простой футер как на картинке
     st.markdown(
         """
         <div style="text-align: center; color: #666; font-size: 14px; line-height: 1.5;">
