@@ -357,11 +357,6 @@ def main():
     with col2:
         st.markdown("**Возврат**")
         st.markdown("14 дней с момента получения")
-    with col3:
-        st.markdown("**Контакты**")
-        st.markdown("+7 747 555 48 69")
-        st.markdown("jmd.dene@gmail.com")
-        st.markdown("[Instagram @jmd.dene](https://instagram.com/jmd.dene)")
 
 if __name__ == "__main__":
     main()
