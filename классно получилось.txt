@@ -8,9 +8,17 @@ import base64
 # --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
 
-# --- Обложка ---
+# --- Обложка и хедер как было ---
 st.image("data/images/banner.jpg", width="stretch")
 st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
+
+# --- Кнопка корзины вверху ---
+col1, col2, col3 = st.columns([1, 3, 1])
+with col3:
+    cart_count = len(st.session_state.cart) if 'cart' in st.session_state else 0
+    cart_text = f"🛒 Корзина ({cart_count})" if cart_count > 0 else "🛒 Корзина"
+    if st.button(cart_text, use_container_width=True):
+        st.switch_page("pages/3_Корзина.py")
 
 # --- Пути и константы ---
 CATALOG_PATH = "data/catalog.xlsx"
@@ -201,7 +209,6 @@ else:
     st.write(f"**Найдено товаров: {len(filtered_df)}**")
 
     # Группируем по модели и цвету для отображения
-    # Берем первую строку для каждой комбинации модель+цвет
     grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color']).first().reset_index()
     
     # Группируем размеры отдельно
@@ -229,7 +236,7 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = get_image_base64(image_path)
 
-                # --- Карточка товара с ФИКСИРОВАННОЙ ВЫСОТОЙ ---
+                # --- Карточка товара БЕЗ ВЫБОРА РАЗМЕРА ---
                 st.markdown(
                     f"""
                     <div style="
@@ -266,10 +273,12 @@ else:
                     unsafe_allow_html=True
                 )
 
-                # --- Кнопка Подробнее ---
+                # --- Одна кнопка Подробнее ---
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
 
-st.divider()
-st.caption("© DENE Store 2025")
+# Добавьте в самый конец файла:
+from components.documents import documents_footer
+
+documents_footer()
