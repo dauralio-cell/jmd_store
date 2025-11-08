@@ -35,3 +35,7 @@ st.markdown("### Публичная оферта")
 st.markdown("[Скачать договор публичной оферты](#)")
 st.markdown("[Политика конфиденциальности](#)")
 st.markdown("[Условия возврата](#)")
+# Добавьте в самый конец файла:
+from components.documents import documents_footer
+
+documents_footer()

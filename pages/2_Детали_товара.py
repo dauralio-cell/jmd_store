@@ -365,3 +365,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+# Добавьте в самый конец файла:
+from components.documents import documents_footer
+
+documents_footer()

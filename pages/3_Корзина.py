@@ -294,3 +294,7 @@ with col3:
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: #666;'>© 2025 DENE Store. Все права защищены.</div>", 
             unsafe_allow_html=True)
+# Добавьте в самый конец файла:
+from components.documents import documents_footer
+
+documents_footer()
