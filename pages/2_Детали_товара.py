@@ -58,20 +58,11 @@ size_conversion = {
 }
 
 # --- Функция для получения EU размеров ---
-def get_eu_sizes(us_sizes_str):
-    """Конвертирует US размеры в EU размеры"""
-    if not us_sizes_str or us_sizes_str == "":
+def get_eu_size(us_size):
+    """Конвертирует один US размер в EU размер"""
+    if not us_size or us_size == "":
         return ""
-    
-    us_sizes = [size.strip() for size in us_sizes_str.split(",")]
-    eu_sizes = []
-    
-    for us_size in us_sizes:
-        eu_size = size_conversion.get(us_size, "")
-        if eu_size:
-            eu_sizes.append(eu_size)
-    
-    return ", ".join(eu_sizes)
+    return size_conversion.get(str(us_size).strip(), "")
 
 # --- Функция сортировки размеров ---
 def sort_sizes(size_list):
@@ -139,7 +130,7 @@ def load_data():
         return pd.DataFrame()
 
 # --- Функция для добавления в корзину ---
-def add_to_cart(product_data, selected_size=None):
+def add_to_cart(product_data, selected_size=None, selected_price=None):
     """Добавляет товар в корзину"""
     if 'cart' not in st.session_state:
         st.session_state.cart = []
@@ -148,7 +139,7 @@ def add_to_cart(product_data, selected_size=None):
         'brand': product_data['brand'],
         'model': product_data['model_clean'],
         'color': product_data['color'],
-        'price': product_data['price'],
+        'price': selected_price if selected_price else product_data['price'],
         'size': selected_size,
         'image': product_data['image']
     }
@@ -177,44 +168,72 @@ def main():
     product_data = st.session_state.product_data
     df = load_data()
 
-    # Получаем все варианты той же модели
-    same_model_df = df[
+    # Получаем все варианты той же модели и цвета
+    same_model_color_df = df[
         (df["model_clean"] == product_data["model_clean"]) & 
-        (df["brand"] == product_data["brand"])
+        (df["brand"] == product_data["brand"]) &
+        (df["color"] == product_data["color"])
     ]
 
-    if same_model_df.empty:
+    if same_model_color_df.empty:
         st.error("Данные о товаре не найдены в каталоге")
         return
 
-    # Группируем по цветам (как в главной странице)
-    grouped_by_color = same_model_df.groupby(['brand', 'model_clean', 'color']).first().reset_index()
-    
-    # Группируем размеры отдельно
-    size_groups = same_model_df.groupby(['brand', 'model_clean', 'color'])['size US'].agg(
-        lambda x: ', '.join(sort_sizes(set(str(i).strip() for i in x if str(i).strip())))
-    ).reset_index()
-    
-    # Объединяем
-    grouped_by_color = grouped_by_color.merge(size_groups, on=['brand', 'model_clean', 'color'], suffixes=('', '_grouped'))
-    grouped_by_color['size US'] = grouped_by_color['size US_grouped']
-    grouped_by_color = grouped_by_color.drop('size US_grouped', axis=1)
+    # Получаем ВСЕ размеры для этого цвета с их ценами и наличием
+    available_sizes = []
+    for _, row in same_model_color_df.iterrows():
+        us_size = str(row['size US']).strip()
+        # Проверяем наличие товара (in stock)
+        in_stock = str(row.get('in stock', 'yes')).strip().lower() if pd.notna(row.get('in stock')) else 'yes'
+        
+        if us_size and us_size != "nan" and in_stock == 'yes':
+            available_sizes.append({
+                'us_size': us_size,
+                'eu_size': get_eu_size(us_size),
+                'price': row['price'],
+                'in_stock': in_stock
+            })
 
-    # Добавляем EU размеры после группировки
-    grouped_by_color['size_eu'] = grouped_by_color['size US'].apply(get_eu_sizes)
+    # Сортируем размеры
+    sorted_sizes = sorted(available_sizes, key=lambda x: float(x['us_size']) if x['us_size'].replace('.', '').isdigit() else x['us_size'])
+
+    # Получаем все цвета этой модели для переключения (только те, у которых есть размеры в наличии)
+    all_colors_df = df[
+        (df["model_clean"] == product_data["model_clean"]) & 
+        (df["brand"] == product_data["brand"])
+    ]
+    
+    # Фильтруем цвета: оставляем только те, у которых есть хотя бы один размер в наличии
+    colors_with_stock = []
+    for color in all_colors_df['color'].unique():
+        color_sizes = df[
+            (df["model_clean"] == product_data["model_clean"]) & 
+            (df["brand"] == product_data["brand"]) &
+            (df["color"] == color)
+        ]
+        # Проверяем есть ли размеры в наличии для этого цвета
+        has_stock = any(
+            str(row.get('in stock', 'yes')).strip().lower() == 'yes' 
+            for _, row in color_sizes.iterrows() 
+            if str(row['size US']).strip() and str(row['size US']).strip() != "nan"
+        )
+        if has_stock:
+            colors_with_stock.append(color)
+    
+    unique_colors = all_colors_df[all_colors_df['color'].isin(colors_with_stock)].groupby('color').first().reset_index()
 
     # Текущий выбранный цвет
     current_color = product_data["color"]
-    current_item = grouped_by_color[grouped_by_color["color"] == current_color].iloc[0]
+    current_color_data = unique_colors[unique_colors["color"] == current_color].iloc[0]
 
     # Заголовок
-    st.markdown(f"<h1 style='margin-bottom: 10px;'>{current_item['brand']} {current_item['model_clean']}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='margin-bottom: 10px;'>{current_color_data['brand']} {current_color_data['model_clean']}</h1>", unsafe_allow_html=True)
     st.markdown(f"<h3 style='color: #666; margin-bottom: 30px;'>Цвет: {current_color.capitalize()}</h3>", unsafe_allow_html=True)
 
     # --- Горизонтальная галерея изображений ---
     all_images = []
-    if current_item["image"]:
-        image_names_list = str(current_item["image"]).strip().split()
+    if current_color_data["image"]:
+        image_names_list = str(current_color_data["image"]).strip().split()
         for img_name in image_names_list:
             for ext in ['.jpg', '.jpeg', '.png', '.webp']:
                 pattern = os.path.join(IMAGES_PATH, "**", f"{img_name}*{ext}")
@@ -249,66 +268,85 @@ def main():
         info_col1, info_col2 = st.columns(2)
         
         with info_col1:
-            st.markdown(f"**Бренд:** {current_item['brand']}")
-            st.markdown(f"**Модель:** {current_item['model_clean']}")
+            st.markdown(f"**Бренд:** {current_color_data['brand']}")
+            st.markdown(f"**Модель:** {current_color_data['model_clean']}")
             st.markdown(f"**Цвет:** {current_color.capitalize()}")
             
         with info_col2:
-            st.markdown(f"**Пол:** {current_item['gender']}")
-            st.markdown(f"**Цена:** {int(current_item['price'])} ₸")
+            st.markdown(f"**Пол:** {current_color_data['gender']}")
+            # Показываем диапазон цен если есть разные цены
+            if sorted_sizes:
+                prices = [size['price'] for size in sorted_sizes]
+                min_price = min(prices)
+                max_price = max(prices)
+                if min_price == max_price:
+                    st.markdown(f"**Цена:** {int(min_price)} ₸")
+                else:
+                    st.markdown(f"**Цена:** {int(min_price)} - {int(max_price)} ₸")
+            else:
+                st.markdown("**Нет в наличии**")
         
         # Описание
         st.markdown("### Описание")
-        if current_item["description"] and str(current_item["description"]).strip():
-            st.markdown(f"{current_item['description']}")
+        if current_color_data.get("description") and str(current_color_data["description"]).strip():
+            st.markdown(f"{current_color_data['description']}")
         else:
             st.markdown("Описание временно недоступно")
 
     with col_right:
-        # --- Доступные размеры ---
+        # --- Доступные размеры с ценами ---
         st.markdown("### Доступные размеры")
         
-        if current_item["size US"]:
-            us_sizes = [size.strip() for size in current_item["size US"].split(",")]
-            eu_sizes = [size.strip() for size in current_item["size_eu"].split(",")] if current_item["size_eu"] else []
-            
+        if sorted_sizes:
             # Инициализируем выбранный размер в session_state
             if 'selected_size' not in st.session_state:
                 st.session_state.selected_size = None
+            if 'selected_price' not in st.session_state:
+                st.session_state.selected_price = None
             
-            # Сетка размеров 3 колонки с возможностью выбора
-            cols = st.columns(3)
+            # Сетка размеров 2 колонки с ценами
+            cols = st.columns(2)
             selected_size = st.session_state.selected_size
             
-            for idx, (us_size, eu_size) in enumerate(zip(us_sizes, eu_sizes)):
-                with cols[idx % 3]:
-                    is_selected = selected_size == us_size
-                    border_color = "#FF4B4B" if is_selected else "#ddd"
-                    background_color = "#fff0f0" if is_selected else "#f8f9fa"
+            for idx, size_data in enumerate(sorted_sizes):
+                with cols[idx % 2]:
+                    us_size = size_data['us_size']
+                    eu_size = size_data['eu_size']
+                    price = size_data['price']
                     
-                    if st.button(f"US {us_size}\nEU {eu_size}", 
+                    is_selected = selected_size == us_size
+                    
+                    # Кнопка с размером и ценой
+                    button_text = f"US {us_size}"
+                    if eu_size:
+                        button_text += f"\nEU {eu_size}"
+                    button_text += f"\n{int(price)} ₸"
+                    
+                    if st.button(button_text, 
                                 key=f"size_{us_size}",
                                 use_container_width=True,
                                 type="primary" if is_selected else "secondary"):
                         st.session_state.selected_size = us_size
+                        st.session_state.selected_price = price
                         st.rerun()
             
             st.markdown("<br>", unsafe_allow_html=True)
             
             # Кнопка добавления в корзину
             if st.session_state.selected_size:
-                if st.button("Добавить в корзину", type="primary", use_container_width=True):
-                    add_to_cart(current_item, st.session_state.selected_size)
+                selected_price = st.session_state.selected_price
+                button_text = f"Добавить в корзину - {int(selected_price)} ₸"
+                if st.button(button_text, type="primary", use_container_width=True):
+                    add_to_cart(current_color_data, st.session_state.selected_size, selected_price)
             else:
                 st.button("Выберите размер", disabled=True, use_container_width=True)
                 
         else:
-            st.info("Размеры для этого цвета не указаны")
-            if st.button("Добавить в корзину", type="primary", use_container_width=True):
-                add_to_cart(current_item)
+            st.warning("😔 Нет размеров в наличии")
+            st.info("Выберите другой цвет или проверьте позже")
 
         # --- Другие цвета этой модели ---
-        other_colors = grouped_by_color[grouped_by_color["color"] != current_color]
+        other_colors = unique_colors[unique_colors["color"] != current_color]
         if not other_colors.empty:
             st.markdown("### Другие цвета")
             
@@ -320,31 +358,48 @@ def main():
                     img_path = get_image_path(variant["image"])
                     image_base64 = get_image_base64(img_path)
                     
-                    # Карточка цвета
-                    st.markdown(
-                        f"""
-                        <div style="
-                            border: 1px solid #ddd;
-                            border-radius: 8px;
-                            padding: 6px;
-                            text-align: center;
-                            margin-bottom: 8px;
-                            background-color: white;
-                        ">
-                            <img src="data:image/jpeg;base64,{image_base64}" 
-                                 style="width:100%; border-radius:4px; height:80px; object-fit:cover;">
-                            <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
-                            <div style="font-size:11px; color:#666;">{int(variant['price'])} ₸</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                    # Получаем минимальную цену для этого цвета (только размеры в наличии)
+                    color_sizes = df[
+                        (df["model_clean"] == variant["model_clean"]) & 
+                        (df["brand"] == variant["brand"]) &
+                        (df["color"] == variant["color"])
+                    ]
+                    # Фильтруем только размеры в наличии
+                    available_color_sizes = [
+                        row for _, row in color_sizes.iterrows()
+                        if str(row.get('in stock', 'yes')).strip().lower() == 'yes'
+                        and str(row['size US']).strip() and str(row['size US']).strip() != "nan"
+                    ]
                     
-                    # Кнопка переключения на этот цвет
-                    if st.button(f"Выбрать", key=f"color_{variant['color']}", use_container_width=True):
-                        st.session_state.selected_size = None  # Сбрасываем выбранный размер
-                        st.session_state.product_data = dict(variant)
-                        st.rerun()
+                    if available_color_sizes:
+                        min_color_price = min(row['price'] for row in available_color_sizes)
+                        
+                        # Карточка цвета
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border: 1px solid #ddd;
+                                border-radius: 8px;
+                                padding: 6px;
+                                text-align: center;
+                                margin-bottom: 8px;
+                                background-color: white;
+                            ">
+                                <img src="data:image/jpeg;base64,{image_base64}" 
+                                     style="width:100%; border-radius:4px; height:80px; object-fit:cover;">
+                                <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
+                                <div style="font-size:11px; color:#666;">от {int(min_color_price)} ₸</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        # Кнопка переключения на этот цвет
+                        if st.button(f"Выбрать", key=f"color_{variant['color']}", use_container_width=True):
+                            st.session_state.selected_size = None  # Сбрасываем выбранный размер
+                            st.session_state.selected_price = None
+                            st.session_state.product_data = dict(variant)
+                            st.rerun()
 
     # --- Информация о доставке и возврате ---
     st.markdown("---")
@@ -360,7 +415,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 # Добавьте в самый конец файла:
 from components.documents import documents_footer
-
 documents_footer()
