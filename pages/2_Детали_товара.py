@@ -82,6 +82,37 @@ def sort_sizes(size_list):
     
     return [str(int(x) if x.is_integer() else x) for x in numeric_sizes] + string_sizes
 
+# --- Функция для нормализации дробных размеров ---
+def normalize_size(size_str):
+    """Приводит дробные размеры к ближайшему целому"""
+    if not size_str or pd.isna(size_str):
+        return ""
+    
+    size_str = str(size_str).strip()
+    
+    # Обрабатываем дробные размеры типа "42 1/3"
+    if '/' in size_str:
+        # Разделяем целую и дробную части
+        parts = size_str.split()
+        if len(parts) == 2 and '/' in parts[1]:
+            try:
+                whole_part = float(parts[0])
+                fraction_part = parts[1]
+                # Преобразуем дробь в десятичное число
+                if fraction_part == '1/3':
+                    return str(int(whole_part))  # 42 1/3 -> 42
+                elif fraction_part == '2/3':
+                    return str(int(whole_part) + 1)  # 42 2/3 -> 43
+            except:
+                return size_str
+    
+    # Обрабатываем десятичные дроби
+    try:
+        size_float = float(size_str)
+        return str(int(round(size_float)))
+    except:
+        return size_str
+
 # --- Загрузка данных (согласованная с главной страницей) ---
 @st.cache_data(show_spinner=False)
 def load_data():
@@ -186,6 +217,7 @@ def main():
         # Проверяем наличие товара (in stock)
         in_stock = str(row.get('in stock', 'yes')).strip().lower() if pd.notna(row.get('in stock')) else 'yes'
         
+        # ПОКАЗЫВАЕМ ВСЕ РАЗМЕРЫ В НАЛИЧИИ (не только 5-11)
         if us_size and us_size != "nan" and in_stock == 'yes':
             available_sizes.append({
                 'us_size': us_size,
