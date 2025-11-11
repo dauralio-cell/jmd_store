@@ -12,6 +12,14 @@ st.set_page_config(page_title="Детали товара - DENE Store", layout="
 CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_PATH = "data/images"
 
+# --- Функция округления цены ---
+def round_price(price):
+    """Округляет цену до тысяч"""
+    try:
+        return round(float(price) / 1000) * 1000
+    except:
+        return price
+
 # --- Функции для изображений ---
 def get_image_path(image_names, images_path="data/images"):
     """Ищет изображение по имени из колонки image"""
@@ -166,11 +174,14 @@ def add_to_cart(product_data, selected_size=None, selected_price=None):
     if 'cart' not in st.session_state:
         st.session_state.cart = []
     
+    # ОКРУГЛЯЕМ ЦЕНУ ДО ТЫСЯЧ
+    rounded_price = round_price(selected_price if selected_price else product_data['price'])
+    
     cart_item = {
         'brand': product_data['brand'],
         'model': product_data['model_clean'],
         'color': product_data['color'],
-        'price': selected_price if selected_price else product_data['price'],
+        'price': rounded_price,
         'size': selected_size,
         'image': product_data['image']
     }
@@ -219,10 +230,13 @@ def main():
         
         # ПОКАЗЫВАЕМ ВСЕ РАЗМЕРЫ В НАЛИЧИИ (не только 5-11)
         if us_size and us_size != "nan" and in_stock == 'yes':
+            # ОКРУГЛЯЕМ ЦЕНУ ДО ТЫСЯЧ
+            rounded_price = round_price(row['price'])
+            
             available_sizes.append({
                 'us_size': us_size,
                 'eu_size': get_eu_size(us_size),
-                'price': row['price'],
+                'price': rounded_price,
                 'in_stock': in_stock
             })
 
@@ -312,9 +326,9 @@ def main():
                 min_price = min(prices)
                 max_price = max(prices)
                 if min_price == max_price:
-                    st.markdown(f"**Цена:** {int(min_price)} ₸")
+                    st.markdown(f"**Цена:** {int(min_price):,} ₸".replace(",", " "))
                 else:
-                    st.markdown(f"**Цена:** {int(min_price)} - {int(max_price)} ₸")
+                    st.markdown(f"**Цена:** {int(min_price):,} - {int(max_price):,} ₸".replace(",", " "))
             else:
                 st.markdown("**Нет в наличии**")
         
@@ -352,7 +366,7 @@ def main():
                     button_text = f"US {us_size}"
                     if eu_size:
                         button_text += f"\nEU {eu_size}"
-                    button_text += f"\n{int(price)} ₸"
+                    button_text += f"\n{int(price):,} ₸".replace(",", " ")
                     
                     if st.button(button_text, 
                                 key=f"size_{us_size}",
@@ -367,7 +381,7 @@ def main():
             # Кнопка добавления в корзину
             if st.session_state.selected_size:
                 selected_price = st.session_state.selected_price
-                button_text = f"Добавить в корзину - {int(selected_price)} ₸"
+                button_text = f"Добавить в корзину - {int(selected_price):,} ₸".replace(",", " ")
                 if st.button(button_text, type="primary", use_container_width=True):
                     add_to_cart(current_color_data, st.session_state.selected_size, selected_price)
             else:
@@ -404,7 +418,8 @@ def main():
                     ]
                     
                     if available_color_sizes:
-                        min_color_price = min(row['price'] for row in available_color_sizes)
+                        # ОКРУГЛЯЕМ ЦЕНУ ДО ТЫСЯЧ
+                        min_color_price = min(round_price(row['price']) for row in available_color_sizes)
                         
                         # Карточка цвета
                         st.markdown(
@@ -420,9 +435,9 @@ def main():
                                 <img src="data:image/jpeg;base64,{image_base64}" 
                                      style="width:100%; border-radius:4px; height:80px; object-fit:cover;">
                                 <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
-                                <div style="font-size:11px; color:#666;">от {int(min_color_price)} ₸</div>
+                                <div style="font-size:11px; color:#666;">от {int(min_color_price):,} ₸</div>
                             </div>
-                            """,
+                            """.replace(",", " "),
                             unsafe_allow_html=True
                         )
                         
