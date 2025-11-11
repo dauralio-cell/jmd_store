@@ -4,6 +4,14 @@ import pandas as pd
 # --- Настройки страницы ---
 st.set_page_config(page_title="Корзина - DENE Store", layout="wide")
 
+# --- Функция округления цены ---
+def round_price(price):
+    """Округляет цену до тысяч"""
+    try:
+        return int(round(float(price) / 1000) * 1000)
+    except:
+        return int(price) if price else 0
+
 def main():
     st.title("🛒 Корзина")
     
@@ -30,8 +38,8 @@ def main():
         
         with col2:
             # ОКРУГЛЯЕМ ЦЕНУ ДО ТЫСЯЧ
-            price = round(item['price'] / 1000) * 1000
-            st.markdown(f"**Цена: {int(price):,} ₸**".replace(",", " "))
+            price = round_price(item['price'])
+            st.markdown(f"**Цена: {price:,} ₸**".replace(",", " "))
         
         with col3:
             if st.button("🗑️", key=f"delete_{i}"):
@@ -42,7 +50,7 @@ def main():
         total += price
     
     # Итоговая сумма
-    st.markdown(f"### Итого: {int(total):,} ₸".replace(",", " "))
+    st.markdown(f"### Итого: {total:,} ₸".replace(",", " "))
     
     # Кнопки управления
     col1, col2, col3 = st.columns([1, 1, 1])
