@@ -10,9 +10,10 @@ st.set_page_config(page_title="Корзина - DENE Store", layout="wide")
 # Пути
 IMAGES_PATH = "data/images"
 
-# --- Настройки Telegram бота ---
-TELEGRAM_BOT_TOKEN = st.secrets.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN")
-TELEGRAM_CHAT_ID = st.secrets.get("TELEGRAM_CHAT_ID", "YOUR_CHAT_ID")
+# --- Безопасные настройки Telegram бота через переменные окружения ---
+import os
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # --- Функции для изображений ---
 def get_image_path(image_names, images_path="data/images"):
@@ -59,6 +60,11 @@ def get_image_base64(image_path):
 def send_order_to_telegram(order_data):
     """Отправляет заказ в Telegram"""
     try:
+        # Проверяем настройки Telegram
+        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+            st.error("Telegram бот не настроен. Пожалуйста, проверьте настройки переменных окружения.")
+            return False
+        
         # Формируем сообщение
         message = f"НОВЫЙ ЗАКАЗ\n\n"
         message += f"Клиент: {order_data['customer_name']}\n"
@@ -205,8 +211,12 @@ else:
 
     with col2:
         if st.button("Оформить заказ →", type="primary", use_container_width=True):
-            st.session_state.show_order_form = True
-            st.rerun()
+            # Проверяем настройки Telegram перед оформлением
+            if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+                st.error("Telegram бот не настроен. Пожалуйста, проверьте переменные окружения.")
+            else:
+                st.session_state.show_order_form = True
+                st.rerun()
 
 # --- Форма оформления заказа ---
 if st.session_state.get('show_order_form', False):
@@ -229,16 +239,23 @@ if st.session_state.get('show_order_form', False):
         # Подтверждение заказа
         st.write("Ваш заказ:")
         for item in st.session_state.cart:
-            # Исправление KeyError: 'quantity' - используем get с значением по умолчанию
             quantity = item.get('quantity', 1)
             st.write(f"- {item.get('brand', '')} {item.get('model', '')} ({item.get('color', '')}, размер {item.get('size', '')}) - {quantity} шт.")
         
         st.write(f"Общая сумма: {formatted_total}")
         
-        # Кнопки формы - ОДНА основная кнопка отправки
-        submitted = st.form_submit_button("Подтвердить заказ", type="primary")
+        # Кнопки формы
+        col1, col2 = st.columns(2)
+        with col1:
+            cancel_btn = st.form_submit_button("← Вернуться в корзину", type="secondary")
+        with col2:
+            submit_btn = st.form_submit_button("Подтвердить заказ", type="primary")
         
-        if submitted:
+        if cancel_btn:
+            st.session_state.show_order_form = False
+            st.rerun()
+        
+        if submit_btn:
             # Проверка обязательных полей
             if not customer_name or not customer_phone or not customer_address:
                 st.error("Пожалуйста, заполните все обязательные поля (отмечены *)")
@@ -268,11 +285,6 @@ if st.session_state.get('show_order_form', False):
                     st.rerun()
                 else:
                     st.error("Произошла ошибка при отправке заказа. Пожалуйста, попробуйте еще раз или свяжитесь с нами напрямую.")
-        
-        # Кнопка отмены вне формы
-        if st.form_submit_button("← Вернуться в корзину", type="secondary"):
-            st.session_state.show_order_form = False
-            st.rerun()
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
