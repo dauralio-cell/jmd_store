@@ -2,11 +2,17 @@ import streamlit as st
 import glob
 import os
 import base64
+import requests
+import json
 
 st.set_page_config(page_title="Корзина - DENE Store", layout="wide")
 
 # Пути
 IMAGES_PATH = "data/images"
+
+# --- Настройки Telegram бота ---
+TELEGRAM_BOT_TOKEN = st.secrets.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN")
+TELEGRAM_CHAT_ID = st.secrets.get("TELEGRAM_CHAT_ID", "YOUR_CHAT_ID")
 
 # --- Функции для изображений ---
 def get_image_path(image_names, images_path="data/images"):
@@ -48,6 +54,60 @@ def get_image_base64(image_path):
                 return base64.b64encode(img_file.read()).decode("utf-8")
         except:
             return ""
+
+# --- Функция для отправки заказа в Telegram ---
+def send_order_to_telegram(order_data):
+    """Отправляет заказ в Telegram"""
+    try:
+        # Формируем сообщение
+        message = f"🛍️ *НОВЫЙ ЗАКАЗ*\n\n"
+        message += f"👤 *Клиент:* {order_data['customer_name']}\n"
+        message += f"📞 *Телефон:* {order_data['customer_phone']}\n"
+        message += f"📍 *Адрес:* {order_data['customer_address']}\n"
+        
+        if order_data.get('customer_email'):
+            message += f"📧 *Email:* {order_data['customer_email']}\n"
+        
+        if order_data.get('customer_comment'):
+            message += f"💬 *Комментарий:* {order_data['customer_comment']}\n"
+        
+        message += f"\n*Товары:*\n"
+        
+        total = 0
+        for i, item in enumerate(order_data['items'], 1):
+            item_total = item['price'] * item['quantity']
+            total += item_total
+            message += f"{i}. {item['brand']} {item['model']}\n"
+            message += f"   Цвет: {item['color']}\n"
+            message += f"   Размер: {item['size']}\n"
+            message += f"   Цена: {item['price']:,} ₸ x {item['quantity']} = {item_total:,} ₸\n\n"
+        
+        message += f"💰 *ИТОГО: {total:,} ₸*".replace(",", " ")
+        
+        # Отправляем в Telegram
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        
+        response = requests.post(url, json=payload)
+        return response.status_code == 200
+        
+    except Exception as e:
+        st.error(f"Ошибка отправки заказа: {e}")
+        return False
+
+# --- Функция для форматирования цены ---
+def format_price(price):
+    """Округляет цену до тысяч и форматирует с разделителями"""
+    try:
+        price_num = float(price)
+        rounded_price = round(price_num / 1000) * 1000
+        return f"{int(rounded_price):,} ₸".replace(",", " ")
+    except (ValueError, TypeError):
+        return f"{0:,} ₸".replace(",", " ")
 
 # Кнопка назад
 col1, col2 = st.columns([1, 5])
@@ -107,7 +167,8 @@ else:
             st.write(f"**Цвет:** {item.get('color', 'Не указан')}")
             if item.get('size'):
                 st.write(f"**Размер:** {item.get('size')}")
-            st.write(f"**Цена:** {item.get('price', 0):,} ₸".replace(",", " "))
+            formatted_price = format_price(item.get('price', 0))
+            st.write(f"**Цена:** {formatted_price}")
         
         with col3:
             # Управление количеством и удаление
@@ -131,9 +192,10 @@ else:
 
     # Расчет итогов
     total = sum(item.get('price', 0) * item.get('quantity', 1) for item in st.session_state.cart)
+    formatted_total = format_price(total)
 
     # Основной футер с итогами
-    st.subheader(f"Итого: {total:,} ₸".replace(",", " "))
+    st.subheader(f"Итого: {formatted_total}")
 
     col1, col2 = st.columns(2)
 
@@ -143,10 +205,74 @@ else:
 
     with col2:
         if st.button("Оформить заказ →", type="primary", use_container_width=True):
-            st.success("Заказ успешно оформлен!")
-            st.balloons()
-            # Очищаем корзину после оформления
-            st.session_state.cart = []
+            st.session_state.show_order_form = True
+            st.rerun()
+
+# --- Форма оформления заказа ---
+if st.session_state.get('show_order_form', False):
+    st.divider()
+    st.subheader("📋 Оформление заказа")
+    
+    with st.form("order_form"):
+        st.write("**Контактная информация:**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            customer_name = st.text_input("Имя и фамилия *", placeholder="Иван Иванов")
+        with col2:
+            customer_phone = st.text_input("Телефон *", placeholder="+7 777 123 4567")
+        
+        customer_address = st.text_area("Адрес доставки *", placeholder="Город, улица, дом, квартира")
+        customer_email = st.text_input("Email (необязательно)", placeholder="ivan@example.com")
+        customer_comment = st.text_area("Комментарий к заказу (необязательно)", placeholder="Пожелания по доставке и т.д.")
+        
+        # Подтверждение заказа
+        st.write("**Ваш заказ:**")
+        for item in st.session_state.cart:
+            st.write(f"- {item['brand']} {item['model']} ({item['color']}, размер {item['size']}) - {item['quantity']} шт.")
+        
+        st.write(f"**Общая сумма: {formatted_total}**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.form_submit_button("← Вернуться в корзину", type="secondary"):
+                st.session_state.show_order_form = False
+                st.rerun()
+        
+        with col2:
+            if st.form_submit_button("✅ Подтвердить заказ", type="primary"):
+                # Проверка обязательных полей
+                if not customer_name or not customer_phone or not customer_address:
+                    st.error("Пожалуйста, заполните все обязательные поля (отмечены *)")
+                else:
+                    # Собираем данные заказа
+                    order_data = {
+                        'customer_name': customer_name,
+                        'customer_phone': customer_phone,
+                        'customer_address': customer_address,
+                        'customer_email': customer_email if customer_email else "Не указан",
+                        'customer_comment': customer_comment if customer_comment else "Нет комментария",
+                        'items': st.session_state.cart.copy(),
+                        'total': total
+                    }
+                    
+                    # Отправляем заказ в Telegram
+                    with st.spinner("Отправляем заказ..."):
+                        success = send_order_to_telegram(order_data)
+                    
+                    if success:
+                        st.success("🎉 Заказ успешно оформлен! Мы свяжемся с вами в ближайшее время.")
+                        st.balloons()
+                        
+                        # Очищаем корзину после успешного оформления
+                        st.session_state.cart = []
+                        st.session_state.show_order_form = False
+                        
+                        # Добавляем кнопку для нового заказа
+                        if st.button("🛍️ Сделать новый заказ", use_container_width=True):
+                            st.switch_page("main.py")
+                    else:
+                        st.error("❌ Произошла ошибка при отправке заказа. Пожалуйста, попробуйте еще раз или свяжитесь с нами напрямую.")
 
 # --- ТОЛЬКО ОДИН ФУТЕР ---
 from components.documents import documents_footer
