@@ -8,7 +8,7 @@ st.set_page_config(page_title="Корзина - DENE Store", layout="wide")
 # Пути
 IMAGES_PATH = "data/images"
 
-# --- Функции для изображений (копируем из деталей товара) ---
+# --- Функции для изображений ---
 def get_image_path(image_names, images_path="data/images"):
     """Ищет изображение по имени из колонки image"""
     if (image_names is None or 
@@ -147,6 +147,10 @@ else:
             st.balloons()
             # Очищаем корзину после оформления
             st.session_state.cart = []
+
+# --- ТОЛЬКО ОДИН ФУТЕР ---
+from components.documents import documents_footer
+documents_footer()
 
 # --- ФУТЕР в стиле DENE Store ---
 st.markdown("---")
