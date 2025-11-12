@@ -229,18 +229,14 @@ if st.session_state.get('show_order_form', False):
         # Подтверждение заказа
         st.write("Ваш заказ:")
         for item in st.session_state.cart:
-            st.write(f"- {item['brand']} {item['model']} ({item['color']}, размер {item['size']}) - {item['quantity']} шт.")
+            # Исправление KeyError: 'quantity' - используем get с значением по умолчанию
+            quantity = item.get('quantity', 1)
+            st.write(f"- {item.get('brand', '')} {item.get('model', '')} ({item.get('color', '')}, размер {item.get('size', '')}) - {quantity} шт.")
         
         st.write(f"Общая сумма: {formatted_total}")
         
-        # Используем st.form_submit_button вместо st.button
-        submitted = st.form_submit_button("✅ Подтвердить заказ", type="primary")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.form_submit_button("← Вернуться в корзину", type="secondary"):
-                st.session_state.show_order_form = False
-                st.rerun()
+        # Кнопки формы - ОДНА основная кнопка отправки
+        submitted = st.form_submit_button("Подтвердить заказ", type="primary")
         
         if submitted:
             # Проверка обязательных полей
@@ -269,12 +265,14 @@ if st.session_state.get('show_order_form', False):
                     # Очищаем корзину после успешного оформления
                     st.session_state.cart = []
                     st.session_state.show_order_form = False
-                    
-                    # Добавляем кнопку для нового заказа
-                    if st.button("Сделать новый заказ", use_container_width=True):
-                        st.switch_page("main.py")
+                    st.rerun()
                 else:
                     st.error("Произошла ошибка при отправке заказа. Пожалуйста, попробуйте еще раз или свяжитесь с нами напрямую.")
+        
+        # Кнопка отмены вне формы
+        if st.form_submit_button("← Вернуться в корзину", type="secondary"):
+            st.session_state.show_order_form = False
+            st.rerun()
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
