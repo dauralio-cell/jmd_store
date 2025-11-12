@@ -60,18 +60,18 @@ def send_order_to_telegram(order_data):
     """Отправляет заказ в Telegram"""
     try:
         # Формируем сообщение
-        message = f"🛍️ *НОВЫЙ ЗАКАЗ*\n\n"
-        message += f"👤 *Клиент:* {order_data['customer_name']}\n"
-        message += f"📞 *Телефон:* {order_data['customer_phone']}\n"
-        message += f"📍 *Адрес:* {order_data['customer_address']}\n"
+        message = f"НОВЫЙ ЗАКАЗ\n\n"
+        message += f"Клиент: {order_data['customer_name']}\n"
+        message += f"Телефон: {order_data['customer_phone']}\n"
+        message += f"Адрес: {order_data['customer_address']}\n"
         
         if order_data.get('customer_email'):
-            message += f"📧 *Email:* {order_data['customer_email']}\n"
+            message += f"Email: {order_data['customer_email']}\n"
         
         if order_data.get('customer_comment'):
-            message += f"💬 *Комментарий:* {order_data['customer_comment']}\n"
+            message += f"Комментарий: {order_data['customer_comment']}\n"
         
-        message += f"\n*Товары:*\n"
+        message += f"\nТовары:\n"
         
         total = 0
         for i, item in enumerate(order_data['items'], 1):
@@ -82,7 +82,7 @@ def send_order_to_telegram(order_data):
             message += f"   Размер: {item['size']}\n"
             message += f"   Цена: {item['price']:,} ₸ x {item['quantity']} = {item_total:,} ₸\n\n"
         
-        message += f"💰 *ИТОГО: {total:,} ₸*".replace(",", " ")
+        message += f"ИТОГО: {total:,} ₸".replace(",", " ")
         
         # Отправляем в Telegram
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -134,7 +134,7 @@ def update_quantity(index, new_quantity):
 
 # Отображение товаров в корзине
 if not st.session_state.cart:
-    st.info("🛒 Ваша корзина пуста")
+    st.info("Ваша корзина пуста")
     if st.button("Вернуться к покупкам", use_container_width=True):
         st.switch_page("main.py")
 else:
@@ -164,11 +164,11 @@ else:
             brand = item.get('brand', '')
             model = item.get('model', '')
             st.subheader(f"{brand} {model}")
-            st.write(f"**Цвет:** {item.get('color', 'Не указан')}")
+            st.write(f"Цвет: {item.get('color', 'Не указан')}")
             if item.get('size'):
-                st.write(f"**Размер:** {item.get('size')}")
+                st.write(f"Размер: {item.get('size')}")
             formatted_price = format_price(item.get('price', 0))
-            st.write(f"**Цена:** {formatted_price}")
+            st.write(f"Цена: {formatted_price}")
         
         with col3:
             # Управление количеством и удаление
@@ -185,7 +185,7 @@ else:
                 if st.button("➕", key=f"inc_{i}", use_container_width=True):
                     update_quantity(i, current_quantity + 1)
             
-            if st.button("🗑️ Удалить", key=f"remove_{i}", type="secondary", use_container_width=True):
+            if st.button("Удалить", key=f"remove_{i}", type="secondary", use_container_width=True):
                 remove_item(i)
         
         st.divider()
@@ -211,10 +211,10 @@ else:
 # --- Форма оформления заказа ---
 if st.session_state.get('show_order_form', False):
     st.divider()
-    st.subheader("📋 Оформление заказа")
+    st.subheader("Оформление заказа")
     
     with st.form("order_form"):
-        st.write("**Контактная информация:**")
+        st.write("Контактная информация:")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -227,11 +227,14 @@ if st.session_state.get('show_order_form', False):
         customer_comment = st.text_area("Комментарий к заказу (необязательно)", placeholder="Пожелания по доставке и т.д.")
         
         # Подтверждение заказа
-        st.write("**Ваш заказ:**")
+        st.write("Ваш заказ:")
         for item in st.session_state.cart:
             st.write(f"- {item['brand']} {item['model']} ({item['color']}, размер {item['size']}) - {item['quantity']} шт.")
         
-        st.write(f"**Общая сумма: {formatted_total}**")
+        st.write(f"Общая сумма: {formatted_total}")
+        
+        # Используем st.form_submit_button вместо st.button
+        submitted = st.form_submit_button("✅ Подтвердить заказ", type="primary")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -239,41 +242,40 @@ if st.session_state.get('show_order_form', False):
                 st.session_state.show_order_form = False
                 st.rerun()
         
-        with col2:
-            if st.form_submit_button("✅ Подтвердить заказ", type="primary"):
-                # Проверка обязательных полей
-                if not customer_name or not customer_phone or not customer_address:
-                    st.error("Пожалуйста, заполните все обязательные поля (отмечены *)")
+        if submitted:
+            # Проверка обязательных полей
+            if not customer_name or not customer_phone or not customer_address:
+                st.error("Пожалуйста, заполните все обязательные поля (отмечены *)")
+            else:
+                # Собираем данные заказа
+                order_data = {
+                    'customer_name': customer_name,
+                    'customer_phone': customer_phone,
+                    'customer_address': customer_address,
+                    'customer_email': customer_email if customer_email else "Не указан",
+                    'customer_comment': customer_comment if customer_comment else "Нет комментария",
+                    'items': st.session_state.cart.copy(),
+                    'total': total
+                }
+                
+                # Отправляем заказ в Telegram
+                with st.spinner("Отправляем заказ..."):
+                    success = send_order_to_telegram(order_data)
+                
+                if success:
+                    st.success("Заказ успешно оформлен! Мы свяжемся с вами в ближайшее время.")
+                    st.balloons()
+                    
+                    # Очищаем корзину после успешного оформления
+                    st.session_state.cart = []
+                    st.session_state.show_order_form = False
+                    
+                    # Добавляем кнопку для нового заказа
+                    if st.button("Сделать новый заказ", use_container_width=True):
+                        st.switch_page("main.py")
                 else:
-                    # Собираем данные заказа
-                    order_data = {
-                        'customer_name': customer_name,
-                        'customer_phone': customer_phone,
-                        'customer_address': customer_address,
-                        'customer_email': customer_email if customer_email else "Не указан",
-                        'customer_comment': customer_comment if customer_comment else "Нет комментария",
-                        'items': st.session_state.cart.copy(),
-                        'total': total
-                    }
-                    
-                    # Отправляем заказ в Telegram
-                    with st.spinner("Отправляем заказ..."):
-                        success = send_order_to_telegram(order_data)
-                    
-                    if success:
-                        st.success("🎉 Заказ успешно оформлен! Мы свяжемся с вами в ближайшее время.")
-                        st.balloons()
-                        
-                        # Очищаем корзину после успешного оформления
-                        st.session_state.cart = []
-                        st.session_state.show_order_form = False
-                        
-                        # Добавляем кнопку для нового заказа
-                        if st.button("🛍️ Сделать новый заказ", use_container_width=True):
-                            st.switch_page("main.py")
-                    else:
-                        st.error("❌ Произошла ошибка при отправке заказа. Пожалуйста, попробуйте еще раз или свяжитесь с нами напрямую.")
+                    st.error("Произошла ошибка при отправке заказа. Пожалуйста, попробуйте еще раз или свяжитесь с нами напрямую.")
 
-# --- ТОЛЬКО ОДИН ФУТЕР ---
+# --- ФУТЕР ---
 from components.documents import documents_footer
 documents_footer()
