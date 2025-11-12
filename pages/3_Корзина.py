@@ -10,7 +10,7 @@ st.set_page_config(page_title="Корзина - DENE Store", layout="wide")
 # --- Пути ---
 IMAGES_PATH = "data/images"
 
-# --- Функции для работы с изображениями (ТЕ ЖЕ САМЫЕ ЧТО И В ГЛАВНОЙ) ---
+# --- Функции для работы с изображениями ---
 def get_image_path(image_names):
     """Ищет изображение по имени из колонки image (берет первое изображение из списка)"""
     if (image_names is pd.NA or 
@@ -59,15 +59,13 @@ def round_price(price):
 def main():
     st.title("🛒 Корзина")
     
-    # Кнопка назад
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col1:
-        if st.button("← Назад к каталогу", use_container_width=True):
-            st.switch_page("main.py")
-    
     # Проверяем, есть ли товары в корзине
     if 'cart' not in st.session_state or len(st.session_state.cart) == 0:
         st.info("Ваша корзина пуста")
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("← Вернуться в каталог", use_container_width=True):
+                st.switch_page("main.py")
         return
     
     # Отображаем товары в корзине
@@ -78,16 +76,16 @@ def main():
         image_path = get_image_path(item.get('image', ''))
         image_base64 = get_image_base64(image_path)
         
-        # Создаем колонки для отображения товара
-        col1, col2, col3, col4 = st.columns([2, 3, 2, 1])
+        # Отображаем товар с изображением
+        col1, col2, col3 = st.columns([1, 3, 1])
         
         with col1:
-            # Показываем изображение товара
+            # Показываем изображение товара (побольше)
             st.markdown(
                 f"""
                 <div style="text-align: center;">
                     <img src="data:image/jpeg;base64,{image_base64}" 
-                         style="width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid #eee;">
+                         style="width:120px; height:120px; object-fit:cover; border-radius:12px; border:1px solid #eee;">
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -103,9 +101,8 @@ def main():
             # ОКРУГЛЯЕМ ЦЕНУ ДО ТЫСЯЧ
             price = round_price(item['price'])
             st.markdown(f"**Цена: {price:,} ₸**".replace(",", " "))
-        
-        with col4:
-            if st.button("🗑️ Удалить", key=f"delete_{i}", use_container_width=True):
+            
+            if st.button("🗑️ Удалить", key=f"delete_{i}"):
                 st.session_state.cart.pop(i)
                 st.rerun()
         
@@ -121,11 +118,6 @@ def main():
     with col1:
         if st.button("← Продолжить покупки", use_container_width=True):
             st.switch_page("main.py")
-    
-    with col2:
-        if st.button("🔄 Очистить корзину", use_container_width=True):
-            st.session_state.cart = []
-            st.rerun()
     
     with col3:
         if st.button("Оформить заказ →", type="primary", use_container_width=True):
