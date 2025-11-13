@@ -20,6 +20,7 @@ def round_price(price):
     except:
         return price
 
+# --- Функции для изображений ---
 def get_image_path(image_names):
     """Ищет изображение по имени из колонки image"""
     if (image_names is pd.NA or 
@@ -36,15 +37,11 @@ def get_image_path(image_names):
     
     first_image_name = image_names_list[0]
     
-    # ДОБАВЛЕНО: выводим отладочную информацию
-    st.sidebar.markdown(f"**Ищем изображение:** `{first_image_name}`")
-    
     # Сначала ищем точное совпадение
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
         pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
         image_files = glob.glob(pattern, recursive=True)
         if image_files:
-            st.sidebar.markdown(f"✅ **Найдено:** `{image_files[0]}`")
             return image_files[0]
     
     # Затем ищем частичное совпадение (начинается с)
@@ -52,30 +49,18 @@ def get_image_path(image_names):
         pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
         image_files = glob.glob(pattern_start, recursive=True)
         if image_files:
-            st.sidebar.markdown(f"✅ **Найдено (частично):** `{image_files[0]}`")
             return image_files[0]
     
-    # Если ничего не нашли, показываем что есть в папке
-    st.sidebar.markdown(f"❌ **Не найдено:** `{first_image_name}`")
-    all_files = glob.glob(os.path.join(IMAGES_PATH, "**", "*"), recursive=True)
-    st.sidebar.markdown(f"**Файлы в папке ({len(all_files)}):**")
-    for f in sorted(all_files)[:5]:  # Показываем первые 5 файлов
-        st.sidebar.markdown(f"- `{os.path.basename(f)}`")
-    
+    # Если ничего не нашли, используем fallback
     fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
-    st.sidebar.markdown(f"🔄 **Используем fallback:** `{fallback}`")
     return fallback
 
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
     try:
         with open(image_path, "rb") as img_file:
-            image_data = base64.b64encode(img_file.read()).decode("utf-8")
-            # ОТЛАДКА: проверяем длину base64 данных
-            st.sidebar.markdown(f"**Base64 длина:** {len(image_data)} символов")
-            return image_data
-    except Exception as e:
-        st.sidebar.markdown(f"❌ **Ошибка чтения:** {e}")
+            return base64.b64encode(img_file.read()).decode("utf-8")
+    except Exception:
         fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
         with open(fallback, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode("utf-8")
@@ -413,30 +398,17 @@ def main():
             st.warning("😔 Нет размеров в наличии")
             st.info("Выберите другой цвет или проверьте позже")
 
-               # --- Другие цвета этой модели ---
+        # --- Другие цвета этой модели ---
         other_colors = unique_colors[unique_colors["color"] != current_color]
         if not other_colors.empty:
             st.markdown("### Другие цвета")
-            
-            # ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
-            st.sidebar.markdown("### 🔍 Отладка изображений")
             
             # Сетка цветов 2 колонки
             color_cols = st.columns(2)
             for idx, (_, variant) in enumerate(other_colors.iterrows()):
                 with color_cols[idx % 2]:
-                    # ОТЛАДКА: показываем что ищем
-                    debug_text = f"**Цвет:** {variant['color']}\n"
-                    debug_text += f"**Image данные:** `{variant['image']}`\n"
-                    
                     # Показываем уменьшенное изображение для цвета
                     img_path = get_image_path(variant["image"])
-                    debug_text += f"**Найден путь:** `{img_path}`\n"
-                    debug_text += f"**Файл существует:** `{os.path.exists(img_path)}`"
-                    
-                    st.sidebar.markdown(debug_text)
-                    st.sidebar.markdown("---")
-                    
                     image_base64 = get_image_base64(img_path)
                     
                     # Получаем минимальную цену для этого цвета (только размеры в наличии)
@@ -457,24 +429,24 @@ def main():
                         min_color_price = min(round_price(row['price']) for row in available_color_sizes)
                         
                         # Карточка цвета
-st.markdown(
-    f"""
-    <div style="
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 6px;
-        text-align: center;
-        margin-bottom: 8px;
-        background-color: white;
-    ">
-        <img src="data:image/jpeg;base64,{image_base64}" 
-             style="width:100%; border-radius:4px; height:80px; object-fit:contain; background:#f8f9fa;">
-        <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
-        <div style="font-size:11px; color:#666;">от {int(min_color_price):,} ₸</div>
-    </div>
-    """.replace(",", " "),
-    unsafe_allow_html=True
-)
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border: 1px solid #ddd;
+                                border-radius: 8px;
+                                padding: 6px;
+                                text-align: center;
+                                margin-bottom: 8px;
+                                background-color: white;
+                            ">
+                                <img src="data:image/jpeg;base64,{image_base64}" 
+                                     style="width:100%; border-radius:4px; height:80px; object-fit:contain; background:#f8f9fa;">
+                                <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
+                                <div style="font-size:11px; color:#666;">от {int(min_color_price):,} ₸</div>
+                            </div>
+                            """.replace(",", " "),
+                            unsafe_allow_html=True
+                        )
                         
                         # Кнопка переключения на этот цвет
                         if st.button(f"Выбрать", key=f"color_{variant['color']}", use_container_width=True):
