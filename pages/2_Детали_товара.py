@@ -398,7 +398,7 @@ def main():
             st.warning("😔 Нет размеров в наличии")
             st.info("Выберите другой цвет или проверьте позже")
 
-                # --- Другие цвета этой модели ---
+                        # --- Другие цвета этой модели ---
         other_colors = unique_colors[unique_colors["color"] != current_color]
         if not other_colors.empty:
             st.markdown("### Другие цвета")
@@ -429,11 +429,11 @@ def main():
                         
                         # Используем встроенный Streamlit image вместо HTML
                         try:
-                            st.image(img_path, use_column_width=True, caption=f"{variant['color'].capitalize()}")
+                            st.image(img_path, use_container_width=True, caption=f"{variant['color'].capitalize()}")
                         except Exception as e:
                             st.error(f"Ошибка загрузки изображения: {e}")
                             fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
-                            st.image(fallback, use_column_width=True, caption=f"{variant['color'].capitalize()}")
+                            st.image(fallback, use_container_width=True, caption=f"{variant['color'].capitalize()}")
                         
                         st.markdown(f"**от {int(min_color_price):,} ₸**".replace(",", " "))
                         
