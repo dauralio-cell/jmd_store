@@ -336,7 +336,7 @@ else:
                         <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
                         <p style="font-size:12px; margin:4px 0; color:#333;">US: {row['size US']}</p>
                         <p style="font-size:12px; margin:4px 0; color:#333;">EU: {row['size_eu']}</p>
-                        <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(row['price'])} ₸</p>
+                        <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
                     </div>
                     """,
                     unsafe_allow_html=True
