@@ -21,32 +21,32 @@ def round_price(price):
         return price
 
 # --- Функции для изображений ---
-def get_image_path(image_names, images_path="data/images"):
+def get_image_path(image_names):
     """Ищет изображение по имени из колонки image"""
     if (image_names is pd.NA or 
         pd.isna(image_names) or 
         not image_names or 
         str(image_names).strip() == ""):
-        return os.path.join(images_path, "no_image.jpg")
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
     
     image_names_list = str(image_names).strip().split()
     if not image_names_list:
-        return os.path.join(images_path, "no_image.jpg")
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
     
     first_image_name = image_names_list[0]
     
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        pattern = os.path.join(images_path, "**", f"{first_image_name}{ext}")
+        pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
         image_files = glob.glob(pattern, recursive=True)
         if image_files:
             return image_files[0]
         
-        pattern_start = os.path.join(images_path, "**", f"{first_image_name}*{ext}")
+        pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
         image_files = glob.glob(pattern_start, recursive=True)
         if image_files:
             return image_files[0]
     
-    return os.path.join(images_path, "no_image.jpg")
+    return os.path.join(IMAGES_PATH, "no_image.jpg")
 
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
