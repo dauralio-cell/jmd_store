@@ -70,8 +70,12 @@ def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
     try:
         with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode("utf-8")
-    except Exception:
+            image_data = base64.b64encode(img_file.read()).decode("utf-8")
+            # ОТЛАДКА: проверяем длину base64 данных
+            st.sidebar.markdown(f"**Base64 длина:** {len(image_data)} символов")
+            return image_data
+    except Exception as e:
+        st.sidebar.markdown(f"❌ **Ошибка чтения:** {e}")
         fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
         with open(fallback, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode("utf-8")
@@ -453,24 +457,24 @@ def main():
                         min_color_price = min(round_price(row['price']) for row in available_color_sizes)
                         
                         # Карточка цвета
-                        st.markdown(
-                            f"""
-                            <div style="
-                                border: 1px solid #ddd;
-                                border-radius: 8px;
-                                padding: 6px;
-                                text-align: center;
-                                margin-bottom: 8px;
-                                background-color: white;
-                            ">
-                                <img src="data:image/jpeg;base64,{image_base64}" 
-                                     style="width:100%; border-radius:4px; height:80px; object-fit:cover;">
-                                <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
-                                <div style="font-size:11px; color:#666;">от {int(min_color_price):,} ₸</div>
-                            </div>
-                            """.replace(",", " "),
-                            unsafe_allow_html=True
-                        )
+st.markdown(
+    f"""
+    <div style="
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 6px;
+        text-align: center;
+        margin-bottom: 8px;
+        background-color: white;
+    ">
+        <img src="data:image/jpeg;base64,{image_base64}" 
+             style="width:100%; border-radius:4px; height:80px; object-fit:contain; background:#f8f9fa;">
+        <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
+        <div style="font-size:11px; color:#666;">от {int(min_color_price):,} ₸</div>
+    </div>
+    """.replace(",", " "),
+    unsafe_allow_html=True
+)
                         
                         # Кнопка переключения на этот цвет
                         if st.button(f"Выбрать", key=f"color_{variant['color']}", use_container_width=True):
