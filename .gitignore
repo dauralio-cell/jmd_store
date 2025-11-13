@@ -28,3 +28,11 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+
+.env
+*.env
+.env.local
+secrets/
+config.py
+__pycache__/
+*.log
