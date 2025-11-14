@@ -338,38 +338,55 @@ else:
     num_cols = 3
     rows = [grouped_df.iloc[i:i + num_cols] for i in range(0, len(grouped_df), num_cols)]
 
-    for row_idx, row_df in enumerate(rows):
-        cols = st.columns(num_cols)
-        for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
-            with col:
-                # Обновляем имя для отладки
-                product_name = f"{row['brand']} {row['model_clean']} {row['color']}"
+for row_idx, row_df in enumerate(rows):
+    cols = st.columns(num_cols)
+    for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
+        with col:
+            product_name = f"{row['brand']} {row['model_clean']} {row['color']}"
+            
+            # ВРЕМЕННАЯ ПРОВЕРКА ДЛЯ КОНКРЕТНЫХ ТОВАРОВ
+            image_names = row["image"]
+            if "800001" in str(image_names) or "100031" in str(image_names):
+                st.sidebar.markdown(f"### 🔍 ПРОВЕРКА {product_name}")
+                st.sidebar.write(f"Image names: {image_names}")
                 
-                # Оптимизированное изображение для Telegram
-                image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path)
+                st.sidebar.write(f"Image path: {image_path}")
+                st.sidebar.write(f"File exists: {os.path.exists(image_path)}")
+                
+                # Проверим base64 кодирование
+                try:
+                    image_base64 = optimize_image_for_telegram(image_path)
+                    st.sidebar.write(f"Base64 length: {len(image_base64)}")
+                    st.sidebar.write(f"Base64 starts with: {image_base64[:50]}...")
+                except Exception as e:
+                    st.sidebar.write(f"Base64 error: {e}")
+            
+            # Обычная обработка изображения
+            image_names = row["image"]
+            image_path = get_image_path(image_names)
+            image_base64 = optimize_image_for_telegram(image_path)
 
-                # Карточка товара с оптимизированным изображением
-                st.markdown(
-                    f"""
-                    <div style="border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 8px 0; text-align: center; background: white;">
-                        <img src="data:image/jpeg;base64,{image_base64}" 
-                             style="width:100%; border-radius:8px; height:200px; object-fit:contain; background:white; margin-bottom:12px;">
-                        <h4 style="margin:8px 0; font-size:14px; color:#333;">{row['brand']} {row['model_clean']}</h4>
-                        <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
-                        <p style="font-size:12px; margin:4px 0; color:#333;">US: {row['size US']}</p>
-                        <p style="font-size:12px; margin:4px 0; color:#333;">EU: {row['size_eu']}</p>
-                        <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+            # Карточка товара с оптимизированным изображением
+            st.markdown(
+                f"""
+                <div style="border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 8px 0; text-align: center; background: white;">
+                    <img src="data:image/jpeg;base64,{image_base64}" 
+                         style="width:100%; border-radius:8px; height:200px; object-fit:contain; background:white; margin-bottom:12px;">
+                    <h4 style="margin:8px 0; font-size:14px; color:#333;">{row['brand']} {row['model_clean']}</h4>
+                    <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
+                    <p style="font-size:12px; margin:4px 0; color:#333;">US: {row['size US']}</p>
+                    <p style="font-size:12px; margin:4px 0; color:#333;">EU: {row['size_eu']}</p>
+                    <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                # Кнопка "Подробнее"
-                if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
-                    st.session_state.product_data = dict(row)
-                    st.switch_page("pages/2_Детали_товара.py")
+            # Кнопка "Подробнее"
+            if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
+                st.session_state.product_data = dict(row)
+                st.switch_page("pages/2_Детали_товара.py")
 
     # --- ОТЛАДОЧНАЯ ИНФОРМАЦИЯ ---
     st.sidebar.markdown("---")
