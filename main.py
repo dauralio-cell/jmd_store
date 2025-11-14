@@ -112,7 +112,13 @@ def get_eu_sizes(us_sizes_str):
             eu_size = size_conversion.get(base_size, us_size)  # Если не нашли, оставляем US размер
         eu_sizes.append(eu_size)
     
-    return ", ".join(eu_sizes)
+    # Убираем дубликаты EU размеров
+    unique_eu_sizes = []
+    for size in eu_sizes:
+        if size not in unique_eu_sizes:
+            unique_eu_sizes.append(size)
+    
+    return ", ".join(unique_eu_sizes)
 
 # --- Функция сортировки размеров ---
 def sort_sizes(size_list):
@@ -157,7 +163,7 @@ def get_available_sizes_for_filter(df):
             continue
             
         try:
-            # Для дробных размеры
+            # Для дробных размеров
             if '.' in clean_size:
                 base_num = float(clean_size)
             else:
@@ -369,12 +375,16 @@ else:
                         
                         <div style="margin-top: auto;">
                             <div style="max-height: 80px; overflow-y: auto; margin: 8px 0;">
-                                <p style="font-size:11px; margin:2px 0; color:#333; line-height:1.2;">
-                                    <strong>US:</strong> {row['size US']}
-                                </p>
-                                <p style="font-size:11px; margin:2px 0; color:#333; line-height:1.2;">
-                                    <strong>EU:</strong> {row['size_eu']}
-                                </p>
+                                <div style="display: flex; gap: 8px; font-size: 10px;">
+                                    <div style="flex: 1;">
+                                        <strong>US:</strong><br>
+                                        <span style="line-height: 1.1;">{row['size US']}</span>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <strong>EU:</strong><br>
+                                        <span style="line-height: 1.1;">{row['size_eu']}</span>
+                                    </div>
+                                </div>
                             </div>
                             <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
                         </div>
