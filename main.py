@@ -70,33 +70,16 @@ def get_image_path(image_names):
     
     first_image_name = image_names_list[0]
     
-    # ВРЕМЕННАЯ ОТЛАДКА
-    debug_product_name = f"{first_image_name}"  # Будем обновлять в основном цикле
-    debug_found = False
-    
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
         pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
         image_files = glob.glob(pattern, recursive=True)
         if image_files:
-            debug_found = True
-            if hasattr(st.session_state, 'debug_info'):
-                st.session_state.debug_info[debug_product_name] = f"✅ {image_files[0]}"
             return image_files[0]
         
         pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
         image_files = glob.glob(pattern_start, recursive=True)
         if image_files:
-            debug_found = True
-            if hasattr(st.session_state, 'debug_info'):
-                st.session_state.debug_info[debug_product_name] = f"✅ {image_files[0]}"
             return image_files[0]
-    
-    if not debug_found and hasattr(st.session_state, 'debug_info'):
-        st.session_state.debug_info[debug_product_name] = f"❌ Не найдено"
-        # Ищем похожие файлы для отладки
-        similar_files = glob.glob(os.path.join(IMAGES_PATH, "**", f"*{first_image_name[:3]}*"), recursive=True)
-        if similar_files:
-            st.session_state.debug_info[debug_product_name] += f" (похожие: {[os.path.basename(f) for f in similar_files[:2]]})"
     
     return os.path.join(IMAGES_PATH, "no_image.jpg")
 
@@ -291,8 +274,17 @@ if gender_filter != "Все":
 if color_filter != "Все":
     filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
-# ФИЛЬТР ПО НАЛИЧИЮ - показываем только товары в наличии
-filtered_df = filtered_df[filtered_df.get('in stock', 'yes').str.lower() == 'yes']
+# ФИЛЬТР ПО НАЛИЧИЮ - показываем только товары, у которых есть хотя бы один размер в наличии
+def has_any_size_in_stock(group):
+    """Проверяет, есть ли хотя бы один размер в наличии для группы товаров"""
+    return any(
+        str(row.get('in stock', 'yes')).strip().lower() == 'yes'
+        for _, row in group.iterrows()
+        if str(row['size US']).strip() and str(row['size US']).strip() != "nan"
+    )
+
+# Фильтруем группы товаров, оставляем только те, у которых есть хотя бы один размер в наличии
+filtered_df = filtered_df.groupby(['brand', 'model_clean', 'color']).filter(has_any_size_in_stock)
 
 st.divider()
 
@@ -304,12 +296,18 @@ if len(filtered_df) == 0:
 else:
     st.write(f"**Найдено товаров: {len(filtered_df)}**")
 
-    # Инициализируем отладочную информацию
-    if 'debug_info' not in st.session_state:
-        st.session_state.debug_info = {}
-    
     # Группируем по модели и цвету для отображения
-    grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color']).first().reset_index()
+    # Берем первую строку с изображением для каждой группы
+    def get_first_with_image(group):
+        """Берет первую строку с изображением из группы"""
+        # Сначала ищем строку с изображением
+        for _, row in group.iterrows():
+            if row['image'] and pd.notna(row['image']) and str(row['image']).strip():
+                return row
+        # Если нет изображений, берем первую строку
+        return group.iloc[0]
+
+    grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_first_with_image).reset_index(drop=True)
     
     # Группируем размеры отдельно - ТОЛЬКО РАЗМЕРЫ В НАЛИЧИИ (оригинальные, включая дробные)
     def get_available_sizes(group):
@@ -324,7 +322,7 @@ else:
         unique_sizes = list(dict.fromkeys(available_sizes))  # Сохраняем порядок, убираем дубликаты
         return ', '.join(sort_sizes(unique_sizes))
     
-    size_groups = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_available_sizes).reset_index()
+    size_groups = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_available_sizes, include_groups=False).reset_index()
     size_groups.columns = ['brand', 'model_clean', 'color', 'size US']
     
     # Объединяем с основной группировкой
@@ -338,61 +336,35 @@ else:
     num_cols = 3
     rows = [grouped_df.iloc[i:i + num_cols] for i in range(0, len(grouped_df), num_cols)]
 
-for row_idx, row_df in enumerate(rows):
-    cols = st.columns(num_cols)
-    for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
-        with col:
-            product_name = f"{row['brand']} {row['model_clean']} {row['color']}"
-            
-            # ВРЕМЕННАЯ ПРОВЕРКА ДЛЯ КОНКРЕТНЫХ ТОВАРОВ
-            image_names = row["image"]
-            if "800001" in str(image_names) or "100031" in str(image_names):
-                st.sidebar.markdown(f"### 🔍 ПРОВЕРКА {product_name}")
-                st.sidebar.write(f"Image names: {image_names}")
-                
+    for row_idx, row_df in enumerate(rows):
+        cols = st.columns(num_cols)
+        for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
+            with col:
+                # Оптимизированное изображение для Telegram
+                image_names = row["image"]
                 image_path = get_image_path(image_names)
-                st.sidebar.write(f"Image path: {image_path}")
-                st.sidebar.write(f"File exists: {os.path.exists(image_path)}")
-                
-                # Проверим base64 кодирование
-                try:
-                    image_base64 = optimize_image_for_telegram(image_path)
-                    st.sidebar.write(f"Base64 length: {len(image_base64)}")
-                    st.sidebar.write(f"Base64 starts with: {image_base64[:50]}...")
-                except Exception as e:
-                    st.sidebar.write(f"Base64 error: {e}")
-            
-            # Обычная обработка изображения
-            image_names = row["image"]
-            image_path = get_image_path(image_names)
-            image_base64 = optimize_image_for_telegram(image_path)
+                image_base64 = optimize_image_for_telegram(image_path)
 
-            # Карточка товара с оптимизированным изображением
-            st.markdown(
-                f"""
-                <div style="border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 8px 0; text-align: center; background: white;">
-                    <img src="data:image/jpeg;base64,{image_base64}" 
-                         style="width:100%; border-radius:8px; height:200px; object-fit:contain; background:white; margin-bottom:12px;">
-                    <h4 style="margin:8px 0; font-size:14px; color:#333;">{row['brand']} {row['model_clean']}</h4>
-                    <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
-                    <p style="font-size:12px; margin:4px 0; color:#333;">US: {row['size US']}</p>
-                    <p style="font-size:12px; margin:4px 0; color:#333;">EU: {row['size_eu']}</p>
-                    <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                # Карточка товара с оптимизированным изображением
+                st.markdown(
+                    f"""
+                    <div style="border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 8px 0; text-align: center; background: white;">
+                        <img src="data:image/jpeg;base64,{image_base64}" 
+                             style="width:100%; border-radius:8px; height:200px; object-fit:contain; background:white; margin-bottom:12px;">
+                        <h4 style="margin:8px 0; font-size:14px; color:#333;">{row['brand']} {row['model_clean']}</h4>
+                        <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
+                        <p style="font-size:12px; margin:4px 0; color:#333;">US: {row['size US']}</p>
+                        <p style="font-size:12px; margin:4px 0; color:#333;">EU: {row['size_eu']}</p>
+                        <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-            # Кнопка "Подробнее"
-            if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
-                st.session_state.product_data = dict(row)
-                st.switch_page("pages/2_Детали_товара.py")
-
-    # --- ОТЛАДОЧНАЯ ИНФОРМАЦИЯ ---
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🔍 Отладка изображений")
-    for img_name, status in st.session_state.debug_info.items():
-        st.sidebar.write(f"**{img_name}**: {status}")
+                # Кнопка "Подробнее"
+                if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
+                    st.session_state.product_data = dict(row)
+                    st.switch_page("pages/2_Детали_товара.py")
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
