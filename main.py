@@ -70,42 +70,33 @@ def get_image_path(image_names):
     
     first_image_name = image_names_list[0]
     
-    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
-        image_files = glob.glob(pattern, recursive=True)
-        if image_files:
-            return image_files[0]
-        
-        pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
-        image_files = glob.glob(pattern_start, recursive=True)
-        if image_files:
-            return image_files[0]
-    
-     # ОТЛАДКА для конкретного товара
-    if first_image_name == "800001":
-        st.sidebar.markdown("### 🔍 Отладка Timberland")
-        st.sidebar.write(f"Ищем: {first_image_name}")
+    # ВРЕМЕННАЯ ОТЛАДКА
+    debug_product_name = f"{first_image_name}"  # Будем обновлять в основном цикле
+    debug_found = False
     
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
         pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
         image_files = glob.glob(pattern, recursive=True)
         if image_files:
-            if first_image_name == "800001":
-                st.sidebar.write(f"✅ Найдено: {image_files[0]}")
+            debug_found = True
+            if hasattr(st.session_state, 'debug_info'):
+                st.session_state.debug_info[debug_product_name] = f"✅ {image_files[0]}"
             return image_files[0]
         
         pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
         image_files = glob.glob(pattern_start, recursive=True)
         if image_files:
-            if first_image_name == "800001":
-                st.sidebar.write(f"✅ Найдено (частично): {image_files[0]}")
+            debug_found = True
+            if hasattr(st.session_state, 'debug_info'):
+                st.session_state.debug_info[debug_product_name] = f"✅ {image_files[0]}"
             return image_files[0]
     
-    if first_image_name == "800001":
-        st.sidebar.write("❌ Не найдено")
-        # Покажем что есть в папке
-        all_files = glob.glob(os.path.join(IMAGES_PATH, "**", "*800001*"), recursive=True)
-        st.sidebar.write(f"Файлы с 800001: {all_files}")
+    if not debug_found and hasattr(st.session_state, 'debug_info'):
+        st.session_state.debug_info[debug_product_name] = f"❌ Не найдено"
+        # Ищем похожие файлы для отладки
+        similar_files = glob.glob(os.path.join(IMAGES_PATH, "**", f"*{first_image_name[:3]}*"), recursive=True)
+        if similar_files:
+            st.session_state.debug_info[debug_product_name] += f" (похожие: {[os.path.basename(f) for f in similar_files[:2]]})"
     
     return os.path.join(IMAGES_PATH, "no_image.jpg")
 
@@ -313,6 +304,10 @@ if len(filtered_df) == 0:
 else:
     st.write(f"**Найдено товаров: {len(filtered_df)}**")
 
+    # Инициализируем отладочную информацию
+    if 'debug_info' not in st.session_state:
+        st.session_state.debug_info = {}
+    
     # Группируем по модели и цвету для отображения
     grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color']).first().reset_index()
     
@@ -347,6 +342,9 @@ else:
         cols = st.columns(num_cols)
         for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
             with col:
+                # Обновляем имя для отладки
+                product_name = f"{row['brand']} {row['model_clean']} {row['color']}"
+                
                 # Оптимизированное изображение для Telegram
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
@@ -372,6 +370,12 @@ else:
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
+
+    # --- ОТЛАДОЧНАЯ ИНФОРМАЦИЯ ---
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🔍 Отладка изображений")
+    for img_name, status in st.session_state.debug_info.items():
+        st.sidebar.write(f"**{img_name}**: {status}")
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
