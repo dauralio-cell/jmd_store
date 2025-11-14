@@ -157,7 +157,7 @@ def get_available_sizes_for_filter(df):
             continue
             
         try:
-            # Для дробных размеров
+            # Для дробных размеры
             if '.' in clean_size:
                 base_num = float(clean_size)
             else:
@@ -345,17 +345,39 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path)
 
-                # Карточка товара с оптимизированным изображением
+                # Карточка товара с ФИКСИРОВАННОЙ ВЫСОТОЙ
                 st.markdown(
                     f"""
-                    <div style="border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 8px 0; text-align: center; background: white;">
-                        <img src="data:image/jpeg;base64,{image_base64}" 
-                             style="width:100%; border-radius:8px; height:200px; object-fit:contain; background:white; margin-bottom:12px;">
-                        <h4 style="margin:8px 0; font-size:14px; color:#333;">{row['brand']} {row['model_clean']}</h4>
-                        <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
-                        <p style="font-size:12px; margin:4px 0; color:#333;">US: {row['size US']}</p>
-                        <p style="font-size:12px; margin:4px 0; color:#333;">EU: {row['size_eu']}</p>
-                        <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
+                    <div style="
+                        border: 1px solid #eee; 
+                        border-radius: 12px; 
+                        padding: 12px; 
+                        margin: 8px 0; 
+                        text-align: center; 
+                        background: white;
+                        height: 500px;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                    ">
+                        <div>
+                            <img src="data:image/jpeg;base64,{image_base64}" 
+                                 style="width:100%; border-radius:8px; height:180px; object-fit:contain; background:white; margin-bottom:12px;">
+                            <h4 style="margin:8px 0; font-size:14px; color:#333; line-height:1.2;">{row['brand']} {row['model_clean']}</h4>
+                            <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
+                        </div>
+                        
+                        <div style="margin-top: auto;">
+                            <div style="max-height: 80px; overflow-y: auto; margin: 8px 0;">
+                                <p style="font-size:11px; margin:2px 0; color:#333; line-height:1.2;">
+                                    <strong>US:</strong> {row['size US']}
+                                </p>
+                                <p style="font-size:11px; margin:2px 0; color:#333; line-height:1.2;">
+                                    <strong>EU:</strong> {row['size_eu']}
+                                </p>
+                            </div>
+                            <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True
