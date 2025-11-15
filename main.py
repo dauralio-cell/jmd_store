@@ -352,25 +352,26 @@ else:
                 image_base64 = optimize_image_for_telegram(image_path)
 
                                                # Простая карточка товара без сложного HTML
-                st.markdown(
-                    f"""
-                    <div style="border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 8px 0; text-align: center; background: white; height: 480px; display: flex; flex-direction: column;">
-                        <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; border-radius:8px; height:180px; object-fit:contain; background:white; margin-bottom:12px;">
-                        <h4 style="margin:8px 0; font-size:14px; color:#333;">{row['brand']} {row['model_clean']}</h4>
-                        <p style="color:gray; font-size:12px; margin:4px 0;">Цвет: {row['color']} | {row['gender']}</p>
-                        <div style="flex: 1; display: flex; gap: 10px; margin: 8px 0;">
-                            <div style="flex: 1; font-size: 11px;">
-                                <strong>US:</strong><br>{row['size US']}
-                            </div>
-                            <div style="flex: 1; font-size: 11px;">
-                                <strong>EU:</strong><br>{row['size_eu']}
-                            </div>
-                        </div>
-                        <p style="font-weight:bold; font-size:14px; margin:8px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                # Вместо текущего блока с st.markdown в цикле замените на этот компактный вариант:
+st.markdown(
+    f"""
+    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 8px; margin: 4px 0; background: white; height: 380px; display: flex; flex-direction: column;">
+        <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; border-radius:6px; height:140px; object-fit:contain; background:#f8f9fa; margin-bottom:8px;">
+        <h4 style="margin:4px 0; font-size:13px; color:#333; line-height:1.2;">{row['brand']} {row['model_clean']}</h4>
+        <p style="color:#666; font-size:11px; margin:2px 0;">{row['color']} | {row['gender']}</p>
+        <div style="flex: 1; display: flex; gap: 8px; margin: 6px 0; align-items: center;">
+            <div style="flex: 1; font-size: 10px; text-align: center;">
+                <strong>US:</strong><br>{row['size US']}
+            </div>
+            <div style="flex: 1; font-size: 10px; text-align: center;">
+                <strong>EU:</strong><br>{row['size_eu']}
+            </div>
+        </div>
+        <p style="font-weight:bold; font-size:13px; margin:4px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
                 # Кнопка "Подробнее"
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
