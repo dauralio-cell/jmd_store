@@ -344,27 +344,27 @@ else:
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
 
                 # Карточка в стиле примера
-                st.markdown(
-                    f"""
-                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white;">
-                        <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; height:180px; object-fit:contain; border-radius:6px; margin-bottom:12px;">
-                        
-                        <div style="margin-bottom: 8px;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
-                            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 4px;">{row['model_clean']} '{row['color']}'</div>
-                        </div>
-                        
-                        <div style="margin-bottom: 10px;">
-                            <div style="font-size: 11px; color: #666; margin-bottom: 2px;">EU: {row['size_eu']}</div>
-                        </div>
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 16px; font-weight: bold; color: #000;">{int(round(row['price'] / 1000) * 1000)} ₸</span>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+st.markdown(
+    f"""
+    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white;">
+        <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; height:180px; object-fit:contain; border-radius:6px; margin-bottom:12px;">
+        
+        <div style="margin-bottom: 8px;">
+            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
+            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 4px;">{row['model_clean']} '{row['color']}'</div>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 11px; color: #666; margin-bottom: 2px;">EU: {row['size_eu']}</div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 16px; font-weight: bold; color: #000;">{int(round(row['price'] / 1000) * 1000)} ₸</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
                 # Кнопка "Подробнее" - ВАЖНО: правильный отступ
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
