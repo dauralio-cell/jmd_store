@@ -303,40 +303,32 @@ else:
     st.write(f"**Найдено товаров: {len(filtered_df)}**")
 
     # Группируем по модели и цвету для отображения
-    # Берем первую строку с изображением для каждой группы
     def get_first_with_image(group):
         """Берет первую строку с изображением из группы"""
-        # Сначала ищем строку с изображением
         for _, row in group.iterrows():
             if row['image'] and pd.notna(row['image']) and str(row['image']).strip():
                 return row
-        # Если нет изображений, берем первую строку
         return group.iloc[0]
 
     grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_first_with_image).reset_index(drop=True)
     
-    # Группируем размеры отдельно - ТОЛЬКО РАЗМЕРЫ В НАЛИЧИИ (оригинальные, включая дробные)
     def get_available_sizes(group):
-        """Получает только размеры в наличии для группы (оригинальные значения)"""
+        """Получает только размеры в наличии для группы"""
         available_sizes = []
         for _, row in group.iterrows():
             us_size = str(row['size US']).strip()
             in_stock = str(row.get('in stock', 'yes')).strip().lower()
             if us_size and us_size != "nan" and in_stock == 'yes':
                 available_sizes.append(us_size)
-        # Убираем дубликаты и сортируем
-        unique_sizes = list(dict.fromkeys(available_sizes))  # Сохраняем порядок, убираем дубликаты
+        unique_sizes = list(dict.fromkeys(available_sizes))
         return ', '.join(sort_sizes(unique_sizes))
     
     size_groups = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_available_sizes, include_groups=False).reset_index()
     size_groups.columns = ['brand', 'model_clean', 'color', 'size US']
     
-    # Объединяем с основной группировкой
     grouped_df = grouped_df.merge(size_groups, on=['brand', 'model_clean', 'color'], suffixes=('', '_grouped'))
     grouped_df['size US'] = grouped_df['size US_grouped']
     grouped_df = grouped_df.drop('size US_grouped', axis=1)
-
-    # Добавляем EU размеры после группировки
     grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
 
     num_cols = 3
@@ -351,29 +343,28 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path)
 
-                                               # Простая карточка товара без сложного HTML
-                # Вместо текущего блока с st.markdown в цикле замените на этот компактный вариант:
-st.markdown(
-    f"""
-    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 8px; margin: 4px 0; background: white; height: 380px; display: flex; flex-direction: column;">
-        <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; border-radius:6px; height:140px; object-fit:contain; background:#f8f9fa; margin-bottom:8px;">
-        <h4 style="margin:4px 0; font-size:13px; color:#333; line-height:1.2;">{row['brand']} {row['model_clean']}</h4>
-        <p style="color:#666; font-size:11px; margin:2px 0;">{row['color']} | {row['gender']}</p>
-        <div style="flex: 1; display: flex; gap: 8px; margin: 6px 0; align-items: center;">
-            <div style="flex: 1; font-size: 10px; text-align: center;">
-                <strong>US:</strong><br>{row['size US']}
-            </div>
-            <div style="flex: 1; font-size: 10px; text-align: center;">
-                <strong>EU:</strong><br>{row['size_eu']}
-            </div>
-        </div>
-        <p style="font-weight:bold; font-size:13px; margin:4px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+                # Компактная карточка товара
+                st.markdown(
+                    f"""
+                    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 8px; margin: 4px 0; background: white; height: 380px; display: flex; flex-direction: column;">
+                        <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; border-radius:6px; height:140px; object-fit:contain; background:#f8f9fa; margin-bottom:8px;">
+                        <h4 style="margin:4px 0; font-size:13px; color:#333; line-height:1.2;">{row['brand']} {row['model_clean']}</h4>
+                        <p style="color:#666; font-size:11px; margin:2px 0;">{row['color']} | {row['gender']}</p>
+                        <div style="flex: 1; display: flex; gap: 8px; margin: 6px 0; align-items: center;">
+                            <div style="flex: 1; font-size: 10px; text-align: center;">
+                                <strong>US:</strong><br>{row['size US']}
+                            </div>
+                            <div style="flex: 1; font-size: 10px; text-align: center;">
+                                <strong>EU:</strong><br>{row['size_eu']}
+                            </div>
+                        </div>
+                        <p style="font-weight:bold; font-size:13px; margin:4px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                # Кнопка "Подробнее"
+                # Кнопка "Подробнее" - ВАЖНО: правильный отступ
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
