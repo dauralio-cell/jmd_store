@@ -338,10 +338,10 @@ else:
         cols = st.columns(num_cols)
         for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
             with col:
-                # Оптимизированное изображение для Telegram
+                # Оптимизированное изображение для Telegram - УВЕЛИЧИЛИ РАЗМЕР
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))  # Увеличили до 600x600
 
                 # Карточка товара с использованием нативных компонентов Streamlit
                 with st.container():
@@ -351,7 +351,7 @@ else:
                         unsafe_allow_html=True
                     )
                     
-                    # Изображение
+                    # Изображение - УВЕЛИЧИЛИ ВЫСОТУ
                     st.image(f"data:image/jpeg;base64,{image_base64}", use_container_width=True)
                     
                     # Бренд
