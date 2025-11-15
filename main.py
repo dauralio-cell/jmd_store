@@ -352,7 +352,7 @@ else:
                     )
                     
                     # Изображение
-                    st.image(f"data:image/jpeg;base64,{image_base64}", use_column_width=True)
+                    st.image(f"data:image/jpeg;base64,{image_base64}", use_container_width=True)
                     
                     # Бренд
                     st.caption(row['brand'])
