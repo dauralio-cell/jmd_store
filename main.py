@@ -94,7 +94,7 @@ size_conversion = {
     "11.0": "44.5", "11.5": "45", "12.0": "45.5", "12.5": "46"
 }
 
-# --- Функция для получения EU размеров ---
+# Исправленная функция get_eu_sizes
 def get_eu_sizes(us_sizes_str):
     """Конвертирует US размеры в EU размеры"""
     if not us_sizes_str or us_sizes_str == "":
@@ -118,8 +118,8 @@ def get_eu_sizes(us_sizes_str):
         if size not in unique_eu_sizes:
             unique_eu_sizes.append(size)
     
-    return ", ".join(unique_eu_sizes)
-
+    # ВОТ ИСПРАВЛЕНИЕ - возвращаем через пробелы вместо запятых
+    return " ".join(unique_eu_sizes)
 # --- Функция сортировки размеров ---
 def sort_sizes(size_list):
     """Сортирует размеры правильно"""
