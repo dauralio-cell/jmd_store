@@ -341,30 +341,37 @@ else:
                 # Оптимизированное изображение для Telegram
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path)
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))  # Увеличили размер
 
-                # Компактная карточка товара
+                # Эстетичная карточка с крупными фото
                 st.markdown(
                     f"""
-                    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 8px; margin: 4px 0; background: white; height: 380px; display: flex; flex-direction: column;">
-                        <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; border-radius:6px; height:140px; object-fit:contain; background:#f8f9fa; margin-bottom:8px;">
-                        <h4 style="margin:4px 0; font-size:13px; color:#333; line-height:1.2;">{row['brand']} {row['model_clean']}</h4>
-                        <p style="color:#666; font-size:11px; margin:2px 0;">{row['color']} | {row['gender']}</p>
-                        <div style="flex: 1; display: flex; gap: 8px; margin: 6px 0; align-items: center;">
-                            <div style="flex: 1; font-size: 10px; text-align: center;">
-                                <strong>US:</strong><br>{row['size US']}
+                    <div style="border: 1px solid #e0e0e0; border-radius: 12px; padding: 12px; margin: 8px 0; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s;">
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; padding: 8px; margin-bottom: 12px;">
+                            <img src="data:image/jpeg;base64,{image_base64}" style="width:100%; height:200px; object-fit:contain; border-radius:6px;">
+                        </div>
+                        <h4 style="margin:0 0 6px 0; font-size:14px; color:#2c3e50; font-weight:600; line-height:1.3;">{row['brand']} {row['model_clean']}</h4>
+                        <p style="color:#7f8c8d; font-size:12px; margin:0 0 8px 0; font-weight:500;">{row['color']} | {row['gender']}</p>
+                        <div style="display: flex; gap: 12px; margin: 10px 0; background: #f8f9fa; padding: 8px; border-radius: 6px;">
+                            <div style="flex: 1; text-align: center;">
+                                <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">US</div>
+                                <div style="font-size:12px; font-weight:600; color:#2c3e50;">{row['size US']}</div>
                             </div>
-                            <div style="flex: 1; font-size: 10px; text-align: center;">
-                                <strong>EU:</strong><br>{row['size_eu']}
+                            <div style="width:1px; background:#dee2e6;"></div>
+                            <div style="flex: 1; text-align: center;">
+                                <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">EU</div>
+                                <div style="font-size:12px; font-weight:600; color:#2c3e50;">{row['size_eu']}</div>
                             </div>
                         </div>
-                        <p style="font-weight:bold; font-size:13px; margin:4px 0; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span style="font-weight:700; font-size:16px; color:#e74c3c;">{int(round(row['price'] / 1000) * 1000)} ₸</span>
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
-                # Кнопка "Подробнее" - ВАЖНО: правильный отступ
+                # Кнопка "Подробнее"
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
