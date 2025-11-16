@@ -338,31 +338,35 @@ else:
         cols = st.columns(num_cols)
         for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
             with col:
-                # Оптимизированное изображение для Telegram
+                # Оптимизированное изображение для Telegram - УВЕЛИЧИЛИ РАЗМЕР
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path, target_size=(500, 500))
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
 
-                # Карточка товара с увеличенным изображением
-                st.markdown(
-                    f"""
-                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white; text-align: center;">
-                        <div style="height: 280px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; background: #f8f9fa; border-radius: 6px;">
-                            <img src="data:image/jpeg;base64,{image_base64}" style="max-height: 260px; max-width: 100%; object-fit: contain;">
-                        </div>
-                        
-                        <div style="text-align: left;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
-                            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 4px;">{row['model_clean']} '{row['color']}'</div>
-                            <div style="font-size: 11px; color: #666; margin-bottom: 8px;">EU: {row['size_eu']}</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #000;">{int(round(row['price'] / 1000) * 1000)} ₸</div>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                # Карточка товара - изображение через HTML, текст через Streamlit
+                with st.container():
+                    # Граница карточки
+                    st.markdown(
+                        '<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white;">',
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Изображение через HTML (оставляем как есть)
+                    st.markdown(
+                        f'<img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 250px; object-fit: contain; margin-bottom: 12px; border-radius: 6px;">',
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Текст через нативные компоненты Streamlit
+                    st.caption(row['brand'])
+                    st.write(f"**{row['model_clean']} '{row['color']}'**")
+                    st.caption(f"EU: {row['size_eu']}")
+                    st.write(f"**{int(round(row['price'] / 1000) * 1000)} ₸**")
+                    
+                    # Закрываем div
+                    st.markdown('</div>', unsafe_allow_html=True)
 
-                # Кнопка "Подробнее"
+                # Кнопка "Подробнее" - отдельно от карточки
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
