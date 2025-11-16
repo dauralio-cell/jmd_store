@@ -37,7 +37,7 @@ section.main > div:first-child {
     padding: 10px 16px !important;
     font-weight: 500 !important;
     transition: all 0.3s ease !important;
-    margin-top: 10px !important;
+    margin-top: 5px !important;
     margin-bottom: 5px !important;
 }
 
@@ -51,7 +51,7 @@ section.main > div:first-child {
 
 /* Дополнительные отступы для разделения карточек */
 .product-card {
-    margin-bottom: 25px !important;
+    margin-bottom: 20px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -68,7 +68,7 @@ st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Д�
 col1, col2, col3 = st.columns([1, 3, 1])
 with col3:
     cart_count = len(st.session_state.cart)
-    cart_text = f"🛒 Корзина ({cart_count})" if cart_count > 0 else "🛒 Корзина"
+    cart_text = f"Корзина ({cart_count})" if cart_count > 0 else "Корзина"
     if st.button(cart_text, use_container_width=True):
         st.switch_page("pages/3_Корзина.py")
 
@@ -346,22 +346,22 @@ else:
                     border: 1px solid #e5e5e5;
                     border-top: none;
                     border-radius: 0 0 12px 12px;
-                    padding: 15px;
+                    padding: 10px;
                     margin-top: -1px;
                 '>
                 </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Белая кнопка "Подробнее" с четким разделением
-                if st.button("📋 Подробнее", 
+                # Кнопка "Подробнее" без эмоджи
+                if st.button("Подробнее", 
                             key=f"details_{row_idx}_{col_idx}_{hash(str(row['brand'])+str(row['model_clean'])+str(row['color']))}", 
                             use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
                 
                 # Пространство между карточками
-                st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
