@@ -338,21 +338,26 @@ else:
         cols = st.columns(num_cols)
         for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
             with col:
-                # Оптимизированное изображение для Telegram - УВЕЛИЧИЛИ РАЗМЕР
+                # Оптимизированное изображение для Telegram
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))  # Увеличили до 600x600
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
 
                 # Карточка товара с использованием нативных компонентов Streamlit
                 with st.container():
                     # Добавляем границу через HTML
                     st.markdown(
-                        '<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white;">',
+                        '<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white; height: 500px; display: flex; flex-direction: column;">',
                         unsafe_allow_html=True
                     )
                     
-                    # Изображение - УВЕЛИЧИЛИ ВЫСОТУ
-                    st.image(f"data:image/jpeg;base64,{image_base64}", use_container_width=True)
+                    # Изображение с фиксированной высотой
+                    st.markdown(
+                        f'<div style="height: 250px; display: flex; justify-content: center; align-items: center; margin-bottom: 12px;">'
+                        f'<img src="data:image/jpeg;base64,{image_base64}" style="max-height: 100%; max-width: 100%; object-fit: contain;">'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
                     
                     # Бренд
                     st.caption(row['brand'])
