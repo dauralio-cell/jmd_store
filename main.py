@@ -366,7 +366,8 @@ else:
                # Карточка товара - полностью через HTML
 st.markdown(
     f"""
-    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0; margin: 8px 0; background: white; overflow: hidden;">
+    # Замените первую строку на:
+<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0; margin: 12px 0; background: white; overflow: hidden;">
         <img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 200px; object-fit: cover; display: block; margin: 0; padding: 0;">
         <div style="padding: 12px;">
             <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
