@@ -51,14 +51,27 @@ CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_PATH = "data/images"
 
 # --- Функции для работы с изображениями ---
-def optimize_image_for_telegram(image_path, target_size=(300, 300)):
+def optimize_image_for_telegram(image_path, target_size=(400, 400)):
     try:
         with Image.open(image_path) as img:
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
+            
+            # Сохраняем пропорции изображения
             img.thumbnail(target_size, Image.Resampling.LANCZOS)
+            
+            # Создаем новое изображение с белым фоном
+            new_img = Image.new('RGB', target_size, (255, 255, 255))
+            
+            # Вычисляем позицию для центрирования
+            x = (target_size[0] - img.size[0]) // 2
+            y = (target_size[1] - img.size[1]) // 2
+            
+            # Вставляем изображение по центру
+            new_img.paste(img, (x, y))
+            
             buffer = io.BytesIO()
-            img.save(buffer, format='JPEG', quality=85, optimize=True)
+            new_img.save(buffer, format='JPEG', quality=85, optimize=True)
             buffer.seek(0)
             return base64.b64encode(buffer.read()).decode("utf-8")
     except Exception:
@@ -262,7 +275,7 @@ else:
                 # Подготовка данных
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
                 
                 # Форматирование данных
                 price_formatted = f"{int(row['price']):,} ₸".replace(",", " ")
@@ -271,41 +284,48 @@ else:
                 color = str(row['color'])
                 eu_sizes = str(row['size_eu']) if row['size_eu'] else "Нет в наличии"
                 
-                # Карточка товара
-                st.markdown(f"""
-                <div style='
-                    border: 1px solid #e5e5e5;
-                    border-radius: 12px;
-                    padding: 0;
-                    margin: 10px 5px;
-                    background: #fff;
-                    overflow: hidden;
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-                    transition: transform 0.15s ease, box-shadow 0.15s ease;
-                    height: 100%;
-                '>
-                    <img src="data:image/jpeg;base64,{image_base64}"
-                         style='
-                            width: 100%;
-                            height: 220px;
-                            object-fit: cover;
-                            display: block;
-                         '>
-                    <div style='padding: 12px;'>
-                        <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
-                        <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
-                            {model} '{color}'
+                # Карточка товара с контейнером
+                with st.container():
+                    st.markdown(f"""
+                    <div style='
+                        border: 1px solid #e5e5e5;
+                        border-radius: 12px;
+                        padding: 0;
+                        margin-bottom: 15px;
+                        background: #fff;
+                        overflow: hidden;
+                        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                    '>
+                        <img src="data:image/jpeg;base64,{image_base64}"
+                             style='
+                                width: 100%;
+                                height: 250px;
+                                object-fit: contain;
+                                display: block;
+                                background: white;
+                                padding: 10px;
+                             '>
+                        <div style='padding: 15px;'>
+                            <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
+                            <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
+                                {model} '{color}'
+                            </div>
+                            <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes}</div>
+                            <div style='font-size: 17px; font-weight: 700; color: #000; margin-bottom: 10px;'>{price_formatted}</div>
                         </div>
-                        <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes}</div>
-                        <div style='font-size: 17px; font-weight: 700; color: #000;'>{price_formatted}</div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Кнопка "Подробнее"
-                if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
-                    st.session_state.product_data = dict(row)
-                    st.switch_page("pages/2_Детали_товара.py")
+                    """, unsafe_allow_html=True)
+                    
+                    # Кнопка "Подробнее" с отступом
+                    if st.button("📋 Подробнее", 
+                                key=f"details_{row_idx}_{col_idx}_{hash(str(row['brand'])+str(row['model_clean'])+str(row['color']))}", 
+                                use_container_width=True,
+                                type="primary"):
+                        st.session_state.product_data = dict(row)
+                        st.switch_page("pages/2_Детали_товара.py")
+                    
+                    # Добавляем отступ между карточками
+                    st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
