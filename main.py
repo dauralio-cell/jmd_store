@@ -76,6 +76,15 @@ with col3:
 CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_PATH = "data/images"
 
+# --- Функция округления цены до тысяч ---
+def format_price(price):
+    """Округляет цену до тысяч и форматирует с пробелами"""
+    try:
+        rounded_price = round(float(price) / 1000) * 1000
+        return f"{rounded_price:,.0f} ₸".replace(",", " ")
+    except (ValueError, TypeError):
+        return "0 ₸"
+
 # --- Функции для работы с изображениями ---
 def optimize_image_for_telegram(image_path, target_size=(400, 400)):
     try:
@@ -303,8 +312,8 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
                 
-                # Форматирование данных
-                price_formatted = f"{int(row['price']):,} ₸".replace(",", " ")
+                # Форматирование данных с округлением цены
+                price_formatted = format_price(row['price'])
                 brand = str(row['brand'])
                 model = str(row['model_clean'])
                 color = str(row['color'])
