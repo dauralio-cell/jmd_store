@@ -113,33 +113,35 @@ size_conversion = {
     "11.0": "44.5", "11.5": "45", "12.0": "45.5", "12.5": "46"
 }
 
-# Исправленная функция get_eu_sizes
 def get_eu_sizes(us_sizes_str):
     """Конвертирует US размеры в EU размеры"""
-    if not us_sizes_str or us_sizes_str == "":
+    if not us_sizes_str or us_sizes_str == "" or us_sizes_str == "nan":
         return ""
     
-    us_sizes = [size.strip() for size in us_sizes_str.split(",")]
+    # Разделяем US размеры по запятым
+    us_sizes = [size.strip() for size in str(us_sizes_str).split(",")]
     eu_sizes = []
     
     for us_size in us_sizes:
+        if not us_size or us_size == "nan":
+            continue
+            
         # Ищем точное соответствие в таблице конверсии
         eu_size = size_conversion.get(us_size, "")
         if not eu_size:
             # Если точного соответствия нет, пробуем найти ближайший целый размер
             base_size = us_size.split('.')[0]  # Берем целую часть
             eu_size = size_conversion.get(base_size, us_size)  # Если не нашли, оставляем US размер
-        eu_sizes.append(eu_size)
+        if eu_size:
+            eu_sizes.append(eu_size)
     
-    # Убираем дубликаты EU размеров
+    # Убираем дубликаты EU размеров и возвращаем ЧЕРЕЗ ПРОБЕЛЫ
     unique_eu_sizes = []
     for size in eu_sizes:
         if size not in unique_eu_sizes:
             unique_eu_sizes.append(size)
     
-    # ВОТ ИСПРАВЛЕНИЕ - возвращаем через пробелы вместо запятых
-    return " ".join(unique_eu_sizes)
-
+    return " ".join(unique_eu_sizes)  # ВОТ ИСПРАВЛЕНИЕ - пробелы между размерами
 # --- Функция сортировки размеров ---
 def sort_sizes(size_list):
     """Сортирует размеры правильно"""
@@ -363,15 +365,15 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
 
-                # Карточка товара - полностью через HTML
+                ## Карточка товара
 st.markdown(
     f"""
     <div style="border: 1px solid #e0e0e0; border-radius: 12px; padding: 0; margin: 16px 0; background: white; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 220px; object-fit: cover; display: block; margin: 0; padding: 0;">
+        <img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 220px; object-fit: cover; display: block;">
         <div style="padding: 16px;">
-            <div style="font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;">{row['brand']}</div>
-            <div style="font-size: 15px; font-weight: bold; color: #333; margin-bottom: 8px; line-height: 1.3;">{row['model_clean']} '{row['color']}'</div>
-            <div style="font-size: 12px; color: #666; margin-bottom: 12px; background: #f8f9fa; padding: 8px; border-radius: 6px;">EU: {row['size_eu']}</div>
+            <div style="font-size: 12px; color: #666; margin-bottom: 6px;">{row['brand']}</div>
+            <div style="font-size: 15px; font-weight: bold; color: #333; margin-bottom: 8px;">{row['model_clean']} '{row['color']}'</div>
+            <div style="font-size: 12px; color: #666; margin-bottom: 12px;">EU: {row['size_eu']}</div>
             <div style="font-size: 18px; font-weight: bold; color: #e74c3c; margin-bottom: 16px;">{int(round(row['price'] / 1000) * 1000)} ₸</div>
         </div>
     </div>
@@ -379,7 +381,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Кнопка "Подробнее" с отступом
 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
     st.session_state.product_data = dict(row)
     st.switch_page("pages/2_Детали_товара.py")
