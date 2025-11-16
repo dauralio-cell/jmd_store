@@ -11,42 +11,21 @@ st.set_page_config(page_title="Детали товара - DENE Store", layout="
 # --- Стили для кнопок размеров ---
 st.markdown("""
 <style>
-.size-button {
-    width: 100%;
-    padding: 12px 8px;
-    margin: 4px 0;
-    border: 2px solid #e5e5e5;
-    border-radius: 8px;
-    background-color: white;
-    color: black;
-    font-size: 14px;
-    font-weight: 500;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+/* Стили для кнопок размеров чтобы текст не переносился */
+.stButton button {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 10px 8px !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    height: auto !important;
+    min-height: 44px !important;
 }
 
-.size-button:hover {
-    background-color: #f8f9fa;
-    border-color: #0077b6;
-    color: #0077b6;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.size-button.selected {
-    background-color: #0077b6;
-    border-color: #0077b6;
-    color: white;
-}
-
-.size-button-container {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+/* Убираем лишние отступы вокруг кнопок */
+.stButton {
+    margin-bottom: 4px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -226,59 +205,6 @@ def add_to_cart(product_data, selected_size=None, selected_price=None):
     st.session_state.cart.append(cart_item)
     st.success(f"Товар добавлен в корзину!")
 
-# --- Функция для отображения кнопок размеров ---
-def render_size_buttons(sorted_sizes, selected_size):
-    """Отображает кнопки размеров с HTML/CSS для предотвращения переноса"""
-    cols = st.columns(2)
-    
-    for idx, size_data in enumerate(sorted_sizes):
-        with cols[idx % 2]:
-            us_size = size_data['us_size']
-            eu_size = size_data['eu_size']
-            price = size_data['price']
-            
-            is_selected = selected_size == us_size
-            
-            # Форматируем текст в одну строку
-            if eu_size:
-                button_text = f"US {us_size} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
-            else:
-                button_text = f"US {us_size} - {int(price):,} ₸".replace(",", " ")
-            
-            # Создаем кастомную кнопку с HTML
-            button_class = "size-button selected" if is_selected else "size-button"
-            
-            st.markdown(f"""
-            <div class="size-button-container">
-                <div class="{button_class}" onclick="selectSize('{us_size}', {price})">
-                    {button_text}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Скрытая кнопка Streamlit для обработки клика
-            if st.button(" ", 
-                        key=f"hidden_{us_size}", 
-                        help=button_text,
-                        use_container_width=True):
-                st.session_state.selected_size = us_size
-                st.session_state.selected_price = price
-                st.rerun()
-
-# --- JavaScript для обработки кликов ---
-st.markdown("""
-<script>
-function selectSize(usSize, price) {
-    // Эта функция будет вызвана при клике на HTML кнопку
-    // Мы используем Streamlit для обработки через скрытые кнопки
-    const event = new CustomEvent('selectSize', { 
-        detail: { usSize: usSize, price: price } 
-    });
-    window.dispatchEvent(event);
-}
-</script>
-""", unsafe_allow_html=True)
-
 # --- Основная функция ---
 def main():
     # Кнопка назад
@@ -440,10 +366,31 @@ def main():
             if 'selected_price' not in st.session_state:
                 st.session_state.selected_price = None
             
+            # Сетка размеров 2 колонки с ценами
+            cols = st.columns(2)
             selected_size = st.session_state.selected_size
             
-            # Используем кастомные кнопки для предотвращения переноса
-            render_size_buttons(sorted_sizes, selected_size)
+            for idx, size_data in enumerate(sorted_sizes):
+                with cols[idx % 2]:
+                    us_size = size_data['us_size']
+                    eu_size = size_data['eu_size']
+                    price = size_data['price']
+                    
+                    is_selected = selected_size == us_size
+                    
+                    # ФОРМАТ КНОПКИ: US 7 / EU 40 - 45 000 ₸ (ВСЕ В ОДНУ СТРОКУ)
+                    if eu_size:
+                        button_text = f"US {us_size} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
+                    else:
+                        button_text = f"US {us_size} - {int(price):,} ₸".replace(",", " ")
+                    
+                    if st.button(button_text, 
+                                key=f"size_{us_size}",
+                                use_container_width=True,
+                                type="primary" if is_selected else "secondary"):
+                        st.session_state.selected_size = us_size
+                        st.session_state.selected_price = price
+                        st.rerun()
             
             st.markdown("<br>", unsafe_allow_html=True)
             
