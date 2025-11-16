@@ -351,7 +351,7 @@ else:
     grouped_df = grouped_df.drop('size US_grouped', axis=1)
     grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
 
-    num_cols = 3  # 3 колонки как нужно
+    num_cols = 3
     rows = [grouped_df.iloc[i:i + num_cols] for i in range(0, len(grouped_df), num_cols)]
 
     for row_idx, row_df in enumerate(rows):
@@ -363,27 +363,26 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
 
-               # Карточка товара - полностью через HTML
-st.markdown(
-    f"""
-    # Замените первую строку на:
-<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0; margin: 12px 0; background: white; overflow: hidden;">
-        <img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 200px; object-fit: cover; display: block; margin: 0; padding: 0;">
-        <div style="padding: 12px;">
-            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
-            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 4px;">{row['model_clean']} '{row['color']}'</div>
-            <div style="font-size: 11px; color: #666; margin-bottom: 8px;">EU: {row['size_eu']}</div>
-            <div style="font-size: 16px; font-weight: bold; color: #000; margin-bottom: 12px;">{int(round(row['price'] / 1000) * 1000)} ₸</div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+                # Карточка товара - полностью через HTML
+                st.markdown(
+                    f"""
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0; margin: 12px 0; background: white; overflow: hidden;">
+                        <img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 200px; object-fit: cover; display: block; margin: 0; padding: 0;">
+                        <div style="padding: 12px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 4px;">{row['model_clean']} '{row['color']}'</div>
+                            <div style="font-size: 11px; color: #666; margin-bottom: 8px;">EU: {row['size_eu']}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #000; margin-bottom: 12px;">{int(round(row['price'] / 1000) * 1000)} ₸</div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-# Кнопка "Подробнее" с увеличенным отступом
-if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
-    st.session_state.product_data = dict(row)
-    st.switch_page("pages/2_Детали_товара.py")
+                # Кнопка "Подробнее"
+                if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
+                    st.session_state.product_data = dict(row)
+                    st.switch_page("pages/2_Детали_товара.py")
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
