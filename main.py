@@ -303,8 +303,9 @@ else:
                             </div>
 
                             <div style="font-size: 11px; color: #666; margin-bottom: 10px;">
-                                EU: {row['size_eu']}
+                                EU: 37 38 39 40 41 42.5 43.5
                             </div>
+
 
                             <div style="font-size: 17px; font-weight: 700; color: #000; margin-bottom: 4px;">
                                 {int(round(row['price'] / 1000) * 1000)} ₸
