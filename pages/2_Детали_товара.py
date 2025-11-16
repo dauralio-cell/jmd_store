@@ -70,17 +70,32 @@ size_conversion = {
     "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
     "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
     "11": "44", "12": "45", "13": "46",
-    "7.0": "40", "7.5": "40.5", "8.0": "41", "8.5": "42", 
-    "9.0": "42.5", "9.5": "43", "10.0": "43.5", "10.5": "44",
-    "11.0": "44.5", "11.5": "45", "12.0": "45.5", "12.5": "46"
+    "4.0": "37", "5.0": "38", "6.0": "39", "7.0": "40", "7.5": "40.5", 
+    "8.0": "41", "8.5": "42", "9.0": "42.5", "9.5": "43", 
+    "10.0": "43.5", "10.5": "44", "11.0": "44.5", "11.5": "45", 
+    "12.0": "45.5", "12.5": "46"
 }
 
 # --- Функция для получения EU размеров ---
 def get_eu_size(us_size):
     """Конвертирует один US размер в EU размер"""
-    if not us_size or us_size == "":
+    if not us_size or us_size == "" or us_size == "nan":
         return ""
-    return size_conversion.get(str(us_size).strip(), "")
+    
+    us_size_clean = str(us_size).strip()
+    
+    # Сначала ищем точное совпадение
+    if us_size_clean in size_conversion:
+        return size_conversion[us_size_clean]
+    
+    # Пробуем убрать .0 для целых чисел
+    if us_size_clean.endswith('.0'):
+        base_size = us_size_clean[:-2]
+        if base_size in size_conversion:
+            return size_conversion[base_size]
+    
+    # Если не нашли, возвращаем пустую строку
+    return ""
 
 # --- Функция сортировки размеров ---
 def sort_sizes(size_list):
@@ -341,11 +356,11 @@ def main():
                     
                     is_selected = selected_size == us_size
                     
-                    # ФОРМАТ КНОПКИ: US 7 / EU 40
-                    button_text = f"US {us_size}"
+                    # ФОРМАТ КНОПКИ: US 7 / EU 40 - 45 000 ₸ (ВСЕ В ОДНУ СТРОКУ)
                     if eu_size:
-                        button_text += f" / EU {eu_size}"
-                    button_text += f"\n{int(price):,} ₸".replace(",", " ")
+                        button_text = f"US {us_size} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
+                    else:
+                        button_text = f"US {us_size} - {int(price):,} ₸".replace(",", " ")
                     
                     if st.button(button_text, 
                                 key=f"size_{us_size}",
