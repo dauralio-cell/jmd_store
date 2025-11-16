@@ -338,32 +338,32 @@ else:
         cols = st.columns(num_cols)
         for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
             with col:
-                # Оптимизированное изображение для Telegram
+                # Оптимизированное изображение для Telegram - УВЕЛИЧИЛИ РАЗМЕР
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
 
-                # Простая карточка только с нативными компонентами Streamlit
-                with st.container():
-                    # Изображение
-                    st.image(f"data:image/jpeg;base64,{image_base64}", use_container_width=True)
-                    
-                    # Бренд
-                    st.caption(row['brand'])
-                    
-                    # Модель и цвет
-                    st.write(f"**{row['model_clean']} '{row['color']}'**")
-                    
-                    # EU размеры
-                    st.caption(f"EU: {row['size_eu']}")
-                    
-                    # Цена
-                    st.write(f"**{int(round(row['price'] / 1000) * 1000)} ₸**")
-                    
-                    # Кнопка "Подробнее"
-                    if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
-                        st.session_state.product_data = dict(row)
-                        st.switch_page("pages/2_Детали_товара.py")
+                # Карточка товара с увеличенным изображением через HTML
+                st.markdown(
+                    f"""
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white; text-align: center;">
+                        <img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 250px; object-fit: contain; margin-bottom: 12px;">
+                        
+                        <div style="text-align: left;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 4px;">{row['model_clean']} '{row['color']}'</div>
+                            <div style="font-size: 11px; color: #666; margin-bottom: 8px;">EU: {row['size_eu']}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #000;">{int(round(row['price'] / 1000) * 1000)} ₸</div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                # Кнопка "Подробнее"
+                if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
+                    st.session_state.product_data = dict(row)
+                    st.switch_page("pages/2_Детали_товара.py")
 # --- ФУТЕР ---
 from components.documents import documents_footer
 documents_footer()
