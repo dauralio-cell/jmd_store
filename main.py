@@ -355,68 +355,67 @@ else:
     rows = [grouped_df.iloc[i:i + num_cols] for i in range(0, len(grouped_df), num_cols)]
 
     for row_idx, row_df in enumerate(rows):
-        cols = st.columns(num_cols)
-        for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
-            with col:
-    # Оптимизированное изображение для Telegram
-    image_names = row["image"]
-    image_path = get_image_path(image_names)
-    image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
+    cols = st.columns(num_cols)
+    for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
+        with col:
+            # Оптимизированное изображение для Telegram
+            image_names = row["image"]
+            image_path = get_image_path(image_names)
+            image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
 
-    # Карточка товара - улучшенный дизайн
-    st.markdown(
-        f"""
-        <div style="
-            border: 1px solid #e5e5e5;
-            border-radius: 12px;
-            padding: 0;
-            margin: 14px 6px;
-            background: #fff;
-            overflow: hidden;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        "
-            onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 14px rgba(0,0,0,0.10)';"
-            onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.05)';"
-        >
-            <img src="data:image/jpeg;base64,{image_base64}"
-                style="
-                    width: 100%;
-                    height: 220px;
-                    object-fit: cover;
-                    display: block;
-                    margin: 0;
+            # Карточка товара — улучшенный дизайн
+            st.markdown(
+                f"""
+                <div style="
+                    border: 1px solid #e5e5e5;
+                    border-radius: 12px;
                     padding: 0;
-                    border-bottom: 1px solid #efefef;
+                    margin: 14px 6px;
+                    background: #fff;
+                    overflow: hidden;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                    transition: transform 0.15s ease, box-shadow 0.15s ease;
                 "
-            >
-            <div style="padding: 14px;">
-                <div style="font-size: 12px; color: #777; margin-bottom: 4px;">
-                    {row['brand']}
+                    onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 14px rgba(0,0,0,0.10)';"
+                    onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.05)';"
+                >
+                    <img src="data:image/jpeg;base64,{image_base64}"
+                        style="
+                            width: 100%;
+                            height: 220px;
+                            object-fit: cover;
+                            display: block;
+                            margin: 0;
+                            padding: 0;
+                            border-bottom: 1px solid #efefef;
+                        "
+                    >
+                    <div style="padding: 14px;">
+                        <div style="font-size: 12px; color: #777; margin-bottom: 4px;">
+                            {row['brand']}
+                        </div>
+
+                        <div style="font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;">
+                            {row['model_clean']} '{row['color']}'
+                        </div>
+
+                        <div style="font-size: 11px; color: #666; margin-bottom: 10px;">
+                            EU: {row['size_eu']}
+                        </div>
+
+                        <div style="font-size: 17px; font-weight: 700; color: #000; margin-bottom: 4px;">
+                            {int(round(row['price'] / 1000) * 1000)} ₸
+                        </div>
+                    </div>
                 </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-                <div style="font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;">
-                    {row['model_clean']} '{row['color']}'
-                </div>
-
-                <div style="font-size: 11px; color: #666; margin-bottom: 10px;">
-                    EU: {row['size_eu']}
-                </div>
-
-                <div style="font-size: 17px; font-weight: 700; color: #000; margin-bottom: 4px;">
-                    {int(round(row['price'] / 1000) * 1000)} ₸
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # Кнопка "Подробнее"
-    if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
-        st.session_state.product_data = dict(row)
-        st.switch_page("pages/2_Детали_товара.py")
-
+            # Кнопка "Подробнее"
+            if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
+                st.session_state.product_data = dict(row)
+                st.switch_page("pages/2_Детали_товара.py")
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
