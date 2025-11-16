@@ -8,31 +8,42 @@ import base64
 # --- Настройки страницы ---
 st.set_page_config(page_title="Детали товара - DENE Store", layout="wide")
 
-# --- Стили для кнопок размеров ---
+# --- Улучшенные стили для кнопок размеров ---
 st.markdown("""
 <style>
-/* Стили для кнопок размеров чтобы текст не переносился и не обрезался */
+/* Основные стили для кнопок размеров - УВЕЛИЧЕННЫЕ */
 .stButton button {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    padding: 8px 4px !important;
-    font-size: 11px !important;
-    line-height: 1.1 !important;
+    padding: 10px 6px !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
     height: auto !important;
-    min-height: 36px !important;
+    min-height: 50px !important;
     max-width: 100% !important;
+    margin: 2px !important;
 }
 
 /* Убираем лишние отступы вокруг кнопок */
 .stButton {
-    margin-bottom: 2px !important;
+    margin-bottom: 4px !important;
     padding: 0px !important;
 }
 
-/* Делаем колонки более компактными */
+/* Делаем колонки более просторными */
 [data-testid="column"] {
-    padding: 0px 4px !important;
+    padding: 0px 6px !important;
+}
+
+/* Специальные стили для улучшения читаемости */
+.size-button {
+    font-weight: 600 !important;
+}
+
+/* Увеличиваем отступы между секциями */
+.main-container {
+    margin-top: 20px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -126,23 +137,14 @@ def get_eu_size(us_size):
     # Если не нашли, возвращаем пустую строку
     return ""
 
-# --- Функция сортировки размеров ---
-def sort_sizes(size_list):
-    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
-    numeric_sizes = []
-    string_sizes = []
-    
-    for size in size_list:
-        clean_size = str(size).strip()
-        try:
-            # Пробуем преобразовать в число
-            base_num = float(clean_size)
-            numeric_sizes.append((base_num, clean_size))
-        except:
-            string_sizes.append(clean_size)
-    
-    numeric_sizes.sort(key=lambda x: x[0])
-    return [size[1] for size in numeric_sizes] + sorted(string_sizes)
+# --- Функция форматирования цены ---
+def format_price(price):
+    """Форматирует цену для компактного отображения"""
+    try:
+        price_int = int(price)
+        return f"{price_int:,}".replace(",", " ")
+    except:
+        return str(price)
 
 # --- Загрузка данных (согласованная с главной страницей) ---
 @st.cache_data(show_spinner=False)
@@ -363,6 +365,8 @@ def main():
             st.markdown("Описание временно недоступно")
 
     with col_right:
+        st.markdown('<div class="main-container">', unsafe_allow_html=True)
+        
         # --- Доступные размеры с ценами ---
         st.markdown("### Доступные размеры")
         
@@ -373,7 +377,7 @@ def main():
             if 'selected_price' not in st.session_state:
                 st.session_state.selected_price = None
             
-            # Сетка размеров 2 колонки с ценами
+            # Сетка размеров 2 колонки для лучшего отображения больших кнопок
             cols = st.columns(2)
             selected_size = st.session_state.selected_size
             
@@ -382,14 +386,15 @@ def main():
                     us_size = size_data['us_size']
                     eu_size = size_data['eu_size']
                     price = size_data['price']
+                    formatted_price = format_price(price)
                     
                     is_selected = selected_size == us_size
                     
-                    # ФОРМАТ КНОПКИ: US 7 / EU 40 - 45 000 ₸ (ВСЕ В ОДНУ СТРОКУ)
+                    # УЛУЧШЕННЫЙ ФОРМАТ КНОПКИ - ОДНА СТРОКА
                     if eu_size:
-                        button_text = f"US {us_size}/EU {eu_size} - {int(price):,}₸".replace(",", " ")
+                        button_text = f"US {us_size} / EU {eu_size} - {formatted_price}₸"
                     else:
-                        button_text = f"US {us_size} - {int(price):,}₸".replace(",", " ")
+                        button_text = f"US {us_size} - {formatted_price}₸"
                     
                     if st.button(button_text, 
                                 key=f"size_{us_size}",
@@ -459,6 +464,8 @@ def main():
                             st.session_state.selected_price = None
                             st.session_state.product_data = dict(variant)
                             st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # --- Информация о доставке и возврате ---
     st.markdown("---")
