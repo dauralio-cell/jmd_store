@@ -13,22 +13,22 @@ st.set_page_config(page_title="DENE Store", layout="wide")
 
 # Убираем ВСЕ отступы Streamlit
 st.markdown("""
-    <style>
-    .main .block-container {
-        padding-top: 0px;
-        padding-bottom: 0px;
-        padding-left: 0px;
-        padding-right: 0px;
-        max-width: 100%;
-    }
-    section.main > div:first-child {
-        padding-top: 0px;
-    }
-    [data-testid="stVerticalBlock"] {
-        gap: 0rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+.main .block-container {
+    padding-top: 0px;
+    padding-bottom: 0px;
+    padding-left: 0px;
+    padding-right: 0px;
+    max-width: 100%;
+}
+section.main > div:first-child {
+    padding-top: 0px;
+}
+[data-testid="stVerticalBlock"] {
+    gap: 0rem;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # --- Инициализация корзины ---
 if 'cart' not in st.session_state:
@@ -250,12 +250,8 @@ else:
     grouped_df = grouped_df.drop('size US_grouped', axis=1)
     grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
 
-    # --- Адаптивное количество колонок ---
-    def get_num_columns():
-        # При желании можно использовать JS/Query param для реального screen width
-        return 3  # по умолчанию 3 колонки
-
-    num_cols = get_num_columns()
+    # --- Отображение карточек товаров ---
+    num_cols = 3
     rows = [grouped_df.iloc[i:i + num_cols] for i in range(0, len(grouped_df), num_cols)]
 
     for row_idx, row_df in enumerate(rows):
@@ -263,59 +259,50 @@ else:
         for col_idx, (_, row) in enumerate(row_df.iterrows()):
             col = cols[col_idx]
             with col:
+                # Подготовка данных
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
-
-                st.markdown(
-                    f"""
-                    <div style="
-                        border: 1px solid #e5e5e5;
-                        border-radius: 12px;
-                        padding: 0;
-                        margin: 14px 6px;
-                        background: #fff;
-                        overflow: hidden;
-                        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-                        transition: transform 0.15s ease, box-shadow 0.15s ease;
-                    "
-                        onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 14px rgba(0,0,0,0.10)';"
-                        onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.05)';"
-                    >
-                        <img src="data:image/jpeg;base64,{image_base64}"
-                            style="
-                                width: 100%;
-                                height: 220px;
-                                object-fit: cover;
-                                display: block;
-                                margin: 0;
-                                padding: 0;
-                                border-bottom: 1px solid #efefef;
-                            "
-                        >
-                        <div style="padding: 14px;">
-                            <div style="font-size: 12px; color: #777; margin-bottom: 4px;">
-                                {row['brand']}
-                            </div>
-
-                            <div style="font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;">
-                                {row['model_clean']} '{row['color']}'
-                            </div>
-
-                            <div style="font-size: 11px; color: #666; margin-bottom: 10px;">
-                                EU: 37 38 39 40 41 42.5 43.5
-                            </div>
-
-
-                            <div style="font-size: 17px; font-weight: 700; color: #000; margin-bottom: 4px;">
-                                {int(round(row['price'] / 1000) * 1000)} ₸
-                            </div>
+                
+                # Форматирование данных
+                price_formatted = f"{int(row['price']):,} ₸".replace(",", " ")
+                brand = str(row['brand'])
+                model = str(row['model_clean'])
+                color = str(row['color'])
+                eu_sizes = str(row['size_eu']) if row['size_eu'] else "Нет в наличии"
+                
+                # Карточка товара
+                st.markdown(f"""
+                <div style='
+                    border: 1px solid #e5e5e5;
+                    border-radius: 12px;
+                    padding: 0;
+                    margin: 10px 5px;
+                    background: #fff;
+                    overflow: hidden;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                    transition: transform 0.15s ease, box-shadow 0.15s ease;
+                    height: 100%;
+                '>
+                    <img src="data:image/jpeg;base64,{image_base64}"
+                         style='
+                            width: 100%;
+                            height: 220px;
+                            object-fit: cover;
+                            display: block;
+                         '>
+                    <div style='padding: 12px;'>
+                        <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
+                        <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
+                            {model} '{color}'
                         </div>
+                        <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes}</div>
+                        <div style='font-size: 17px; font-weight: 700; color: #000;'>{price_formatted}</div>
                     </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Кнопка "Подробнее"
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
