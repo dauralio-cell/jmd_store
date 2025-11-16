@@ -27,6 +27,25 @@ section.main > div:first-child {
 [data-testid="stVerticalBlock"] {
     gap: 0rem;
 }
+
+/* Стили для белой кнопки */
+.stButton button {
+    background-color: white !important;
+    color: black !important;
+    border: 1px solid #e5e5e5 !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton button:hover {
+    background-color: #f8f9fa !important;
+    border-color: #0077b6 !important;
+    color: #0077b6 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -284,48 +303,46 @@ else:
                 color = str(row['color'])
                 eu_sizes = str(row['size_eu']) if row['size_eu'] else "Нет в наличии"
                 
-                # Карточка товара с контейнером
-                with st.container():
-                    st.markdown(f"""
-                    <div style='
-                        border: 1px solid #e5e5e5;
-                        border-radius: 12px;
-                        padding: 0;
-                        margin-bottom: 15px;
-                        background: #fff;
-                        overflow: hidden;
-                        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-                    '>
-                        <img src="data:image/jpeg;base64,{image_base64}"
-                             style='
-                                width: 100%;
-                                height: 250px;
-                                object-fit: contain;
-                                display: block;
-                                background: white;
-                                padding: 10px;
-                             '>
-                        <div style='padding: 15px;'>
-                            <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
-                            <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
-                                {model} '{color}'
-                            </div>
-                            <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes}</div>
-                            <div style='font-size: 17px; font-weight: 700; color: #000; margin-bottom: 10px;'>{price_formatted}</div>
+                # Карточка товара
+                st.markdown(f"""
+                <div style='
+                    border: 1px solid #e5e5e5;
+                    border-radius: 12px;
+                    padding: 0;
+                    margin-bottom: 10px;
+                    background: #fff;
+                    overflow: hidden;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                '>
+                    <img src="data:image/jpeg;base64,{image_base64}"
+                         style='
+                            width: 100%;
+                            height: 250px;
+                            object-fit: contain;
+                            display: block;
+                            background: white;
+                            padding: 10px;
+                         '>
+                    <div style='padding: 15px;'>
+                        <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
+                        <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
+                            {model} '{color}'
                         </div>
+                        <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes}</div>
+                        <div style='font-size: 17px; font-weight: 700; color: #000; margin-bottom: 15px;'>{price_formatted}</div>
                     </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Кнопка "Подробнее" с отступом
-                    if st.button("📋 Подробнее", 
-                                key=f"details_{row_idx}_{col_idx}_{hash(str(row['brand'])+str(row['model_clean'])+str(row['color']))}", 
-                                use_container_width=True,
-                                type="primary"):
-                        st.session_state.product_data = dict(row)
-                        st.switch_page("pages/2_Детали_товара.py")
-                    
-                    # Добавляем отступ между карточками
-                    st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Белая кнопка "Подробнее" с отступом
+                if st.button("Подробнее", 
+                            key=f"details_{row_idx}_{col_idx}_{hash(str(row['brand'])+str(row['model_clean'])+str(row['color']))}", 
+                            use_container_width=True):
+                    st.session_state.product_data = dict(row)
+                    st.switch_page("pages/2_Детали_товара.py")
+                
+                # Больше пространства между карточками
+                st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 # --- ФУТЕР ---
 from components.documents import documents_footer
