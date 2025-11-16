@@ -11,14 +11,37 @@ import time
 # --- Настройки страницы ---
 st.set_page_config(page_title="DENE Store", layout="wide")
 
-# --- Обложка и хедер как было ---
+# Убираем ВСЕ отступы Streamlit
+st.markdown("""
+    <style>
+    .main .block-container {
+        padding-top: 0px;
+        padding-bottom: 0px;
+        padding-left: 0px;
+        padding-right: 0px;
+        max-width: 100%;
+    }
+    section.main > div:first-child {
+        padding-top: 0px;
+    }
+    [data-testid="stVerticalBlock"] {
+        gap: 0rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- Инициализация корзины ---
+if 'cart' not in st.session_state:
+    st.session_state.cart = []
+
+# --- Обложка и хедер ---
 st.image("data/images/banner.jpg", use_container_width=True)
 st.markdown("<h1 style='text-align:center; white-space: nowrap;'>DENE Store. Добро пожаловать!</h1>", unsafe_allow_html=True)
 
 # --- Кнопка корзины вверху ---
 col1, col2, col3 = st.columns([1, 3, 1])
 with col3:
-    cart_count = len(st.session_state.cart) if 'cart' in st.session_state else 0
+    cart_count = len(st.session_state.cart)
     cart_text = f"🛒 Корзина ({cart_count})" if cart_count > 0 else "🛒 Корзина"
     if st.button(cart_text, use_container_width=True):
         st.switch_page("pages/3_Корзина.py")
@@ -32,14 +55,11 @@ def optimize_image_for_telegram(image_path, target_size=(300, 300)):
     """Оптимизирует изображение для Telegram"""
     try:
         with Image.open(image_path) as img:
-            # Конвертируем в RGB если нужно
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
             
-            # Ресайзим сохраняя пропорции
             img.thumbnail(target_size, Image.Resampling.LANCZOS)
             
-            # Сохраняем в буфер с оптимизацией
             buffer = io.BytesIO()
             img.save(buffer, format='JPEG', quality=85, optimize=True)
             buffer.seek(0)
@@ -47,7 +67,6 @@ def optimize_image_for_telegram(image_path, target_size=(300, 300)):
             return base64.b64encode(buffer.read()).decode("utf-8")
             
     except Exception as e:
-        # Fallback на оригинальное изображение
         try:
             with open(image_path, "rb") as img_file:
                 return base64.b64encode(img_file.read()).decode("utf-8")
@@ -120,6 +139,7 @@ def get_eu_sizes(us_sizes_str):
     
     # ВОТ ИСПРАВЛЕНИЕ - возвращаем через пробелы вместо запятых
     return " ".join(unique_eu_sizes)
+
 # --- Функция сортировки размеров ---
 def sort_sizes(size_list):
     """Сортирует размеры правильно"""
@@ -130,7 +150,7 @@ def sort_sizes(size_list):
         clean_size = str(size).strip()
         # Пытаемся извлечь числовое значение для сортировки
         try:
-            # Для дробных размеров
+            # Для дробных размеры
             if '.' in clean_size:
                 base_num = float(clean_size)
             else:
@@ -331,42 +351,35 @@ else:
     grouped_df = grouped_df.drop('size US_grouped', axis=1)
     grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
 
-    num_cols = 3
+    num_cols = 3  # 3 колонки как нужно
     rows = [grouped_df.iloc[i:i + num_cols] for i in range(0, len(grouped_df), num_cols)]
 
     for row_idx, row_df in enumerate(rows):
         cols = st.columns(num_cols)
         for col_idx, (col, (_, row)) in enumerate(zip(cols, row_df.iterrows())):
             with col:
-                # Оптимизированное изображение для Telegram - УВЕЛИЧИЛИ РАЗМЕР
+                # Оптимизированное изображение для Telegram
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
 
-                # Карточка товара - изображение через HTML, текст через Streamlit
-                with st.container():
-                    # Граница карточки
-                    st.markdown(
-                        '<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin: 8px 0; background: white;">',
-                        unsafe_allow_html=True
-                    )
-                    
-                    # Изображение через HTML (оставляем как есть)
-                    st.markdown(
-                        f'<img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 250px; object-fit: contain; margin-bottom: 12px; border-radius: 6px;">',
-                        unsafe_allow_html=True
-                    )
-                    
-                    # Текст через нативные компоненты Streamlit
-                    st.caption(row['brand'])
-                    st.write(f"**{row['model_clean']} '{row['color']}'**")
-                    st.caption(f"EU: {row['size_eu']}")
-                    st.write(f"**{int(round(row['price'] / 1000) * 1000)} ₸**")
-                    
-                    # Закрываем div
-                    st.markdown('</div>', unsafe_allow_html=True)
+                # Карточка товара - полностью через HTML
+                st.markdown(
+                    f"""
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0; margin: 8px 0; background: white; overflow: hidden;">
+                        <img src="data:image/jpeg;base64,{image_base64}" style="width: 100%; height: 200px; object-fit: cover; display: block; margin: 0; padding: 0;">
+                        <div style="padding: 12px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">{row['brand']}</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 4px;">{row['model_clean']} '{row['color']}'</div>
+                            <div style="font-size: 11px; color: #666; margin-bottom: 8px;">EU: {row['size_eu']}</div>
+                            <div style="font-size: 16px; font-weight: bold; color: #000; margin-bottom: 8px;">{int(round(row['price'] / 1000) * 1000)} ₸</div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                # Кнопка "Подробнее" - отдельно от карточки
+                # Кнопка "Подробнее"
                 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
