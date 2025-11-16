@@ -69,7 +69,10 @@ def get_image_base64(image_path):
 size_conversion = {
     "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
     "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
-    "11": "44", "12": "45", "13": "46"
+    "11": "44", "12": "45", "13": "46",
+    "7.0": "40", "7.5": "40.5", "8.0": "41", "8.5": "42", 
+    "9.0": "42.5", "9.5": "43", "10.0": "43.5", "10.5": "44",
+    "11.0": "44.5", "11.5": "45", "12.0": "45.5", "12.5": "46"
 }
 
 # --- Функция для получения EU размеров ---
@@ -87,46 +90,15 @@ def sort_sizes(size_list):
     
     for size in size_list:
         clean_size = str(size).strip()
-        if clean_size.replace('.', '').isdigit():
-            numeric_sizes.append(float(clean_size))
-        else:
+        try:
+            # Пробуем преобразовать в число
+            base_num = float(clean_size)
+            numeric_sizes.append((base_num, clean_size))
+        except:
             string_sizes.append(clean_size)
     
-    numeric_sizes.sort()
-    string_sizes.sort()
-    
-    return [str(int(x) if x.is_integer() else x) for x in numeric_sizes] + string_sizes
-
-# --- Функция для нормализации дробных размеров ---
-def normalize_size(size_str):
-    """Приводит дробные размеры к ближайшему целому"""
-    if not size_str or pd.isna(size_str):
-        return ""
-    
-    size_str = str(size_str).strip()
-    
-    # Обрабатываем дробные размеры типа "42 1/3"
-    if '/' in size_str:
-        # Разделяем целую и дробную части
-        parts = size_str.split()
-        if len(parts) == 2 and '/' in parts[1]:
-            try:
-                whole_part = float(parts[0])
-                fraction_part = parts[1]
-                # Преобразуем дробь в десятичное число
-                if fraction_part == '1/3':
-                    return str(int(whole_part))  # 42 1/3 -> 42
-                elif fraction_part == '2/3':
-                    return str(int(whole_part) + 1)  # 42 2/3 -> 43
-            except:
-                return size_str
-    
-    # Обрабатываем десятичные дроби
-    try:
-        size_float = float(size_str)
-        return str(int(round(size_float)))
-    except:
-        return size_str
+    numeric_sizes.sort(key=lambda x: x[0])
+    return [size[1] for size in numeric_sizes] + sorted(string_sizes)
 
 # --- Загрузка данных (согласованная с главной страницей) ---
 @st.cache_data(show_spinner=False)
@@ -205,7 +177,7 @@ def main():
             st.switch_page("main.py")
     with col3:
         cart_count = len(st.session_state.cart) if 'cart' in st.session_state else 0
-        cart_text = f"🛒 Корзина ({cart_count})" if cart_count > 0 else "🛒 Корзина"
+        cart_text = f"Корзина ({cart_count})" if cart_count > 0 else "Корзина"
         if st.button(cart_text, use_container_width=True):
             st.switch_page("pages/3_Корзина.py")
 
@@ -369,10 +341,10 @@ def main():
                     
                     is_selected = selected_size == us_size
                     
-                    # Кнопка с размером и ценой
+                    # ФОРМАТ КНОПКИ: US 7 / EU 40
                     button_text = f"US {us_size}"
                     if eu_size:
-                        button_text += f"\nEU {eu_size}"
+                        button_text += f" / EU {eu_size}"
                     button_text += f"\n{int(price):,} ₸".replace(",", " ")
                     
                     if st.button(button_text, 
@@ -395,10 +367,10 @@ def main():
                 st.button("Выберите размер", disabled=True, use_container_width=True)
                 
         else:
-            st.warning("😔 Нет размеров в наличии")
+            st.warning("Нет размеров в наличии")
             st.info("Выберите другой цвет или проверьте позже")
 
-                        # --- Другие цвета этой модели ---
+        # --- Другие цвета этой модели ---
         other_colors = unique_colors[unique_colors["color"] != current_color]
         if not other_colors.empty:
             st.markdown("### Другие цвета")

@@ -21,32 +21,39 @@ def round_price(price):
         return price
 
 # --- Функции для изображений ---
-def get_image_path(image_names, images_path="data/images"):
+def get_image_path(image_names):
     """Ищет изображение по имени из колонки image"""
     if (image_names is pd.NA or 
         pd.isna(image_names) or 
         not image_names or 
         str(image_names).strip() == ""):
-        return os.path.join(images_path, "no_image.jpg")
+        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+        return fallback
     
     image_names_list = str(image_names).strip().split()
     if not image_names_list:
-        return os.path.join(images_path, "no_image.jpg")
+        fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+        return fallback
     
     first_image_name = image_names_list[0]
     
+    # Сначала ищем точное совпадение
     for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        pattern = os.path.join(images_path, "**", f"{first_image_name}{ext}")
+        pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
         image_files = glob.glob(pattern, recursive=True)
         if image_files:
             return image_files[0]
-        
-        pattern_start = os.path.join(images_path, "**", f"{first_image_name}*{ext}")
+    
+    # Затем ищем частичное совпадение (начинается с)
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
         image_files = glob.glob(pattern_start, recursive=True)
         if image_files:
             return image_files[0]
     
-    return os.path.join(images_path, "no_image.jpg")
+    # Если ничего не нашли, используем fallback
+    fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+    return fallback
 
 def get_image_base64(image_path):
     """Возвращает изображение в base64 для вставки в HTML"""
@@ -391,7 +398,7 @@ def main():
             st.warning("😔 Нет размеров в наличии")
             st.info("Выберите другой цвет или проверьте позже")
 
-        # --- Другие цвета этой модели ---
+                        # --- Другие цвета этой модели ---
         other_colors = unique_colors[unique_colors["color"] != current_color]
         if not other_colors.empty:
             st.markdown("### Другие цвета")
@@ -402,7 +409,6 @@ def main():
                 with color_cols[idx % 2]:
                     # Показываем уменьшенное изображение для цвета
                     img_path = get_image_path(variant["image"])
-                    image_base64 = get_image_base64(img_path)
                     
                     # Получаем минимальную цену для этого цвета (только размеры в наличии)
                     color_sizes = df[
@@ -421,25 +427,15 @@ def main():
                         # ОКРУГЛЯЕМ ЦЕНУ ДО ТЫСЯЧ
                         min_color_price = min(round_price(row['price']) for row in available_color_sizes)
                         
-                        # Карточка цвета
-                        st.markdown(
-                            f"""
-                            <div style="
-                                border: 1px solid #ddd;
-                                border-radius: 8px;
-                                padding: 6px;
-                                text-align: center;
-                                margin-bottom: 8px;
-                                background-color: white;
-                            ">
-                                <img src="data:image/jpeg;base64,{image_base64}" 
-                                     style="width:100%; border-radius:4px; height:80px; object-fit:cover;">
-                                <div style="margin-top:6px; font-weight:bold; font-size:12px;">{variant['color'].capitalize()}</div>
-                                <div style="font-size:11px; color:#666;">от {int(min_color_price):,} ₸</div>
-                            </div>
-                            """.replace(",", " "),
-                            unsafe_allow_html=True
-                        )
+                        # Используем встроенный Streamlit image вместо HTML
+                        try:
+                            st.image(img_path, use_container_width=True, caption=f"{variant['color'].capitalize()}")
+                        except Exception as e:
+                            st.error(f"Ошибка загрузки изображения: {e}")
+                            fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+                            st.image(fallback, use_container_width=True, caption=f"{variant['color'].capitalize()}")
+                        
+                        st.markdown(f"**от {int(min_color_price):,} ₸**".replace(",", " "))
                         
                         # Кнопка переключения на этот цвет
                         if st.button(f"Выбрать", key=f"color_{variant['color']}", use_container_width=True):
