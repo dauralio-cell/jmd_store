@@ -32,11 +32,13 @@ section.main > div:first-child {
 .stButton button {
     background-color: white !important;
     color: black !important;
-    border: 1px solid #e5e5e5 !important;
+    border: 2px solid #e5e5e5 !important;
     border-radius: 8px !important;
-    padding: 8px 16px !important;
+    padding: 10px 16px !important;
     font-weight: 500 !important;
     transition: all 0.3s ease !important;
+    margin-top: 10px !important;
+    margin-bottom: 5px !important;
 }
 
 .stButton button:hover {
@@ -44,7 +46,12 @@ section.main > div:first-child {
     border-color: #0077b6 !important;
     color: #0077b6 !important;
     transform: translateY(-1px) !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+/* Дополнительные отступы для разделения карточек */
+.product-card {
+    margin-bottom: 25px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -305,14 +312,14 @@ else:
                 
                 # Карточка товара
                 st.markdown(f"""
+                <div class="product-card">
                 <div style='
                     border: 1px solid #e5e5e5;
-                    border-radius: 12px;
+                    border-radius: 12px 12px 0 0;
                     padding: 0;
-                    margin-bottom: 10px;
                     background: #fff;
                     overflow: hidden;
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
                 '>
                     <img src="data:image/jpeg;base64,{image_base64}"
                          style='
@@ -323,25 +330,37 @@ else:
                             background: white;
                             padding: 10px;
                          '>
-                    <div style='padding: 15px;'>
+                    <div style='padding: 15px; padding-bottom: 20px;'>
                         <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
                         <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
                             {model} '{color}'
                         </div>
                         <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes}</div>
-                        <div style='font-size: 17px; font-weight: 700; color: #000; margin-bottom: 15px;'>{price_formatted}</div>
+                        <div style='font-size: 17px; font-weight: 700; color: #000;'>{price_formatted}</div>
                     </div>
+                </div>
+                
+                <!-- Отдельный блок для кнопки -->
+                <div style='
+                    background: white;
+                    border: 1px solid #e5e5e5;
+                    border-top: none;
+                    border-radius: 0 0 12px 12px;
+                    padding: 15px;
+                    margin-top: -1px;
+                '>
+                </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Белая кнопка "Подробнее" с отступом
-                if st.button("Подробнее", 
+                # Белая кнопка "Подробнее" с четким разделением
+                if st.button("📋 Подробнее", 
                             key=f"details_{row_idx}_{col_idx}_{hash(str(row['brand'])+str(row['model_clean'])+str(row['color']))}", 
                             use_container_width=True):
                     st.session_state.product_data = dict(row)
                     st.switch_page("pages/2_Детали_товара.py")
                 
-                # Больше пространства между карточками
+                # Пространство между карточками
                 st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 # --- ФУТЕР ---
