@@ -11,21 +11,28 @@ st.set_page_config(page_title="Детали товара - DENE Store", layout="
 # --- Стили для кнопок размеров ---
 st.markdown("""
 <style>
-/* Стили для кнопок размеров чтобы текст не переносился */
+/* Стили для кнопок размеров чтобы текст не переносился и не обрезался */
 .stButton button {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    padding: 10px 8px !important;
-    font-size: 13px !important;
-    line-height: 1.2 !important;
+    padding: 8px 4px !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
     height: auto !important;
-    min-height: 44px !important;
+    min-height: 36px !important;
+    max-width: 100% !important;
 }
 
 /* Убираем лишние отступы вокруг кнопок */
 .stButton {
-    margin-bottom: 4px !important;
+    margin-bottom: 2px !important;
+    padding: 0px !important;
+}
+
+/* Делаем колонки более компактными */
+[data-testid="column"] {
+    padding: 0px 4px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -380,9 +387,9 @@ def main():
                     
                     # ФОРМАТ КНОПКИ: US 7 / EU 40 - 45 000 ₸ (ВСЕ В ОДНУ СТРОКУ)
                     if eu_size:
-                        button_text = f"US {us_size} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
+                        button_text = f"US {us_size}/EU {eu_size} - {int(price):,}₸".replace(",", " ")
                     else:
-                        button_text = f"US {us_size} - {int(price):,} ₸".replace(",", " ")
+                        button_text = f"US {us_size} - {int(price):,}₸".replace(",", " ")
                     
                     if st.button(button_text, 
                                 key=f"size_{us_size}",
