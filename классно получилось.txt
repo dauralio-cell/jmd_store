@@ -343,10 +343,7 @@ else:
     image_path = get_image_path(image_names)
     image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
 
-    
-# --- ФУТЕР ---
-from components.documents import documents_footer
-documents_footer()# Карточка товара - полностью через HTML
+    # Карточка товара - полностью через HTML
 st.markdown(
     f"""
     <div style="margin: 0; padding: 0; border: none;">
@@ -373,3 +370,7 @@ st.markdown(
 if st.button("Подробнее", key=f"details_{row_idx}_{col_idx}", use_container_width=True):
     st.session_state.product_data = dict(row)
     st.switch_page("pages/2_Детали_товара.py")
+
+# --- ФУТЕР ---
+from components.documents import documents_footer
+documents_footer()
