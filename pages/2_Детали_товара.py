@@ -382,11 +382,11 @@ def main():
                 
                 is_selected = selected_size == us_size
                 
-                # ЭЛЕГАНТНЫЙ ФОРМАТ для премиум магазина
+                # ЭЛЕГАНТНЫЙ ФОРМАТ: US 7 / EU 40 - 45 000 ₸
                 if eu_size:
-                    button_text = f"US {us_size} • EU {eu_size} • {int(price):,} ₸".replace(",", " ")
+                    button_text = f"US {us_size} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
                 else:
-                    button_text = f"US {us_size} • {int(price):,} ₸".replace(",", " ")
+                    button_text = f"US {us_size} - {int(price):,} ₸".replace(",", " ")
                 
                 if st.button(button_text, 
                             key=f"size_{us_size}",
@@ -401,7 +401,7 @@ def main():
             # Кнопка добавления в корзину
             if st.session_state.selected_size:
                 selected_price = st.session_state.selected_price
-                button_text = f"Добавить в корзину — {int(selected_price):,} ₸".replace(",", " ")
+                button_text = f"Добавить в корзину - {int(selected_price):,} ₸".replace(",", " ")
                 if st.button(button_text, type="primary", use_container_width=True):
                     add_to_cart(current_color_data, st.session_state.selected_size, selected_price)
             else:
