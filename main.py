@@ -43,8 +43,8 @@ section.main > div:first-child {
 
 .stButton button:hover {
     background-color: #f8f9fa !important;
-    border-color: #0077b6 !important;
-    color: #0077b6 !important;
+    border-color: #000000 !important;  /* Изменил с #0077b6 на #000000 */
+    color: #000000 !important;         /* Изменил с #0077b6 на #000000 */
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
 }
