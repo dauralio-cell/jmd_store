@@ -8,33 +8,48 @@ import base64
 # --- Настройки страницы ---
 st.set_page_config(page_title="Детали товара - DENE Store", layout="wide")
 
-# --- Стили для кнопок размеров ---
+# --- Премиум стили для кнопок размеров ---
 st.markdown("""
 <style>
-/* Стили для кнопок размеров - автоматическая ширина */
+/* Элегантные стили для премиум магазина */
 .stButton button {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    padding: 8px 6px !important;
-    font-size: 11px !important;
-    line-height: 1.1 !important;
+    padding: 10px 8px !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
     height: auto !important;
-    min-height: 36px !important;
+    min-height: 44px !important;
     width: 100% !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+    font-weight: 500 !important;
 }
 
-/* Убираем лишние отступы вокруг кнопок */
-.stButton {
-    margin-bottom: 2px !important;
-    padding: 0px !important;
-    width: 100% !important;
+.stButton button:hover {
+    border-color: #000 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
 }
 
-/* Автоматическая ширина колонок */
+.stButton button[kind="primary"] {
+    background-color: #000 !important;
+    color: white !important;
+    border-color: #000 !important;
+}
+
+/* Более широкие колонки */
 [data-testid="column"] {
-    padding: 0px 4px !important;
-    width: 100% !important;
+    padding: 0px 6px !important;
+}
+
+/* Красивое оформление цен */
+.price-tag {
+    font-weight: 600;
+    color: #000;
+    margin-left: 4px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -127,24 +142,6 @@ def get_eu_size(us_size):
     
     # Если не нашли, возвращаем пустую строку
     return ""
-
-# --- Функция сортировки размеров ---
-def sort_sizes(size_list):
-    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
-    numeric_sizes = []
-    string_sizes = []
-    
-    for size in size_list:
-        clean_size = str(size).strip()
-        try:
-            # Пробуем преобразовать в число
-            base_num = float(clean_size)
-            numeric_sizes.append((base_num, clean_size))
-        except:
-            string_sizes.append(clean_size)
-    
-    numeric_sizes.sort(key=lambda x: x[0])
-    return [size[1] for size in numeric_sizes] + sorted(string_sizes)
 
 # --- Загрузка данных (согласованная с главной страницей) ---
 @st.cache_data(show_spinner=False)
@@ -375,38 +372,36 @@ def main():
             if 'selected_price' not in st.session_state:
                 st.session_state.selected_price = None
             
-            # Сетка размеров 2 колонки
-            cols = st.columns(2)
+            # ОДНА КОЛОНКА для максимальной ширины
             selected_size = st.session_state.selected_size
             
             for idx, size_data in enumerate(sorted_sizes):
-                with cols[idx % 2]:
-                    us_size = size_data['us_size']
-                    eu_size = size_data['eu_size']
-                    price = size_data['price']
-                    
-                    is_selected = selected_size == us_size
-                    
-                    # ФОРМАТ КНОПКИ: US 7 / EU 40 - 45 000 ₸ (ВСЕ В ОДНУ СТРОКУ)
-                    if eu_size:
-                        button_text = f"US {us_size}/EU {eu_size} - {int(price):,}₸".replace(",", " ")
-                    else:
-                        button_text = f"US {us_size} - {int(price):,}₸".replace(",", " ")
-                    
-                    if st.button(button_text, 
-                                key=f"size_{us_size}",
-                                use_container_width=True,
-                                type="primary" if is_selected else "secondary"):
-                        st.session_state.selected_size = us_size
-                        st.session_state.selected_price = price
-                        st.rerun()
+                us_size = size_data['us_size']
+                eu_size = size_data['eu_size']
+                price = size_data['price']
+                
+                is_selected = selected_size == us_size
+                
+                # ЭЛЕГАНТНЫЙ ФОРМАТ для премиум магазина
+                if eu_size:
+                    button_text = f"US {us_size} • EU {eu_size} • {int(price):,} ₸".replace(",", " ")
+                else:
+                    button_text = f"US {us_size} • {int(price):,} ₸".replace(",", " ")
+                
+                if st.button(button_text, 
+                            key=f"size_{us_size}",
+                            use_container_width=True,
+                            type="primary" if is_selected else "secondary"):
+                    st.session_state.selected_size = us_size
+                    st.session_state.selected_price = price
+                    st.rerun()
             
             st.markdown("<br>", unsafe_allow_html=True)
             
             # Кнопка добавления в корзину
             if st.session_state.selected_size:
                 selected_price = st.session_state.selected_price
-                button_text = f"Добавить в корзину - {int(selected_price):,} ₸".replace(",", " ")
+                button_text = f"Добавить в корзину — {int(selected_price):,} ₸".replace(",", " ")
                 if st.button(button_text, type="primary", use_container_width=True):
                     add_to_cart(current_color_data, st.session_state.selected_size, selected_price)
             else:
