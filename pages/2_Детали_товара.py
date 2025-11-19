@@ -130,7 +130,11 @@ def get_eu_size_from_catalog(us_size, brand, model_clean, color, df):
     if not catalog_entry.empty and 'size EU' in catalog_entry.columns:
         eu_size = catalog_entry.iloc[0]['size EU']
         if pd.notna(eu_size) and str(eu_size).strip() != "":
-            return str(eu_size).strip()
+            eu_size_str = str(eu_size).strip()
+            # Убираем .0 для целых чисел в EU размере
+            if eu_size_str.endswith('.0'):
+                eu_size_str = eu_size_str[:-2]
+            return eu_size_str
     
     # Если в каталоге не нашли, используем нашу таблицу конверсии
     return get_eu_size_fallback(us_size_clean)
@@ -142,23 +146,22 @@ def get_eu_size_fallback(us_size):
         "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
         "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
         "11": "44", "12": "45", "13": "46",
-        "3.5": "35.5", "4.0": "37", "4.5": "36.5", "5.0": "37.5", 
-        "5.5": "38", "6.0": "38.5", "6.5": "39", "7.0": "40", 
-        "7.5": "40.5", "8.0": "41", "8.5": "42", "9.0": "42.5", 
-        "9.5": "43", "10.0": "44", "10.5": "44.5", "11.0": "44.5"
+        "3.5": "35.5", "4": "37", "4.5": "36.5", "5": "37.5", 
+        "5.5": "38", "6": "38.5", "6.5": "39", "7": "40", 
+        "7.5": "40.5", "8": "41", "8.5": "42", "9": "42.5", 
+        "9.5": "43", "10": "44", "10.5": "44.5", "11": "44.5"
     }
     
     us_size_clean = str(us_size).strip()
     
-    # Сначала ищем точное совпадение
-    if us_size_clean in size_conversion:
-        return size_conversion[us_size_clean]
-    
-    # Пробуем убрать .0 для целых чисел
+    # Убираем .0 для целых чисел
     if us_size_clean.endswith('.0'):
-        base_size = us_size_clean[:-2]
-        if base_size in size_conversion:
-            return size_conversion[base_size]
+        us_size_clean = us_size_clean[:-2]
+    
+    # Ищем точное совпадение
+    if us_size_clean in size_conversion:
+        eu_size = size_conversion[us_size_clean]
+        return eu_size
     
     # Если не нашли, возвращаем пустую строку
     return ""
@@ -402,13 +405,19 @@ def main():
                 eu_size = size_data['eu_size']
                 price = size_data['price']
                 
+                # Убираем .0 для целых чисел в US размере
+                if us_size.endswith('.0'):
+                    us_size_display = us_size[:-2]
+                else:
+                    us_size_display = us_size
+                
                 is_selected = selected_size == us_size
                 
                 # ЭЛЕГАНТНЫЙ ФОРМАТ: US 7 / EU 40 - 45 000 ₸
                 if eu_size:
-                    button_text = f"US {us_size} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
+                    button_text = f"US {us_size_display} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
                 else:
-                    button_text = f"US {us_size} - {int(price):,} ₸".replace(",", " ")
+                    button_text = f"US {us_size_display} - {int(price):,} ₸".replace(",", " ")
                 
                 if st.button(button_text, 
                             key=f"size_{us_size}",
