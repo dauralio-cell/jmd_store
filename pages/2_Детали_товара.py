@@ -111,22 +111,42 @@ def get_image_base64(image_path):
         with open(fallback, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode("utf-8")
 
-# --- Таблица конверсии размеров US ↔ EU ---
-size_conversion = {
-    "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
-    "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
-    "11": "44", "12": "45", "13": "46",
-    "4.0": "37", "5.0": "38", "6.0": "39", "7.0": "40", "7.5": "40.5", 
-    "8.0": "41", "8.5": "42", "9.0": "42.5", "9.5": "43", 
-    "10.0": "43.5", "10.5": "44", "11.0": "44.5", "11.5": "45", 
-    "12.0": "45.5", "12.5": "46"
-}
-
-# --- Функция для получения EU размеров ---
-def get_eu_size(us_size):
-    """Конвертирует один US размер в EU размер"""
+# --- Функция для получения EU размеров ИЗ КАТАЛОГА ---
+def get_eu_size_from_catalog(us_size, brand, model_clean, color, df):
+    """Ищет EU размер в каталоге, если не находит - использует конверсию"""
     if not us_size or us_size == "" or us_size == "nan":
         return ""
+    
+    us_size_clean = str(us_size).strip()
+    
+    # Сначала ищем в каталоге точное совпадение
+    catalog_entry = df[
+        (df["brand"] == brand) & 
+        (df["model_clean"] == model_clean) & 
+        (df["color"] == color) & 
+        (df["size US"] == us_size_clean)
+    ]
+    
+    if not catalog_entry.empty and 'size EU' in catalog_entry.columns:
+        eu_size = catalog_entry.iloc[0]['size EU']
+        if pd.notna(eu_size) and str(eu_size).strip() != "":
+            return str(eu_size).strip()
+    
+    # Если в каталоге не нашли, используем нашу таблицу конверсии
+    return get_eu_size_fallback(us_size_clean)
+
+# --- Фолбэк таблица конверсии размеров US ↔ EU ---
+def get_eu_size_fallback(us_size):
+    """Конвертирует US размер в EU размер (используется если в каталоге нет данных)"""
+    size_conversion = {
+        "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
+        "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
+        "11": "44", "12": "45", "13": "46",
+        "3.5": "35.5", "4.0": "37", "4.5": "36.5", "5.0": "37.5", 
+        "5.5": "38", "6.0": "38.5", "6.5": "39", "7.0": "40", 
+        "7.5": "40.5", "8.0": "41", "8.5": "42", "9.0": "42.5", 
+        "9.5": "43", "10.0": "44", "10.5": "44.5", "11.0": "44.5"
+    }
     
     us_size_clean = str(us_size).strip()
     
@@ -257,7 +277,9 @@ def main():
             
             available_sizes.append({
                 'us_size': us_size,
-                'eu_size': get_eu_size(us_size),
+                'eu_size': get_eu_size_from_catalog(us_size, product_data["brand"], 
+                                                   product_data["model_clean"], 
+                                                   product_data["color"], df),
                 'price': rounded_price,
                 'in_stock': in_stock
             })

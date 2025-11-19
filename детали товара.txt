@@ -8,6 +8,52 @@ import base64
 # --- Настройки страницы ---
 st.set_page_config(page_title="Детали товара - DENE Store", layout="wide")
 
+# --- Премиум стили для кнопок размеров ---
+st.markdown("""
+<style>
+/* Элегантные стили для премиум магазина */
+.stButton button {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 10px 8px !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    height: auto !important;
+    min-height: 44px !important;
+    width: 100% !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
+    font-weight: 500 !important;
+}
+
+.stButton button:hover {
+    border-color: #000 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+.stButton button[kind="primary"] {
+    background-color: #000 !important;
+    color: white !important;
+    border-color: #000 !important;
+}
+
+/* Более широкие колонки */
+[data-testid="column"] {
+    padding: 0px 6px !important;
+}
+
+/* Красивое оформление цен */
+.price-tag {
+    font-weight: 600;
+    color: #000;
+    margin-left: 4px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # --- Пути ---
 CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_PATH = "data/images"
@@ -69,64 +115,33 @@ def get_image_base64(image_path):
 size_conversion = {
     "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
     "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
-    "11": "44", "12": "45", "13": "46"
+    "11": "44", "12": "45", "13": "46",
+    "4.0": "37", "5.0": "38", "6.0": "39", "7.0": "40", "7.5": "40.5", 
+    "8.0": "41", "8.5": "42", "9.0": "42.5", "9.5": "43", 
+    "10.0": "43.5", "10.5": "44", "11.0": "44.5", "11.5": "45", 
+    "12.0": "45.5", "12.5": "46"
 }
 
 # --- Функция для получения EU размеров ---
 def get_eu_size(us_size):
     """Конвертирует один US размер в EU размер"""
-    if not us_size or us_size == "":
-        return ""
-    return size_conversion.get(str(us_size).strip(), "")
-
-# --- Функция сортировки размеров ---
-def sort_sizes(size_list):
-    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
-    numeric_sizes = []
-    string_sizes = []
-    
-    for size in size_list:
-        clean_size = str(size).strip()
-        if clean_size.replace('.', '').isdigit():
-            numeric_sizes.append(float(clean_size))
-        else:
-            string_sizes.append(clean_size)
-    
-    numeric_sizes.sort()
-    string_sizes.sort()
-    
-    return [str(int(x) if x.is_integer() else x) for x in numeric_sizes] + string_sizes
-
-# --- Функция для нормализации дробных размеров ---
-def normalize_size(size_str):
-    """Приводит дробные размеры к ближайшему целому"""
-    if not size_str or pd.isna(size_str):
+    if not us_size or us_size == "" or us_size == "nan":
         return ""
     
-    size_str = str(size_str).strip()
+    us_size_clean = str(us_size).strip()
     
-    # Обрабатываем дробные размеры типа "42 1/3"
-    if '/' in size_str:
-        # Разделяем целую и дробную части
-        parts = size_str.split()
-        if len(parts) == 2 and '/' in parts[1]:
-            try:
-                whole_part = float(parts[0])
-                fraction_part = parts[1]
-                # Преобразуем дробь в десятичное число
-                if fraction_part == '1/3':
-                    return str(int(whole_part))  # 42 1/3 -> 42
-                elif fraction_part == '2/3':
-                    return str(int(whole_part) + 1)  # 42 2/3 -> 43
-            except:
-                return size_str
+    # Сначала ищем точное совпадение
+    if us_size_clean in size_conversion:
+        return size_conversion[us_size_clean]
     
-    # Обрабатываем десятичные дроби
-    try:
-        size_float = float(size_str)
-        return str(int(round(size_float)))
-    except:
-        return size_str
+    # Пробуем убрать .0 для целых чисел
+    if us_size_clean.endswith('.0'):
+        base_size = us_size_clean[:-2]
+        if base_size in size_conversion:
+            return size_conversion[base_size]
+    
+    # Если не нашли, возвращаем пустую строку
+    return ""
 
 # --- Загрузка данных (согласованная с главной страницей) ---
 @st.cache_data(show_spinner=False)
@@ -205,7 +220,7 @@ def main():
             st.switch_page("main.py")
     with col3:
         cart_count = len(st.session_state.cart) if 'cart' in st.session_state else 0
-        cart_text = f"🛒 Корзина ({cart_count})" if cart_count > 0 else "🛒 Корзина"
+        cart_text = f"Корзина ({cart_count})" if cart_count > 0 else "Корзина"
         if st.button(cart_text, use_container_width=True):
             st.switch_page("pages/3_Корзина.py")
 
@@ -357,31 +372,29 @@ def main():
             if 'selected_price' not in st.session_state:
                 st.session_state.selected_price = None
             
-            # Сетка размеров 2 колонки с ценами
-            cols = st.columns(2)
+            # ОДНА КОЛОНКА для максимальной ширины
             selected_size = st.session_state.selected_size
             
             for idx, size_data in enumerate(sorted_sizes):
-                with cols[idx % 2]:
-                    us_size = size_data['us_size']
-                    eu_size = size_data['eu_size']
-                    price = size_data['price']
-                    
-                    is_selected = selected_size == us_size
-                    
-                    # Кнопка с размером и ценой
-                    button_text = f"US {us_size}"
-                    if eu_size:
-                        button_text += f"\nEU {eu_size}"
-                    button_text += f"\n{int(price):,} ₸".replace(",", " ")
-                    
-                    if st.button(button_text, 
-                                key=f"size_{us_size}",
-                                use_container_width=True,
-                                type="primary" if is_selected else "secondary"):
-                        st.session_state.selected_size = us_size
-                        st.session_state.selected_price = price
-                        st.rerun()
+                us_size = size_data['us_size']
+                eu_size = size_data['eu_size']
+                price = size_data['price']
+                
+                is_selected = selected_size == us_size
+                
+                # ЭЛЕГАНТНЫЙ ФОРМАТ: US 7 / EU 40 - 45 000 ₸
+                if eu_size:
+                    button_text = f"US {us_size} / EU {eu_size} - {int(price):,} ₸".replace(",", " ")
+                else:
+                    button_text = f"US {us_size} - {int(price):,} ₸".replace(",", " ")
+                
+                if st.button(button_text, 
+                            key=f"size_{us_size}",
+                            use_container_width=True,
+                            type="primary" if is_selected else "secondary"):
+                    st.session_state.selected_size = us_size
+                    st.session_state.selected_price = price
+                    st.rerun()
             
             st.markdown("<br>", unsafe_allow_html=True)
             
@@ -395,10 +408,10 @@ def main():
                 st.button("Выберите размер", disabled=True, use_container_width=True)
                 
         else:
-            st.warning("😔 Нет размеров в наличии")
+            st.warning("Нет размеров в наличии")
             st.info("Выберите другой цвет или проверьте позже")
 
-                        # --- Другие цвета этой модели ---
+        # --- Другие цвета этой модели ---
         other_colors = unique_colors[unique_colors["color"] != current_color]
         if not other_colors.empty:
             st.markdown("### Другие цвета")
