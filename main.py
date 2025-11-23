@@ -141,26 +141,40 @@ size_conversion = {
     "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
     "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
     "11": "44", "12": "45", "13": "46",
-    "7.0": "40", "7.5": "40.5", "8.0": "41", "8.5": "42", 
-    "9.0": "42.5", "9.5": "43", "10.0": "43.5", "10.5": "44",
-    "11.0": "44.5", "11.5": "45", "12.0": "45.5", "12.5": "46"
+    "3.5": "35.5", "4": "37", "4.5": "36.5", "5": "37.5", 
+    "5.5": "38", "6": "38.5", "6.5": "39", "7": "40", 
+    "7.5": "40.5", "8": "41", "8.5": "42", "9": "42.5", 
+    "9.5": "43", "10": "44", "10.5": "44.5", "11": "44.5"
 }
 
 def get_eu_sizes(us_sizes_str):
     if not us_sizes_str or us_sizes_str == "":
         return ""
+    
     us_sizes = [size.strip() for size in us_sizes_str.split(",")]
     eu_sizes = []
+    
     for us_size in us_sizes:
-        eu_size = size_conversion.get(us_size, "")
+        # Убираем .0 для целых чисел
+        us_size_clean = us_size
+        if us_size.endswith('.0'):
+            us_size_clean = us_size[:-2]
+        
+        # Ищем в таблице конверсии
+        eu_size = size_conversion.get(us_size_clean, "")
         if not eu_size:
+            # Если не нашли, пробуем найти базовый размер
             base_size = us_size.split('.')[0]
             eu_size = size_conversion.get(base_size, us_size)
+        
         eu_sizes.append(eu_size)
+    
+    # Убираем дубликаты и возвращаем
     unique_eu_sizes = []
     for size in eu_sizes:
         if size not in unique_eu_sizes:
             unique_eu_sizes.append(size)
+    
     return " ".join(unique_eu_sizes)
 
 def sort_sizes(size_list):
