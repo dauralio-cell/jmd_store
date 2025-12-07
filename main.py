@@ -43,8 +43,8 @@ section.main > div:first-child {
 
 .stButton button:hover {
     background-color: #f8f9fa !important;
-    border-color: #000000 !important;
-    color: #000000 !important;
+    border-color: #0077b6 !important;
+    color: #0077b6 !important;
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
 }
@@ -85,6 +85,33 @@ def format_price(price):
     except (ValueError, TypeError):
         return "0 ₸"
 
+# --- Функция получения минимальной цены для товара ---
+def get_min_price_for_product(df, brand, model, color):
+    """Возвращает минимальную цену из доступных размеров товара"""
+    try:
+        # Находим все строки с этим товаром
+        product_rows = df[
+            (df['brand'] == brand) & 
+            (df['model_clean'] == model) & 
+            (df['color'] == color)
+        ]
+        
+        # Фильтруем только те, что в наличии
+        in_stock_rows = product_rows[
+            product_rows.get('in stock', 'yes').str.lower() == 'yes'
+        ]
+        
+        if len(in_stock_rows) == 0:
+            return None
+        
+        # Находим минимальную цену
+        min_price = in_stock_rows['price'].min()
+        
+        # Округляем до тысяч
+        return round(float(min_price) / 1000) * 1000
+    except:
+        return None
+
 # --- Функции для работы с изображениями ---
 def optimize_image_for_telegram(image_path, target_size=(400, 400)):
     try:
@@ -92,13 +119,17 @@ def optimize_image_for_telegram(image_path, target_size=(400, 400)):
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
             
+            # Сохраняем пропорции изображения
             img.thumbnail(target_size, Image.Resampling.LANCZOS)
             
+            # Создаем новое изображение с белым фоном
             new_img = Image.new('RGB', target_size, (255, 255, 255))
             
+            # Вычисляем позицию для центрирования
             x = (target_size[0] - img.size[0]) // 2
             y = (target_size[1] - img.size[1]) // 2
             
+            # Вставляем изображение по центру
             new_img.paste(img, (x, y))
             
             buffer = io.BytesIO()
@@ -132,24 +163,32 @@ def get_image_path(image_names):
             return image_files[0]
     return os.path.join(IMAGES_PATH, "no_image.jpg")
 
-# --- Функция для получения EU размеров из каталога ---
-def get_eu_sizes_from_catalog(group_df):
-    """Берет EU размеры прямо из каталога, только те что в наличии"""
+# --- Таблица конверсии размеров US ↔ EU ---
+size_conversion = {
+    "1": "34", "2": "35", "3": "36", "4": "37", "5": "38",
+    "6": "39", "7": "40", "8": "41", "9": "42", "10": "43",
+    "11": "44", "12": "45", "13": "46",
+    "7.0": "40", "7.5": "40.5", "8.0": "41", "8.5": "42", 
+    "9.0": "42.5", "9.5": "43", "10.0": "43.5", "10.5": "44",
+    "11.0": "44.5", "11.5": "45", "12.0": "45.5", "12.5": "46"
+}
+
+def get_eu_sizes(us_sizes_str):
+    if not us_sizes_str or us_sizes_str == "":
+        return ""
+    us_sizes = [size.strip() for size in us_sizes_str.split(",")]
     eu_sizes = []
-    for _, row in group_df.iterrows():
-        # Проверяем что товар в наличии
-        in_stock = str(row.get('in stock', 'yes')).strip().lower()
-        if in_stock != 'yes':
-            continue
-            
-        if 'size EU' in row and pd.notna(row['size EU']) and str(row['size EU']).strip() != "":
-            eu_size = str(row['size EU']).strip()
-            # Убираем .0 для целых чисел
-            if eu_size.endswith('.0'):
-                eu_size = eu_size[:-2]
-            if eu_size not in eu_sizes:
-                eu_sizes.append(eu_size)
-    return " ".join(eu_sizes) if eu_sizes else "Нет в наличии"
+    for us_size in us_sizes:
+        eu_size = size_conversion.get(us_size, "")
+        if not eu_size:
+            base_size = us_size.split('.')[0]
+            eu_size = size_conversion.get(base_size, us_size)
+        eu_sizes.append(eu_size)
+    unique_eu_sizes = []
+    for size in eu_sizes:
+        if size not in unique_eu_sizes:
+            unique_eu_sizes.append(size)
+    return " ".join(unique_eu_sizes)
 
 def sort_sizes(size_list):
     numeric_sizes = []
@@ -174,28 +213,12 @@ def get_available_sizes_for_filter(df):
             continue
         try:
             base_num = float(clean_size)
-            # Изменяем диапазон с 3.5
-            if 3.5 <= base_num <= 11:
-                # Убираем .0 для отображения
-                if clean_size.endswith('.0'):
-                    clean_size = clean_size[:-2]
+            if 5 <= base_num <= 11:
                 filtered_sizes.append(clean_size)
         except:
             continue
     unique_sizes = list(dict.fromkeys(filtered_sizes))
     return sort_sizes(unique_sizes)
-
-def get_available_eu_sizes_for_filter(df):
-    in_stock_df = df[df.get('in stock', 'yes').str.lower() == 'yes']
-    all_eu_sizes = []
-    for _, row in in_stock_df.iterrows():
-        if 'size EU' in row and pd.notna(row['size EU']) and str(row['size EU']).strip() != "":
-            eu_size = str(row['size EU']).strip()
-            if eu_size.endswith('.0'):
-                eu_size = eu_size[:-2]
-            if eu_size not in all_eu_sizes:
-                all_eu_sizes.append(eu_size)
-    return sorted(all_eu_sizes)
 
 @st.cache_data(ttl=60)
 def load_data():
@@ -234,7 +257,7 @@ st.sidebar.write("Уникальные модели:", df["model_clean"].nunique
 st.divider()
 st.markdown("### Фильтр каталога")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5 = st.columns(5)
 
 brand_filter = col1.selectbox("Бренд", ["Все"] + sorted(df["brand"].unique().tolist()))
 if brand_filter != "Все":
@@ -242,15 +265,10 @@ if brand_filter != "Все":
 else:
     brand_models = sorted(df["model_clean"].unique().tolist())
 model_filter = col2.selectbox("Модель", ["Все"] + brand_models)
-
 available_sizes = get_available_sizes_for_filter(df)
 size_filter = col3.selectbox("Размер (US)", ["Все"] + available_sizes)
-
-available_eu_sizes = get_available_eu_sizes_for_filter(df)
-eu_size_filter = col4.selectbox("Размер (EU)", ["Все"] + available_eu_sizes)
-
-gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col6.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+gender_filter = col4.selectbox("Пол", ["Все", "men", "women", "unisex"])
+color_filter = col5.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
 
 filtered_df = df.copy()
 if brand_filter != "Все":
@@ -259,8 +277,6 @@ if model_filter != "Все":
     filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
 if size_filter != "Все":
     filtered_df = filtered_df[filtered_df["size US"] == size_filter]
-if eu_size_filter != "Все":
-    filtered_df = filtered_df[filtered_df['size EU'] == eu_size_filter]
 if gender_filter != "Все":
     filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
 if color_filter != "Все":
@@ -295,28 +311,19 @@ else:
         available_sizes = []
         for _, row in group.iterrows():
             us_size = str(row['size US']).strip()
-            # Проверяем наличие товара
             in_stock = str(row.get('in stock', 'yes')).strip().lower()
             if us_size and us_size != "nan" and in_stock == 'yes':
-                # Убираем .0 для отображения
-                if us_size.endswith('.0'):
-                    us_size = us_size[:-2]
                 available_sizes.append(us_size)
         unique_sizes = list(dict.fromkeys(available_sizes))
-        return ', '.join(sort_sizes(unique_sizes)) if unique_sizes else "Нет в наличии"
+        return ', '.join(sort_sizes(unique_sizes))
 
     size_groups = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_available_sizes, include_groups=False).reset_index()
     size_groups.columns = ['brand', 'model_clean', 'color', 'size US']
 
-    # Получаем EU размеры прямо из каталога
-    eu_size_groups = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_eu_sizes_from_catalog, include_groups=False).reset_index()
-    eu_size_groups.columns = ['brand', 'model_clean', 'color', 'size_eu']
-
     grouped_df = grouped_df.merge(size_groups, on=['brand', 'model_clean', 'color'], suffixes=('', '_grouped'))
     grouped_df['size US'] = grouped_df['size US_grouped']
     grouped_df = grouped_df.drop('size US_grouped', axis=1)
-    
-    grouped_df = grouped_df.merge(eu_size_groups, on=['brand', 'model_clean', 'color'])
+    grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
 
     # --- Отображение карточек товаров ---
     num_cols = 3
@@ -332,8 +339,20 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
                 
-                # Форматирование данных с округлением цены
-                price_formatted = format_price(row['price'])
+                # Получаем минимальную цену для этого товара
+                min_price = get_min_price_for_product(
+                    df, 
+                    row['brand'], 
+                    row['model_clean'], 
+                    row['color']
+                )
+                
+                # Форматирование данных
+                if min_price is not None:
+                    price_formatted = f"от {int(min_price):,} ₸".replace(",", " ")
+                else:
+                    price_formatted = "Нет в наличии"
+                    
                 brand = str(row['brand'])
                 model = str(row['model_clean'])
                 color = str(row['color'])
@@ -390,7 +409,7 @@ else:
                     st.switch_page("pages/2_Детали_товара.py")
                 
                 # Пространство между карточками
-                st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
 # --- ФУТЕР ---
 from components.documents import documents_footer

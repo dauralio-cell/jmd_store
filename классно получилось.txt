@@ -134,9 +134,14 @@ def get_image_path(image_names):
 
 # --- Функция для получения EU размеров из каталога ---
 def get_eu_sizes_from_catalog(group_df):
-    """Берет EU размеры прямо из каталога"""
+    """Берет EU размеры прямо из каталога, только те что в наличии"""
     eu_sizes = []
     for _, row in group_df.iterrows():
+        # Проверяем что товар в наличии
+        in_stock = str(row.get('in stock', 'yes')).strip().lower()
+        if in_stock != 'yes':
+            continue
+            
         if 'size EU' in row and pd.notna(row['size EU']) and str(row['size EU']).strip() != "":
             eu_size = str(row['size EU']).strip()
             # Убираем .0 для целых чисел
@@ -144,7 +149,7 @@ def get_eu_sizes_from_catalog(group_df):
                 eu_size = eu_size[:-2]
             if eu_size not in eu_sizes:
                 eu_sizes.append(eu_size)
-    return " ".join(eu_sizes) if eu_sizes else ""
+    return " ".join(eu_sizes) if eu_sizes else "Нет в наличии"
 
 def sort_sizes(size_list):
     numeric_sizes = []
@@ -290,6 +295,7 @@ else:
         available_sizes = []
         for _, row in group.iterrows():
             us_size = str(row['size US']).strip()
+            # Проверяем наличие товара
             in_stock = str(row.get('in stock', 'yes')).strip().lower()
             if us_size and us_size != "nan" and in_stock == 'yes':
                 # Убираем .0 для отображения
@@ -297,7 +303,7 @@ else:
                     us_size = us_size[:-2]
                 available_sizes.append(us_size)
         unique_sizes = list(dict.fromkeys(available_sizes))
-        return ', '.join(sort_sizes(unique_sizes))
+        return ', '.join(sort_sizes(unique_sizes)) if unique_sizes else "Нет в наличии"
 
     size_groups = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_available_sizes, include_groups=False).reset_index()
     size_groups.columns = ['brand', 'model_clean', 'color', 'size US']
