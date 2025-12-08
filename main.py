@@ -85,10 +85,35 @@ def format_price(price):
     except (ValueError, TypeError):
         return "0 ₸"
 
+# --- Функция проверки наличия товара ---
+def is_product_in_stock(df, brand, model, color):
+    """Проверяет, есть ли хотя бы один размер товара в наличии"""
+    try:
+        product_rows = df[
+            (df['brand'] == brand) & 
+            (df['model_clean'] == model) & 
+            (df['color'] == color)
+        ]
+        
+        for _, row in product_rows.iterrows():
+            us_size = str(row['size US']).strip()
+            in_stock = str(row.get('in stock', 'yes')).strip().lower()
+            
+            if us_size and us_size != "nan" and us_size != "" and in_stock == 'yes':
+                return True
+        
+        return False
+    except:
+        return False
+
 # --- Функция получения минимальной цены для товара ---
 def get_min_price_for_product(df, brand, model, color):
     """Возвращает минимальную цену из доступных размеров товара"""
     try:
+        # Сначала проверяем наличие
+        if not is_product_in_stock(df, brand, model, color):
+            return None
+        
         # Находим все строки с этим товаром
         product_rows = df[
             (df['brand'] == brand) & 
@@ -96,26 +121,29 @@ def get_min_price_for_product(df, brand, model, color):
             (df['color'] == color)
         ]
         
-        # Фильтруем только те, что в наличии (ВАЖНО: проверяем ВСЕ строки)
-        # Если хоть одна строка с этим товаром имеет 'in stock' = 'yes', то товар в наличии
-        has_any_in_stock = False
-        min_price = float('inf')
+        min_price = None
         
         for _, row in product_rows.iterrows():
+            us_size = str(row['size US']).strip()
             in_stock = str(row.get('in stock', 'yes')).strip().lower()
-            if in_stock == 'yes':
-                has_any_in_stock = True
-                price = float(row['price'])
-                if price < min_price:
-                    min_price = price
+            price_str = str(row['price']).strip()
+            
+            # Проверяем наличие
+            if us_size and us_size != "nan" and us_size != "" and in_stock == 'yes':
+                try:
+                    if price_str and price_str != "nan" and price_str != "":
+                        price = float(price_str)
+                        if min_price is None or price < min_price:
+                            min_price = price
+                except ValueError:
+                    continue
         
-        if not has_any_in_stock:
+        if min_price is None:
             return None
         
         # Округляем до тысяч
         return round(min_price / 1000) * 1000
     except Exception as e:
-        st.sidebar.write(f"Ошибка в get_min_price_for_product: {e}")
         return None
 
 # --- Функции для работы с изображениями ---
@@ -345,6 +373,14 @@ else:
                 image_path = get_image_path(image_names)
                 image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
                 
+                # Проверяем наличие товара
+                is_in_stock = is_product_in_stock(
+                    df, 
+                    row['brand'], 
+                    row['model_clean'], 
+                    row['color']
+                )
+                
                 # Получаем минимальную цену для этого товара
                 min_price = get_min_price_for_product(
                     df, 
@@ -354,8 +390,10 @@ else:
                 )
                 
                 # Форматирование данных
-                if min_price is not None:
+                if is_in_stock and min_price is not None:
                     price_formatted = f"от {int(min_price):,} ₸".replace(",", " ")
+                elif is_in_stock:
+                    price_formatted = "В наличии"  # если есть в наличии, но цена не найдена
                 else:
                     price_formatted = "Нет в наличии"
                     
