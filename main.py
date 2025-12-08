@@ -28,11 +28,11 @@ section.main > div:first-child {
     gap: 0rem;
 }
 
-/* Стили для белой кнопки с ЧЕРНЫМ контуром */
+/* Стили для белой кнопки - контур как раньше, при наведении черный */
 .stButton button {
     background-color: white !important;
     color: black !important;
-    border: 2px solid #000000 !important; /* ЧЕРНЫЙ контур */
+    border: 2px solid #e5e5e5 !important; /* Серый контур как раньше */
     border-radius: 8px !important;
     padding: 10px 16px !important;
     font-weight: 500 !important;
@@ -43,8 +43,8 @@ section.main > div:first-child {
 
 .stButton button:hover {
     background-color: #f8f9fa !important;
-    border-color: #333333 !important; /* Темнее при наведении */
-    color: #333333 !important;
+    border-color: #000000 !important; /* ЧЕРНЫЙ контур при наведении */
+    color: #000000 !important;
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
 }
@@ -96,20 +96,26 @@ def get_min_price_for_product(df, brand, model, color):
             (df['color'] == color)
         ]
         
-        # Фильтруем только те, что в наличии
-        in_stock_rows = product_rows[
-            product_rows.get('in stock', 'yes').str.lower() == 'yes'
-        ]
+        # Фильтруем только те, что в наличии (ВАЖНО: проверяем ВСЕ строки)
+        # Если хоть одна строка с этим товаром имеет 'in stock' = 'yes', то товар в наличии
+        has_any_in_stock = False
+        min_price = float('inf')
         
-        if len(in_stock_rows) == 0:
+        for _, row in product_rows.iterrows():
+            in_stock = str(row.get('in stock', 'yes')).strip().lower()
+            if in_stock == 'yes':
+                has_any_in_stock = True
+                price = float(row['price'])
+                if price < min_price:
+                    min_price = price
+        
+        if not has_any_in_stock:
             return None
         
-        # Находим минимальную цену
-        min_price = in_stock_rows['price'].min()
-        
         # Округляем до тысяч
-        return round(float(min_price) / 1000) * 1000
-    except:
+        return round(min_price / 1000) * 1000
+    except Exception as e:
+        st.sidebar.write(f"Ошибка в get_min_price_for_product: {e}")
         return None
 
 # --- Функции для работы с изображениями ---
@@ -401,7 +407,7 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Кнопка "Подробнее" с ЧЕРНЫМ контуром
+                # Кнопка "Подробнее" с серым контуром, при наведении - черным
                 if st.button("Подробнее", 
                             key=f"details_{row_idx}_{col_idx}_{hash(str(row['brand'])+str(row['model_clean'])+str(row['color']))}", 
                             use_container_width=True):
