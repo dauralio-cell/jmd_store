@@ -28,11 +28,11 @@ section.main > div:first-child {
     gap: 0rem;
 }
 
-/* Стили для белой кнопки */
+/* Стили для белой кнопки с ЧЕРНЫМ контуром */
 .stButton button {
     background-color: white !important;
     color: black !important;
-    border: 2px solid #e5e5e5 !important;
+    border: 2px solid #000000 !important; /* ЧЕРНЫЙ контур */
     border-radius: 8px !important;
     padding: 10px 16px !important;
     font-weight: 500 !important;
@@ -43,8 +43,8 @@ section.main > div:first-child {
 
 .stButton button:hover {
     background-color: #f8f9fa !important;
-    border-color: #0077b6 !important;
-    color: #0077b6 !important;
+    border-color: #333333 !important; /* Темнее при наведении */
+    color: #333333 !important;
     transform: translateY(-1px) !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
 }
@@ -401,7 +401,7 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Кнопка "Подробнее" без эмоджи
+                # Кнопка "Подробнее" с ЧЕРНЫМ контуром
                 if st.button("Подробнее", 
                             key=f"details_{row_idx}_{col_idx}_{hash(str(row['brand'])+str(row['model_clean'])+str(row['color']))}", 
                             use_container_width=True):
