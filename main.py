@@ -146,56 +146,29 @@ def get_min_price_for_product(df, brand, model, color):
     except Exception as e:
         return None
 
-# --- Функции для работы с изображениями ---
-def optimize_image_for_telegram(image_path, target_size=(400, 400)):
+# --- Функция получения размеров в наличии для товара ---
+def get_available_sizes_for_product(df, brand, model, color):
+    """Возвращает размеры товара, которые есть в наличии"""
     try:
-        with Image.open(image_path) as img:
-            if img.mode in ('RGBA', 'P'):
-                img = img.convert('RGB')
+        product_rows = df[
+            (df['brand'] == brand) & 
+            (df['model_clean'] == model) & 
+            (df['color'] == color)
+        ]
+        
+        available_sizes = []
+        for _, row in product_rows.iterrows():
+            us_size = str(row['size US']).strip()
+            in_stock = str(row.get('in stock', 'yes')).strip().lower()
             
-            # Сохраняем пропорции изображения
-            img.thumbnail(target_size, Image.Resampling.LANCZOS)
-            
-            # Создаем новое изображение с белым фоном
-            new_img = Image.new('RGB', target_size, (255, 255, 255))
-            
-            # Вычисляем позицию для центрирования
-            x = (target_size[0] - img.size[0]) // 2
-            y = (target_size[1] - img.size[1]) // 2
-            
-            # Вставляем изображение по центру
-            new_img.paste(img, (x, y))
-            
-            buffer = io.BytesIO()
-            new_img.save(buffer, format='JPEG', quality=85, optimize=True)
-            buffer.seek(0)
-            return base64.b64encode(buffer.read()).decode("utf-8")
-    except Exception:
-        try:
-            with open(image_path, "rb") as img_file:
-                return base64.b64encode(img_file.read()).decode("utf-8")
-        except Exception:
-            fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
-            with open(fallback, "rb") as img_file:
-                return base64.b64encode(img_file.read()).decode("utf-8")
-
-def get_image_path(image_names):
-    if (image_names is pd.NA or pd.isna(image_names) or not image_names or str(image_names).strip() == ""):
-        return os.path.join(IMAGES_PATH, "no_image.jpg")
-    image_names_list = str(image_names).strip().split()
-    if not image_names_list:
-        return os.path.join(IMAGES_PATH, "no_image.jpg")
-    first_image_name = image_names_list[0]
-    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-        pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
-        image_files = glob.glob(pattern, recursive=True)
-        if image_files:
-            return image_files[0]
-        pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
-        image_files = glob.glob(pattern_start, recursive=True)
-        if image_files:
-            return image_files[0]
-    return os.path.join(IMAGES_PATH, "no_image.jpg")
+            # Проверяем наличие
+            if us_size and us_size != "nan" and us_size != "" and in_stock == 'yes':
+                if us_size not in available_sizes:
+                    available_sizes.append(us_size)
+        
+        return sort_sizes(available_sizes)
+    except:
+        return []
 
 # --- Таблица конверсии размеров US ↔ EU ---
 size_conversion = {
@@ -208,16 +181,26 @@ size_conversion = {
 }
 
 def get_eu_sizes(us_sizes_str):
+    """Конвертирует US размеры в EU размеры"""
     if not us_sizes_str or us_sizes_str == "":
         return ""
+    
     us_sizes = [size.strip() for size in us_sizes_str.split(",")]
     eu_sizes = []
+    
     for us_size in us_sizes:
-        eu_size = size_conversion.get(us_size, "")
-        if not eu_size:
-            base_size = us_size.split('.')[0]
-            eu_size = size_conversion.get(base_size, us_size)
-        eu_sizes.append(eu_size)
+        # Сначала ищем точное совпадение
+        if us_size in size_conversion:
+            eu_sizes.append(size_conversion[us_size])
+        # Пробуем убрать .0 для целых чисел
+        elif us_size.endswith('.0'):
+            base_size = us_size[:-2]
+            if base_size in size_conversion:
+                eu_sizes.append(size_conversion[base_size])
+        else:
+            # Если не нашли, оставляем US размер
+            eu_sizes.append(us_size)
+    
     unique_eu_sizes = []
     for size in eu_sizes:
         if size not in unique_eu_sizes:
@@ -225,8 +208,10 @@ def get_eu_sizes(us_sizes_str):
     return " ".join(unique_eu_sizes)
 
 def sort_sizes(size_list):
+    """Сортирует размеры правильно: числа по значению, строки по алфавиту"""
     numeric_sizes = []
     string_sizes = []
+    
     for size in size_list:
         clean_size = str(size).strip()
         try:
@@ -234,10 +219,12 @@ def sort_sizes(size_list):
             numeric_sizes.append((base_num, clean_size))
         except:
             string_sizes.append(clean_size)
+    
     numeric_sizes.sort(key=lambda x: x[0])
     return [size[1] for size in numeric_sizes] + sorted(string_sizes)
 
 def get_available_sizes_for_filter(df):
+    """Получает доступные US размеры для фильтра"""
     in_stock_df = df[df.get('in stock', 'yes').str.lower() == 'yes']
     all_sizes = in_stock_df["size US"].dropna().unique().tolist()
     filtered_sizes = []
@@ -253,6 +240,37 @@ def get_available_sizes_for_filter(df):
             continue
     unique_sizes = list(dict.fromkeys(filtered_sizes))
     return sort_sizes(unique_sizes)
+
+def get_available_eu_sizes_for_filter(df):
+    """Получает доступные EU размеры для фильтра"""
+    in_stock_df = df[df.get('in stock', 'yes').str.lower() == 'yes']
+    all_sizes = in_stock_df["size US"].dropna().unique().tolist()
+    eu_sizes = []
+    
+    for size in all_sizes:
+        clean_size = str(size).strip()
+        if not clean_size or clean_size == "nan":
+            continue
+        
+        # Конвертируем в EU размер
+        if clean_size in size_conversion:
+            eu_size = size_conversion[clean_size]
+        elif clean_size.endswith('.0'):
+            base_size = clean_size[:-2]
+            eu_size = size_conversion.get(base_size, clean_size)
+        else:
+            eu_size = clean_size
+        
+        try:
+            eu_num = float(eu_size)
+            # Фильтруем по диапазону EU размеров (примерно 37-46)
+            if 37 <= eu_num <= 46:
+                eu_sizes.append(eu_size)
+        except:
+            continue
+    
+    unique_eu_sizes = list(dict.fromkeys(eu_sizes))
+    return sort_sizes(unique_eu_sizes)
 
 @st.cache_data(ttl=60)
 def load_data():
@@ -299,20 +317,56 @@ if brand_filter != "Все":
 else:
     brand_models = sorted(df["model_clean"].unique().tolist())
 model_filter = col2.selectbox("Модель", ["Все"] + brand_models)
-available_sizes = get_available_sizes_for_filter(df)
-size_filter = col3.selectbox("Размер (US)", ["Все"] + available_sizes)
-gender_filter = col4.selectbox("Пол", ["Все", "men", "women", "unisex"])
-color_filter = col5.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()))
+available_us_sizes = get_available_sizes_for_filter(df)
+available_eu_sizes = get_available_eu_sizes_for_filter(df)
+
+# Два фильтра размеров: US и EU
+size_filter_us = col3.selectbox("Размер (US)", ["Все"] + available_us_sizes)
+size_filter_eu = col4.selectbox("Размер (EU)", ["Все"] + available_eu_sizes)
+
+gender_filter = col5.selectbox("Пол", ["Все", "men", "women", "unisex"])
+color_filter = col5.selectbox("Цвет", ["Все"] + sorted(df["color"].dropna().unique().tolist()), key="color_filter")
 
 filtered_df = df.copy()
 if brand_filter != "Все":
     filtered_df = filtered_df[filtered_df["brand"] == brand_filter]
 if model_filter != "Все":
     filtered_df = filtered_df[filtered_df["model_clean"] == model_filter]
-if size_filter != "Все":
-    filtered_df = filtered_df[filtered_df["size US"] == size_filter]
+
+# Фильтр по размеру US
+if size_filter_us != "Все":
+    filtered_df = filtered_df[filtered_df["size US"] == size_filter_us]
+
+# Фильтр по размеру EU
+if size_filter_eu != "Все":
+    # Для фильтрации по EU размеру нужно конвертировать US в EU
+    filtered_by_eu = []
+    for idx, row in filtered_df.iterrows():
+        us_size = str(row['size US']).strip()
+        if us_size and us_size != "nan" and us_size != "":
+            # Конвертируем US в EU
+            if us_size in size_conversion:
+                eu_size = size_conversion[us_size]
+            elif us_size.endswith('.0'):
+                base_size = us_size[:-2]
+                eu_size = size_conversion.get(base_size, us_size)
+            else:
+                eu_size = us_size
+            
+            if eu_size == size_filter_eu:
+                filtered_by_eu.append(idx)
+    
+    filtered_df = filtered_df.loc[filtered_by_eu]
+
+# Фильтр по полу с учетом unisex
 if gender_filter != "Все":
-    filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
+    if gender_filter == "women":
+        filtered_df = filtered_df[filtered_df["gender"].isin(["women", "unisex"])]
+    elif gender_filter == "men":
+        filtered_df = filtered_df[filtered_df["gender"].isin(["men", "unisex"])]
+    else:
+        filtered_df = filtered_df[filtered_df["gender"] == gender_filter]
+
 if color_filter != "Все":
     filtered_df = filtered_df[filtered_df["color"] == color_filter]
 
@@ -340,24 +394,6 @@ else:
         return group.iloc[0]
 
     grouped_df = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_first_with_image).reset_index(drop=True)
-
-    def get_available_sizes(group):
-        available_sizes = []
-        for _, row in group.iterrows():
-            us_size = str(row['size US']).strip()
-            in_stock = str(row.get('in stock', 'yes')).strip().lower()
-            if us_size and us_size != "nan" and in_stock == 'yes':
-                available_sizes.append(us_size)
-        unique_sizes = list(dict.fromkeys(available_sizes))
-        return ', '.join(sort_sizes(unique_sizes))
-
-    size_groups = filtered_df.groupby(['brand', 'model_clean', 'color']).apply(get_available_sizes, include_groups=False).reset_index()
-    size_groups.columns = ['brand', 'model_clean', 'color', 'size US']
-
-    grouped_df = grouped_df.merge(size_groups, on=['brand', 'model_clean', 'color'], suffixes=('', '_grouped'))
-    grouped_df['size US'] = grouped_df['size US_grouped']
-    grouped_df = grouped_df.drop('size US_grouped', axis=1)
-    grouped_df['size_eu'] = grouped_df['size US'].apply(get_eu_sizes)
 
     # --- Отображение карточек товаров ---
     num_cols = 3
@@ -389,6 +425,20 @@ else:
                     row['color']
                 )
                 
+                # Получаем размеры в наличии для этого товара
+                available_sizes = get_available_sizes_for_product(
+                    df, 
+                    row['brand'], 
+                    row['model_clean'], 
+                    row['color']
+                )
+                
+                # Конвертируем размеры в EU, если есть US размеры
+                if available_sizes:
+                    eu_sizes = get_eu_sizes(",".join(available_sizes))
+                else:
+                    eu_sizes = "Нет в наличии"
+                
                 # Форматирование данных
                 if is_in_stock and min_price is not None:
                     price_formatted = f"от {int(min_price):,} ₸".replace(",", " ")
@@ -400,7 +450,6 @@ else:
                 brand = str(row['brand'])
                 model = str(row['model_clean'])
                 color = str(row['color'])
-                eu_sizes = str(row['size_eu']) if row['size_eu'] else "Нет в наличии"
                 
                 # Карточка товара
                 st.markdown(f"""
