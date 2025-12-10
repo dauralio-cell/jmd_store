@@ -94,6 +94,20 @@ US_TO_EU_CONVERSION = {
     "10W": "40.5", "10.5W": "41", "11W": "41.5"
 }
 
+# --- Функция для очистки размера от .0 ---
+def clean_size(size_str):
+    """Убирает .0 из размера, например 36.0 → 36"""
+    if not size_str or size_str == "nan" or size_str == "":
+        return ""
+    
+    clean_str = str(size_str).strip()
+    
+    # Убираем .0 в конце числа
+    if clean_str.endswith('.0'):
+        clean_str = clean_str[:-2]
+    
+    return clean_str
+
 # --- Функция конверсии US → EU (запасной вариант) ---
 def convert_us_to_eu(us_size):
     """Конвертирует US размер в EU размер (используется только если нет EU размера)"""
@@ -104,16 +118,16 @@ def convert_us_to_eu(us_size):
     
     # Сначала ищем точное совпадение
     if us_clean in US_TO_EU_CONVERSION:
-        return US_TO_EU_CONVERSION[us_clean]
+        return clean_size(US_TO_EU_CONVERSION[us_clean])
     
     # Пробуем убрать .0 для целых чисел
     if us_clean.endswith('.0'):
         base_size = us_clean[:-2]
         if base_size in US_TO_EU_CONVERSION:
-            return US_TO_EU_CONVERSION[base_size]
+            return clean_size(US_TO_EU_CONVERSION[base_size])
     
-    # Если размер не найден в таблице, возвращаем оригинальный
-    return us_clean
+    # Если размер не найден в таблице, возвращаем очищенный оригинальный
+    return clean_size(us_clean)
 
 # --- Функция получения EU размера ---
 def get_eu_size(row):
@@ -122,7 +136,7 @@ def get_eu_size(row):
     if 'size EU' in row:
         eu_size = str(row.get('size EU', '')).strip()
         if eu_size and eu_size != "nan" and eu_size != "":
-            return eu_size
+            return clean_size(eu_size)
     
     # Если нет EU размера, конвертируем из US
     us_size = str(row.get('size US', '')).strip()
