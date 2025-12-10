@@ -1,4 +1,3 @@
-[file content begin]
 import streamlit as st
 import pandas as pd
 import glob
@@ -76,6 +75,61 @@ with col3:
 # --- Пути и константы ---
 CATALOG_PATH = "data/catalog.xlsx"
 IMAGES_PATH = "data/images"
+
+# --- Таблица конверсии US → EU размеров (запасной вариант) ---
+US_TO_EU_CONVERSION = {
+    # Мужские размеры
+    "5": "37", "5.5": "38", "6": "38.5", "6.5": "39", "7": "40",
+    "7.5": "40.5", "8": "41", "8.5": "42", "9": "42.5", "9.5": "43",
+    "10": "44", "10.5": "44.5", "11": "45", "11.5": "45.5", "12": "46",
+    "12.5": "47", "13": "47.5", "14": "48.5",
+    
+    # Для значений с .0
+    "5.0": "37", "6.0": "38.5", "7.0": "40", "8.0": "41", "9.0": "42.5",
+    "10.0": "44", "11.0": "45", "12.0": "46", "13.0": "47.5",
+    
+    # Женские размеры
+    "5W": "35.5", "5.5W": "36", "6W": "36.5", "6.5W": "37", "7W": "37.5",
+    "7.5W": "38", "8W": "38.5", "8.5W": "39", "9W": "39.5", "9.5W": "40",
+    "10W": "40.5", "10.5W": "41", "11W": "41.5"
+}
+
+# --- Функция конверсии US → EU (запасной вариант) ---
+def convert_us_to_eu(us_size):
+    """Конвертирует US размер в EU размер (используется только если нет EU размера)"""
+    if not us_size or us_size == "nan" or us_size == "":
+        return ""
+    
+    us_clean = str(us_size).strip()
+    
+    # Сначала ищем точное совпадение
+    if us_clean in US_TO_EU_CONVERSION:
+        return US_TO_EU_CONVERSION[us_clean]
+    
+    # Пробуем убрать .0 для целых чисел
+    if us_clean.endswith('.0'):
+        base_size = us_clean[:-2]
+        if base_size in US_TO_EU_CONVERSION:
+            return US_TO_EU_CONVERSION[base_size]
+    
+    # Если размер не найден в таблице, возвращаем оригинальный
+    return us_clean
+
+# --- Функция получения EU размера ---
+def get_eu_size(row):
+    """Возвращает EU размер: сначала из колонки size EU, если нет - конвертирует из US"""
+    # Пробуем получить EU размер из колонки size EU
+    if 'size EU' in row:
+        eu_size = str(row.get('size EU', '')).strip()
+        if eu_size and eu_size != "nan" and eu_size != "":
+            return eu_size
+    
+    # Если нет EU размера, конвертируем из US
+    us_size = str(row.get('size US', '')).strip()
+    if us_size and us_size != "nan" and us_size != "":
+        return convert_us_to_eu(us_size)
+    
+    return ""
 
 # --- Функция округления цены до тысяч ---
 def format_price(price):
@@ -208,7 +262,7 @@ def get_min_price_for_product(df, brand, model, color):
     except Exception as e:
         return None
 
-# --- Функция получения размеров в наличии для товара ---
+# --- Функция получения EU размеров в наличии для товара ---
 def get_available_eu_sizes_for_product(df, brand, model, color):
     """Возвращает EU размеры товара, которые есть в наличии"""
     try:
@@ -220,18 +274,14 @@ def get_available_eu_sizes_for_product(df, brand, model, color):
         
         available_eu_sizes = []
         for _, row in product_rows.iterrows():
-            eu_size = str(row.get('size EU', '')).strip()  # Используем колонку size EU
             in_stock = str(row.get('in stock', 'yes')).strip().lower()
-            
-            # Если нет EU размера, можно использовать US как запасной вариант
-            if not eu_size or eu_size == "nan" or eu_size == "":
-                us_size = str(row['size US']).strip()
-                if us_size and us_size != "nan" and us_size != "":
-                    eu_size = us_size  # Используем US размер как запасной
+            us_size = str(row['size US']).strip()
             
             # Проверяем наличие
-            if eu_size and eu_size != "nan" and eu_size != "" and in_stock == 'yes':
-                if eu_size not in available_eu_sizes:
+            if us_size and us_size != "nan" and us_size != "" and in_stock == 'yes':
+                # Получаем EU размер (из колонки или конвертируем)
+                eu_size = get_eu_size(row)
+                if eu_size and eu_size not in available_eu_sizes:
                     available_eu_sizes.append(eu_size)
         
         return sort_sizes(available_eu_sizes)
@@ -258,15 +308,20 @@ def sort_sizes(size_list):
 
 # --- Функция получения доступных EU размеров для фильтра ---
 def get_available_eu_sizes_for_filter(df):
-    """Получает доступные EU размеры для фильтра напрямую из каталога"""
+    """Получает доступные EU размеры для фильтра"""
     in_stock_df = df[df.get('in stock', 'yes').str.lower() == 'yes']
     
-    # Получаем EU размеры из колонки size EU
+    # Получаем EU размеры
     all_eu_sizes = []
     for _, row in in_stock_df.iterrows():
-        eu_size = str(row.get('size EU', '')).strip()
-        if eu_size and eu_size != "nan" and eu_size != "":
-            all_eu_sizes.append(eu_size)
+        us_size = str(row['size US']).strip()
+        in_stock = str(row.get('in stock', 'yes')).strip().lower()
+        
+        if us_size and us_size != "nan" and us_size != "" and in_stock == 'yes':
+            # Получаем EU размер (из колонки или конвертируем)
+            eu_size = get_eu_size(row)
+            if eu_size:
+                all_eu_sizes.append(eu_size)
     
     # Убираем дубликаты и сортируем
     unique_eu_sizes = list(dict.fromkeys(all_eu_sizes))
@@ -287,11 +342,9 @@ def load_data():
             sheet_data['color'] = sheet_data['color'].replace('', pd.NA).ffill()
             sheet_data['image'] = sheet_data['image'].replace('', pd.NA)
             sheet_data['size US'] = sheet_data['size US'].astype(str).str.strip()
-            # Добавляем обработку EU размеров
+            # Обрабатываем EU размеры, если колонка есть
             if 'size EU' in sheet_data.columns:
                 sheet_data['size EU'] = sheet_data['size EU'].astype(str).str.strip()
-            else:
-                sheet_data['size EU'] = ""
             
             sheet_data["model_clean"] = sheet_data["model"].apply(
                 lambda x: re.sub(r'\([^)]*\)', '', str(x)).strip() if pd.notna(x) else ""
@@ -340,11 +393,15 @@ if model_filter != "Все":
 
 # Фильтр по размеру EU
 if size_filter_eu != "Все":
-    # Фильтруем по EU размеру напрямую из колонки size EU
+    # Фильтруем по EU размеру
     filtered_by_eu = []
     for idx, row in filtered_df.iterrows():
-        eu_size = str(row.get('size EU', '')).strip()
-        if eu_size and eu_size != "nan" and eu_size != "":
+        us_size = str(row['size US']).strip()
+        in_stock = str(row.get('in stock', 'yes')).strip().lower()
+        
+        if us_size and us_size != "nan" and us_size != "" and in_stock == 'yes':
+            # Получаем EU размер для сравнения
+            eu_size = get_eu_size(row)
             if eu_size == size_filter_eu:
                 filtered_by_eu.append(idx)
     
@@ -499,4 +556,3 @@ else:
 # --- ФУТЕР ---
 from components.documents import documents_footer
 documents_footer()
-[file content end]
