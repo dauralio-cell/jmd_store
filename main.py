@@ -85,6 +85,67 @@ def format_price(price):
     except (ValueError, TypeError):
         return "0 ₸"
 
+# --- Функция для работы с изображениями ---
+def get_image_path(image_names):
+    """Ищет изображение по имени из колонки image"""
+    if (image_names is pd.NA or pd.isna(image_names) or not image_names or str(image_names).strip() == ""):
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
+    
+    image_names_list = str(image_names).strip().split()
+    if not image_names_list:
+        return os.path.join(IMAGES_PATH, "no_image.jpg")
+    
+    first_image_name = image_names_list[0]
+    
+    # Сначала ищем точное совпадение
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern = os.path.join(IMAGES_PATH, "**", f"{first_image_name}{ext}")
+        image_files = glob.glob(pattern, recursive=True)
+        if image_files:
+            return image_files[0]
+    
+    # Затем ищем частичное совпадение (начинается с)
+    for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+        pattern_start = os.path.join(IMAGES_PATH, "**", f"{first_image_name}*{ext}")
+        image_files = glob.glob(pattern_start, recursive=True)
+        if image_files:
+            return image_files[0]
+    
+    # Если ничего не нашли, используем fallback
+    return os.path.join(IMAGES_PATH, "no_image.jpg")
+
+def optimize_image_for_telegram(image_path, target_size=(400, 400)):
+    try:
+        with Image.open(image_path) as img:
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            
+            # Сохраняем пропорции изображения
+            img.thumbnail(target_size, Image.Resampling.LANCZOS)
+            
+            # Создаем новое изображение с белым фоном
+            new_img = Image.new('RGB', target_size, (255, 255, 255))
+            
+            # Вычисляем позицию для центрирования
+            x = (target_size[0] - img.size[0]) // 2
+            y = (target_size[1] - img.size[1]) // 2
+            
+            # Вставляем изображение по центру
+            new_img.paste(img, (x, y))
+            
+            buffer = io.BytesIO()
+            new_img.save(buffer, format='JPEG', quality=85, optimize=True)
+            buffer.seek(0)
+            return base64.b64encode(buffer.read()).decode("utf-8")
+    except Exception:
+        try:
+            with open(image_path, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode("utf-8")
+        except Exception:
+            fallback = os.path.join(IMAGES_PATH, "no_image.jpg")
+            with open(fallback, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode("utf-8")
+
 # --- Функция проверки наличия товара ---
 def is_product_in_stock(df, brand, model, color):
     """Проверяет, есть ли хотя бы один размер товара в наличии"""
