@@ -514,7 +514,7 @@ else:
                 else:
                     eu_sizes_display = "Нет в наличии"
                 
-                # Карточка товара с увеличенным изображением
+                # Карточка товара с увеличенным изображением (БЕЗ БЕЛЫХ ОТСТУПОВ)
                 st.markdown(f"""
                 <div class="product-card">
                 <div style='
@@ -524,42 +524,42 @@ else:
                     background: #fff;
                     overflow: hidden;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                    height: 420px; /* Увеличили общую высоту карточки */
+                    height: 450px; /* ЕЩЕ БОЛЬШЕ увеличили общую высоту карточки */
                     display: flex;
                     flex-direction: column;
                 '>
-                    <!-- Контейнер для изображения с фиксированной высотой -->
+                    <!-- Контейнер для изображения с фиксированной высотой - БЕЗ ОТСТУПОВ -->
                     <div style='
-                        height: 320px; /* УВЕЛИЧИЛИ ДО 320px для большего изображения */
+                        height: 350px; /* УВЕЛИЧИЛИ ДО 350px для максимального изображения */
                         width: 100%;
                         display: flex;
                         justify-content: center;
                         align-items: center;
                         background: white;
                         overflow: hidden;
-                        padding: 5px; /* Добавили небольшой внутренний отступ */
+                        padding: 0; /* УБРАЛИ ВСЕ ОТСТУПЫ */
                     '>
                         <img src="data:image/jpeg;base64,{image_base64}"
                              style='
-                                height: 95%; /* Занимает почти всю высоту контейнера */
-                                max-width: 95%; /* Занимает почти всю ширину */
-                                object-fit: contain; /* Показывает все изображение без обрезки */
+                                width: 100%; /* Занимает всю ширину */
+                                height: 100%; /* Занимает всю высоту */
+                                object-fit: cover; /* ОБРЕЗАЕТ изображение чтобы заполнить контейнер */
                                 display: block;
                              '>
                     </div>
                     <div style='
-                        padding: 12px 15px 15px 15px; /* Уменьшили верхний отступ для компактности */
+                        padding: 10px 15px 15px 15px; /* ЕЩЕ МЕНЬШЕ верхний отступ */
                         flex-grow: 1;
                         display: flex;
                         flex-direction: column;
                         justify-content: space-between;
                     '>
                         <div>
-                            <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
-                            <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
+                            <div style='font-size: 12px; color: #777; margin-bottom: 3px;'>{brand}</div>
+                            <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 3px; line-height: 1.3;'>
                                 {model} '{color}'
                             </div>
-                            <div style='font-size: 11px; color: #666; margin-bottom: 5px;'>EU: {eu_sizes_display}</div>
+                            <div style='font-size: 11px; color: #666; margin-bottom: 3px;'>EU: {eu_sizes_display}</div>
                         </div>
                         <div style='font-size: 17px; font-weight: 700; color: #000; margin-top: auto;'>{price_formatted}</div>
                     </div>
