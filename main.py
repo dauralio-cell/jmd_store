@@ -183,7 +183,7 @@ def get_image_path(image_names):
     # Если ничего не нашли, используем fallback
     return os.path.join(IMAGES_PATH, "no_image.jpg")
 
-def optimize_image_for_telegram(image_path, target_size=(600, 600)):
+def optimize_image_for_telegram(image_path, target_size=(800, 800)):
     try:
         with Image.open(image_path) as img:
             if img.mode in ('RGBA', 'P'):
@@ -203,7 +203,7 @@ def optimize_image_for_telegram(image_path, target_size=(600, 600)):
             new_img.paste(img, (x, y))
             
             buffer = io.BytesIO()
-            new_img.save(buffer, format='JPEG', quality=85, optimize=True)
+            new_img.save(buffer, format='JPEG', quality=90, optimize=True)
             buffer.seek(0)
             return base64.b64encode(buffer.read()).decode("utf-8")
     except Exception:
@@ -470,7 +470,7 @@ else:
                 # Подготовка данных
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(800, 800))
                 
                 # Проверяем наличие товара
                 is_in_stock = is_product_in_stock(
@@ -524,31 +524,31 @@ else:
                     background: #fff;
                     overflow: hidden;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                    height: 400px; /* Фиксированная высота для всей карточки с изображением */
+                    height: 420px; /* Увеличили общую высоту карточки */
                     display: flex;
                     flex-direction: column;
                 '>
                     <!-- Контейнер для изображения с фиксированной высотой -->
                     <div style='
-                        height: 280px; /* Увеличили высоту контейнера для изображения */
+                        height: 320px; /* УВЕЛИЧИЛИ ДО 320px для большего изображения */
                         width: 100%;
                         display: flex;
                         justify-content: center;
                         align-items: center;
                         background: white;
                         overflow: hidden;
+                        padding: 5px; /* Добавили небольшой внутренний отступ */
                     '>
                         <img src="data:image/jpeg;base64,{image_base64}"
                              style='
-                                max-height: 100%; /* Занимает всю высоту контейнера */
-                                max-width: 100%; /* Сохраняет пропорции */
+                                height: 95%; /* Занимает почти всю высоту контейнера */
+                                max-width: 95%; /* Занимает почти всю ширину */
                                 object-fit: contain; /* Показывает все изображение без обрезки */
                                 display: block;
                              '>
                     </div>
                     <div style='
-                        padding: 15px;
-                        padding-bottom: 20px;
+                        padding: 12px 15px 15px 15px; /* Уменьшили верхний отступ для компактности */
                         flex-grow: 1;
                         display: flex;
                         flex-direction: column;
@@ -559,7 +559,7 @@ else:
                             <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
                                 {model} '{color}'
                             </div>
-                            <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes_display}</div>
+                            <div style='font-size: 11px; color: #666; margin-bottom: 5px;'>EU: {eu_sizes_display}</div>
                         </div>
                         <div style='font-size: 17px; font-weight: 700; color: #000; margin-top: auto;'>{price_formatted}</div>
                     </div>
