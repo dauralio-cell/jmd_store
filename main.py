@@ -183,7 +183,7 @@ def get_image_path(image_names):
     # Если ничего не нашли, используем fallback
     return os.path.join(IMAGES_PATH, "no_image.jpg")
 
-def optimize_image_for_telegram(image_path, target_size=(400, 400)):
+def optimize_image_for_telegram(image_path, target_size=(600, 600)):
     try:
         with Image.open(image_path) as img:
             if img.mode in ('RGBA', 'P'):
@@ -470,7 +470,7 @@ else:
                 # Подготовка данных
                 image_names = row["image"]
                 image_path = get_image_path(image_names)
-                image_base64 = optimize_image_for_telegram(image_path, target_size=(400, 400))
+                image_base64 = optimize_image_for_telegram(image_path, target_size=(600, 600))
                 
                 # Проверяем наличие товара
                 is_in_stock = is_product_in_stock(
@@ -514,7 +514,7 @@ else:
                 else:
                     eu_sizes_display = "Нет в наличии"
                 
-                # Карточка товара
+                # Карточка товара с увеличенным изображением
                 st.markdown(f"""
                 <div class="product-card">
                 <div style='
@@ -524,23 +524,44 @@ else:
                     background: #fff;
                     overflow: hidden;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                    height: 400px; /* Фиксированная высота для всей карточки с изображением */
+                    display: flex;
+                    flex-direction: column;
                 '>
-                    <img src="data:image/jpeg;base64,{image_base64}"
-                         style='
-                            width: 100%;
-                            height: 250px;
-                            object-fit: contain;
-                            display: block;
-                            background: white;
-                            padding: 10px;
-                         '>
-                    <div style='padding: 15px; padding-bottom: 20px;'>
-                        <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
-                        <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
-                            {model} '{color}'
+                    <!-- Контейнер для изображения с фиксированной высотой -->
+                    <div style='
+                        height: 280px; /* Увеличили высоту контейнера для изображения */
+                        width: 100%;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        background: white;
+                        overflow: hidden;
+                    '>
+                        <img src="data:image/jpeg;base64,{image_base64}"
+                             style='
+                                max-height: 100%; /* Занимает всю высоту контейнера */
+                                max-width: 100%; /* Сохраняет пропорции */
+                                object-fit: contain; /* Показывает все изображение без обрезки */
+                                display: block;
+                             '>
+                    </div>
+                    <div style='
+                        padding: 15px;
+                        padding-bottom: 20px;
+                        flex-grow: 1;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                    '>
+                        <div>
+                            <div style='font-size: 12px; color: #777; margin-bottom: 4px;'>{brand}</div>
+                            <div style='font-size: 15px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.3;'>
+                                {model} '{color}'
+                            </div>
+                            <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes_display}</div>
                         </div>
-                        <div style='font-size: 11px; color: #666; margin-bottom: 8px;'>EU: {eu_sizes_display}</div>
-                        <div style='font-size: 17px; font-weight: 700; color: #000;'>{price_formatted}</div>
+                        <div style='font-size: 17px; font-weight: 700; color: #000; margin-top: auto;'>{price_formatted}</div>
                     </div>
                 </div>
                 
