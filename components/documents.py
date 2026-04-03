@@ -27,7 +27,7 @@ def documents_footer():
     st.markdown(
         """
         <div style="text-align: center; color: #666; font-size: 14px; line-height: 1.5;">
-            <p>© DENE Store 2025</p>
+            <p>© DENE Store 2026</p>
             <p>+7 747 555 48 69 • jmd.dene@gmail.com • <a href="https://instagram.com/jmd.dene" target="_blank" style="color: #666;">Instagram @jmd.dene</a></p>
             <p>
                 {offer_link} • {privacy_link} • {return_link}
